@@ -1,7 +1,7 @@
 {
-    "id": "my-relationship-graph",
+    "id": "fvtt-relationship-graph",
     "title": "Relationship Graph",
-    "version": "1.0.0",
+    "version": "0.0.1",
     "compatibility": {
         "minimum": "13",
         "verified": "13"
@@ -11,5 +11,11 @@
     ],
     "styles": [
         "styles/module.css"
+    ],
+    "description": "Отображает связи между актёрами в виде графа. Импорт данных из FANG.",
+    "authors": [
+        {
+            "name": "MiniMalMod_RedFox"
+        }
     ]
 }
