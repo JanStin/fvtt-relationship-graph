@@ -1,0 +1,15 @@
+{
+    "id": "my-relationship-graph",
+    "title": "Relationship Graph",
+    "version": "1.0.0",
+    "compatibility": {
+        "minimum": "13",
+        "verified": "13"
+    },
+    "esmodules": [
+        "scripts/module.js"
+    ],
+    "styles": [
+        "styles/module.css"
+    ]
+}

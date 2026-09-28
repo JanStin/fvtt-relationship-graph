@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+scripts/
+dist/
+
+# Test coverage
+coverage/
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Env
+.env
+.env.local
+
+# Vite cache
+.vite/
