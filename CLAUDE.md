@@ -63,6 +63,13 @@
 ## Important files
 - `fang.json` — пример экспорта из старого модуля. Нужен для анализа формата и импорта.
 
+## Docs
+- docs/architecture.md — как устроено
+- docs/open-questions.md — открытые вопросы
+- docs/tasks.md — список задач
+- docs/fang-json-format.md — формат импорта
+- spikes/README.md — результаты спайков
+
 ## Rules for Claude
 - Сначала анализировать `fang.json`, не менять его.
 - Не удалять существующие файлы без подтверждения.
