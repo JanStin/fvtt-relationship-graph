@@ -371,10 +371,9 @@ tests/
 но требование хранить `factionIds[]` существует. При импорте берём `factionIds[0]` как primary,
 остальные отображаем как бейдж. Это осознанное ограничение, не баг.
 
-**R2: fcose и кастомные scale**
-fcose получает `width`/`height` узла и учитывает их при репульсии, но нужно убедиться,
-что после изменения scale Cytoscape пересчитывает layout корректно.
-**Spike**: создать 20 узлов с разными scale, запустить fcose, проверить отсутствие пересечений.
+**R2: ~~fcose и кастомные scale~~ — закрыт по результатам S1**
+Проверено: fcose не учитывает реальные размеры узлов при расчёте сил отталкивания.
+Overlap prevention обеспечивается через post-layout separation pass. См. раздел 10.
 
 **R3: Bundle size**
 Cytoscape.js (core) + fcose extension суммарно ~400 KB после gzip ~120 KB.
@@ -391,12 +390,12 @@ Cytoscape нативно не поддерживает drag нескольких
 
 ### Spike-задачи (до полной реализации)
 
-| # | Задача | Цель | Файл |
-|---|--------|------|------|
-| S1 | fcose + compound nodes + разные scale | Убедиться в отсутствии наложений | `spikes/spike-layout.ts` |
-| S2 | Multi-drag в Cytoscape | Подтвердить подход к drag группы | `spikes/spike-multiselect.ts` |
-| S3 | Resize узла + обновление compound bounds | Проверить автоматический пересчёт | `spikes/spike-resize.ts` |
-| S4 | ApplicationV2 оболочка для Cytoscape | Проверить монтирование Cytoscape в Foundry | `spikes/spike-foundry-app.ts` |
+| # | Задача | Статус | Файл |
+|---|--------|--------|------|
+| S1 | fcose + compound nodes + разные scale | ✅ Выполнен, см. раздел 10 | `spikes/spike-layout.html`, `spikes/spike-layout-check.mjs` |
+| S2 | Multi-drag в Cytoscape | ⏳ Следующий | `spikes/spike-multiselect.html` |
+| S3 | Resize узла + обновление compound bounds | ⏳ | `spikes/spike-resize.html` |
+| S4 | ApplicationV2 оболочка для Cytoscape | ⏳ | `spikes/spike-foundry-app.ts` |
 
 ### Решённые вопросы
 
@@ -423,3 +422,69 @@ Cytoscape нативно не поддерживает drag нескольких
 - **Zones и квесты**: убраны из скоупа.
 - **Экспорт в FANG-формат**: только экспорт в собственный формат модуля.
 - **Несколько графов в одной кампании**: один граф на кампанию.
+
+---
+
+## 10. Результаты spike S1 и открытые архитектурные вопросы
+
+### Что проверяли
+
+S1 проверял: fcose + compound nodes (фракции как parent-узлы) + узлы с разным `scale` (0.5–3.0).
+Тестировались: fcose, cose-bilkent, cola — с compound nodes и без.
+
+### Находки
+
+**F1: Compound nodes → crash в Node.js headless**
+`cose-base.shiftToLastRow` падает с `TypeError: Cannot read properties of undefined (reading 'length')`
+при любом compound node (воспроизводится на 1 фракции + 2 дочерних узла).
+Причина: в headless-режиме Cytoscape не вычисляет CSS-стили, все узлы = 1×1px,
+алгоритм tiling получает вырожденный случай.
+Затронуты: **fcose** и **cose-bilkent** (оба используют одну и ту же `cose-base`).
+`cola` с compound nodes падает в OOM (бесконечный цикл).
+
+**F2: Layouts не учитывают размер узлов**
+Ни fcose, ни cose-bilkent не включают `width`/`height` в расчёт сил отталкивания —
+они работают чисто топологически. Повышение `nodeRepulsion` не устраняет оверлапы крупных узлов.
+
+**F3: Post-layout separation pass решает задачу**
+Flat layout (без compound) + итеративный алгоритм раздвигания (push-apart) даёт 0 оверлапов.
+Работает headlessly и не зависит от layout-движка. Покрывает случаи: initial layout, drag, resize.
+
+**F4: Статус compound nodes в браузере — не проверен**
+В браузере CSS-стили применяются, `outerWidth()` возвращает реальные размеры.
+Compound nodes с cose-base могут работать корректно. Требует проверки вручную через `spikes/spike-layout.html`.
+
+### Открытые вопросы для решения
+
+**Q1: Использовать ли Cytoscape compound nodes вообще?**
+
+Вариант A — **Отказаться от compound nodes для layout**:
+- Flat fcose layout (все узлы на корневом уровне, без `parent`)
+- Фракционный фон рисуется отдельным слоем (Canvas или `<div>`) по bounding box / convex hull координат членов
+- Пересчитывается после layout, drag, resize
+- Плюсы: нет crash, полностью тестируемо headlessly, convex hull выглядит лучше прямоугольника
+- Минусы: fcose не кластеризует узлы по фракциям автоматически (нужно добавить `groupBy` constraint или начальные позиции)
+
+Вариант B — **Оставить compound nodes, принять ограничения**:
+- Compound nodes используются только в браузере, не в тестах
+- layout-тесты пишем только для separation pass и core-логики
+- Плюсы: fcose сам кластеризует по фракциям, меньше кода
+- Минусы: нельзя тестировать layout headlessly, зависимость от cose-base не крашится только в браузере
+
+**Q2: Нужна ли кластеризация по фракциям при flat layout?**
+
+Если выбираем вариант A, fcose расположит узлы по топологии (рёбра), а не по фракциям.
+Узлы одной фракции окажутся рядом только если между ними много рёбер.
+Варианты обеспечить кластеризацию без compound:
+- Добавить «невидимые» рёбра между членами одной фракции с высоким `idealEdgeLength`
+- Задавать начальные позиции (`randomize: false`) по группам перед layout
+- Использовать `fcose` constraint API (`fixedNodeConstraint`, `alignmentConstraint`)
+
+**Q3: Стоит ли проверить compound nodes в реальном браузере до принятия решения?**
+
+Открыть `spikes/spike-layout.html` в браузере и проверить:
+- Есть ли crash с compound nodes
+- Корректно ли fcose кластеризует по фракциям
+- Есть ли оверлапы у крупных узлов
+
+Если в браузере всё работает — можно выбрать вариант B с явным ограничением «только не для headless-тестов».
