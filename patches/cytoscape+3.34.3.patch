@@ -1,0 +1,33 @@
+diff --git a/node_modules/cytoscape/dist/cytoscape.esm.mjs b/node_modules/cytoscape/dist/cytoscape.esm.mjs
+index c3af47e..5778f79 100644
+--- a/node_modules/cytoscape/dist/cytoscape.esm.mjs
++++ b/node_modules/cytoscape/dist/cytoscape.esm.mjs
+@@ -334,7 +334,13 @@ var descending = function descending(a, b) {
+   return -1 * ascending(a, b);
+ };
+ 
+-var extend = Object.assign != null ? Object.assign.bind(Object) : function (tgt) {
++var extend = function extend(tgt) {
++  // Patched (see patches/cytoscape+*.patch): plain assignment / Object.assign
++  // throw when tgt inherits a non-writable, non-configurable same-named
++  // property from its prototype chain (e.g. Foundry VTT freezes
++  // Array.prototype.equals, and cytoscape's Collection.prototype extends
++  // Array.prototype and also defines an `equals` alias). Object.defineProperty
++  // always creates an own property instead, sidestepping that restriction.
+   var args = arguments;
+   for (var i = 1; i < args.length; i++) {
+     var obj = args[i];
+@@ -344,7 +350,12 @@ var extend = Object.assign != null ? Object.assign.bind(Object) : function (tgt)
+     var keys = Object.keys(obj);
+     for (var j = 0; j < keys.length; j++) {
+       var k = keys[j];
+-      tgt[k] = obj[k];
++      Object.defineProperty(tgt, k, {
++        value: obj[k],
++        writable: true,
++        enumerable: true,
++        configurable: true
++      });
+     }
+   }
+   return tgt;

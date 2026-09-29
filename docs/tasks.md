@@ -6,10 +6,10 @@
 
 ## Спайки
 
-- [x] **S1. fcose + compound nodes + scale.** Проверено headless. В браузере не проверено — см. Q1.
-- [ ] **S2. Multi-drag в Cytoscape.** Файл: `spikes/spike-multiselect.html`.
-- [ ] **S3. Resize узла + compound bounds.** Файл: `spikes/spike-resize.html`.
-- [ ] **S4. ApplicationV2 + Cytoscape.** Файл: `spikes/spike-foundry-app.ts`.
+- [x] **S1. fcose + compound nodes + scale.** Проверено headless и в браузере (`spikes/spike-layout.html`): PASS, фракции кластеризуются, наложений нет. Compound nodes оставляем в layout.
+- [ ] **S2. Multi-drag в Cytoscape.** Файл: `spikes/spike-multiselect.html`. Заметка: при drag compound-узла (фракции) дочерние узлы уже двигаются вместе — это встроенное поведение Cytoscape, не то же самое, что multi-select произвольных узлов (shift-click/rubber-band) с последующим drag. Требование 4 из CLAUDE.md ещё не проверено, спайк остаётся не начатым.
+- [x] **S3. Resize узла + compound bounds.** Проверено в браузере (`spikes/spike-resize.html`): одиночный и групповой resize работают, compound bbox фракции обновляется автоматически, сепарация убирает наложения.
+- [x] **S4. ApplicationV2 + Cytoscape.** Проверено в реальном Foundry: окно ApplicationV2 открывается, граф монтируется и рендерится внутри него. По пути нашли и запатчили конфликт Cytoscape с Foundry (`Array.prototype.equals`, см. Инфраструктура → patch-package, architecture.md R7). Временное подключение (`api.openSpikeS4()`) закомментировано в `src/main.ts` — раскомментировать для повторной ручной проверки, убрать совсем при реализации реальной точки входа (Scene Controls).
 
 ---
 
@@ -17,6 +17,9 @@
 
 - [ ] `tests/mocks/foundry.ts` — моки `game`, `canvas`, `ui`, `Hooks`, `Actor`, `Token`.
 - [ ] `tests/fixtures/fang.json` — копия тестовых данных.
+- [x] `patch-package` + `patches/cytoscape+3.34.3.patch` — фикс конфликта Cytoscape с
+  замороженным `Array.prototype.equals` в Foundry (найдено на S4, см. architecture.md R7).
+  `postinstall` в package.json переустанавливает патч после `npm install`.
 
 ---
 
@@ -59,7 +62,7 @@
 
 ---
 
-## E2E (ручной чек-лист, см. Q3)
+## E2E (ручной чек-лист, подход не выбран — см. "Отложено" ниже)
 
 - [ ] Модуль грузится без ошибок.
 - [ ] Кнопка в Scene Controls появляется.
