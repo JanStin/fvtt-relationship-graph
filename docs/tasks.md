@@ -15,7 +15,7 @@
 
 ## Инфраструктура
 
-- [ ] `tests/mocks/foundry.ts` — моки `game`, `canvas`, `ui`, `Hooks`, `Actor`, `Token`.
+- [x] `tests/mocks/foundry.ts` — моки `game.actors`/`game.journal`/`game.modules`, `Hooks`, `ui.notifications`, `JournalEntry`. `canvas`/`Token` пока не нужны (нет кода, который их трогает) — добавить, когда появится синхронизация с токенами на сцене.
 - [x] `tests/fixtures/fang.json` — урезанная фикстура (покрывает actor/placeholder/псевдо-placeholder/без фракции/битые ссылки), плюс отдельный smoke-тест на реальный корневой `fang.json`.
 - [x] `@types/node` + `tsconfig.json` → `types: ["vitest/globals", "node"]` (понадобилось для `node:fs`/`__dirname` в тестах).
 - [x] `patch-package` + `patches/cytoscape+3.34.3.patch` — фикс конфликта Cytoscape с
@@ -44,22 +44,25 @@
 
 ## Foundry
 
-- [ ] `src/foundry/index.ts` — `Hooks.on('init')`.
-- [ ] Кнопка в Scene Controls (`getSceneControlButtons`) → открывает `GraphApp`.
-- [ ] `src/foundry/settings.ts` — настройки UI.
-- [ ] `src/foundry/actors.ts` — синхронизация `img`/`name`.
-- [ ] `src/foundry/storage.ts` — save/load через JournalEntry.
+- [x] `src/foundry/index.ts` — `Hooks.once('init'/'ready')`, регистрация.
+- [x] Кнопка внизу вкладки Actors (`renderActorDirectory`, вставка в `.directory-footer`) → открывает/закрывает `GraphApp` (toggle через `foundry.applications.instances`). Видна всем, не только GM (см. architecture.md §13 "Player view"). `GraphApp` грузится лениво (`import()`) по клику — cytoscape+fcose весят ~860 KB, незачем тянуть их при каждом старте мира. Изначально пробовали Scene Controls (`getSceneControlButtons`) — окно не открывалось без ошибок в консоли, перенесли на `renderActorDirectory` по запросу (подробности — architecture.md, "Точка входа для пользователя").
+- [x] `src/foundry/settings.ts` — по решению: пока только `registerSettings()`-плейсхолдер без конкретных настроек.
+- [x] `src/foundry/actors.ts` — синхронизация `img`/`name`. `tests/foundry/actors.test.ts` (4 теста).
+- [x] `src/foundry/storage.ts` — save/load через flag на JournalEntry (`game.journal.getName` + `JournalEntry.create`). `tests/foundry/storage.test.ts` (5 тестов).
+- [x] `src/main.ts` переписан в тонкий бутстрап (`import "./foundry"`) — вся логика теперь в `src/foundry/index.ts` по архитектуре. Закомментированный debug-хук спайка S4 убран — сделал своё дело.
 
 ---
 
 ## UI
 
-- [ ] `src/ui/GraphApp.ts` — ApplicationV2.
-- [ ] `src/ui/graph-renderer.ts` — Cytoscape init.
-- [ ] `src/ui/interaction.ts` — drag, resize, rubber-band, context menu.
+- [x] `src/ui/GraphApp.ts` — ApplicationV2, по образцу проверенного `spikes/spike-foundry-app.ts`, но с реальными данными (storage → actors sync → renderGraph).
+- [x] `src/ui/graph-renderer.ts` — Cytoscape+fcose init, compound-фракции, базовые стили узлов/рёбер (cvет ребра по relationshipType, стрелка по directional). **Пока без drag/resize/rubber-band** — это следующий пункт.
+- [ ] `src/ui/interaction.ts` — drag, resize, rubber-band, context menu. Использует уже готовые `core/layout.ts` (separation) и `core/selection.ts` (groupScale/groupMove) — их осталось подключить к реальным Cytoscape-событиям.
 - [ ] `src/ui/panels/NodePanel.ts`.
 - [ ] `src/ui/panels/EdgePanel.ts`.
-- [ ] `src/ui/panels/ImportDialog.ts`.
+- [ ] `src/ui/panels/ImportDialog.ts` — на входе уже есть готовый `parseFangJson()`, панели для запуска импорта из UI пока нет.
+
+**Известное ограничение прямо сейчас**: граф открывается пустым, пока никто не сохранил данные через `storage.saveGraphData()` — импорт FANG (`parseFangJson`) готов как чистая функция, но ничего в UI ещё не вызывает его и не пишет результат в storage. Это `ImportDialog.ts` выше.
 
 ---
 
