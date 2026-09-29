@@ -60,17 +60,17 @@
 - [ ] `src/ui/interaction.ts` — drag, resize, rubber-band, context menu. Использует уже готовые `core/layout.ts` (separation) и `core/selection.ts` (groupScale/groupMove) — их осталось подключить к реальным Cytoscape-событиям.
 - [ ] `src/ui/panels/NodePanel.ts`.
 - [ ] `src/ui/panels/EdgePanel.ts`.
-- [ ] `src/ui/panels/ImportDialog.ts` — на входе уже есть готовый `parseFangJson()`, панели для запуска импорта из UI пока нет.
+- [x] `src/ui/panels/ImportDialog.ts` — не отдельное окно, а кнопка+file input в тулбаре `GraphApp`: читает файл → `parseFangJson()` → `saveGraphData()` → перерисовка. Уведомления об успехе/warnings через `ui.notifications`.
 
-**Известное ограничение прямо сейчас**: граф открывается пустым, пока никто не сохранил данные через `storage.saveGraphData()` — импорт FANG (`parseFangJson`) готов как чистая функция, но ничего в UI ещё не вызывает его и не пишет результат в storage. Это `ImportDialog.ts` выше.
+Подтверждено вручную в реальном Foundry: кнопка внизу вкладки Actors открывает `GraphApp` без ошибок (граф изначально пуст, пока не импортирован fang.json).
 
 ---
 
 ## E2E (ручной чек-лист, подход не выбран — см. "Отложено" ниже)
 
-- [ ] Модуль грузится без ошибок.
-- [ ] Кнопка в Scene Controls появляется.
-- [ ] Клик открывает граф.
+- [x] Модуль грузится без ошибок.
+- [x] Кнопка внизу вкладки Actors появляется.
+- [x] Клик открывает граф.
 - [ ] Импорт `fang.json` работает.
 - [ ] Resize одного узла.
 - [ ] Resize группы.

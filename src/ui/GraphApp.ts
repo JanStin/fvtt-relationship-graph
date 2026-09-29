@@ -8,8 +8,9 @@
 import type cytoscape from "cytoscape";
 import type { GraphData } from "../core/model";
 import { syncNodesWithActors } from "../foundry/actors";
-import { loadGraphData } from "../foundry/storage";
+import { loadGraphData, saveGraphData } from "../foundry/storage";
 import { renderGraph } from "./graph-renderer";
+import { createImportControl } from "./panels/ImportDialog";
 
 declare const foundry: any;
 
@@ -33,41 +34,62 @@ export class GraphApp extends ApplicationV2 {
 
   #cy: cytoscape.Core | null = null;
   #resizeObserver: ResizeObserver | null = null;
+  #cyHost: HTMLElement | null = null;
 
   async _renderHTML(): Promise<HTMLElement> {
     const wrapper = document.createElement("div");
-    wrapper.style.cssText = "width:100%;height:100%;";
+    wrapper.style.cssText = "width:100%;height:100%;display:flex;flex-direction:column;";
+
+    const toolbar = createImportControl({
+      onImported: (data) => {
+        void this.#importAndDisplay(data);
+      },
+    });
 
     const cyHost = document.createElement("div");
-    cyHost.style.cssText = "width:100%;height:100%;background:#16213e;";
-    wrapper.appendChild(cyHost);
+    cyHost.style.cssText = "flex:1 1 auto;min-height:0;background:#16213e;";
 
+    wrapper.append(toolbar, cyHost);
     (wrapper as unknown as { _cyHost: HTMLElement })._cyHost = cyHost;
     return wrapper;
   }
 
   async _replaceHTML(result: HTMLElement, content: HTMLElement): Promise<void> {
     content.replaceChildren(result);
-    const cyHost = (result as unknown as { _cyHost: HTMLElement })._cyHost;
+    this.#cyHost = (result as unknown as { _cyHost: HTMLElement })._cyHost;
 
     // Ждём кадр, чтобы элемент реально встроился в DOM окна до того, как
     // Cytoscape попытается измерить его размеры (см. находки S4).
     requestAnimationFrame(() => {
-      this.#mount(cyHost).catch((err: unknown) => {
+      this.#loadAndDisplay().catch((err: unknown) => {
         console.error("fvtt-relationship-graph | GraphApp mount failed", err);
       });
     });
   }
 
-  async #mount(cyHost: HTMLElement): Promise<void> {
+  async #loadAndDisplay(): Promise<void> {
     const stored = await loadGraphData();
-    const data = stored ?? EMPTY_GRAPH;
+    this.#display(stored ?? EMPTY_GRAPH);
+  }
+
+  // Уведомления/логирование warnings — ответственность ImportDialog (createImportControl),
+  // здесь только персист + перерисовка уже распарсенных данных.
+  async #importAndDisplay(data: GraphData): Promise<void> {
+    await saveGraphData(data);
+    this.#display(data);
+  }
+
+  #display(data: GraphData): void {
+    if (!this.#cyHost) return;
+
     const hydrated: GraphData = { ...data, nodes: syncNodesWithActors(data.nodes) };
 
-    this.#cy = renderGraph(cyHost, hydrated);
+    this.#resizeObserver?.disconnect();
+    this.#cy?.destroy();
 
+    this.#cy = renderGraph(this.#cyHost, hydrated);
     this.#resizeObserver = new ResizeObserver(() => this.#cy?.resize());
-    this.#resizeObserver.observe(cyHost);
+    this.#resizeObserver.observe(this.#cyHost);
   }
 
   async close(options?: unknown): Promise<this> {
@@ -75,6 +97,7 @@ export class GraphApp extends ApplicationV2 {
     this.#resizeObserver = null;
     this.#cy?.destroy();
     this.#cy = null;
+    this.#cyHost = null;
     return super.close(options as never);
   }
 }
