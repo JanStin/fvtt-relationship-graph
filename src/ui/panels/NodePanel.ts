@@ -24,6 +24,11 @@ export interface ActorOption {
   name: string;
 }
 
+export interface NodePanelOptions {
+  /** Флажки видимости (hidden/gmOnly) показываются только GM. */
+  isGM: boolean;
+}
+
 export interface NodePanelCallbacks {
   onSave(values: NodeEditValues): void;
   onDelete(): void;
@@ -152,6 +157,7 @@ export function createNodePanel(
   /** Актёры мира для привязки узла. */
   actors: readonly ActorOption[],
   callbacks: NodePanelCallbacks,
+  options: NodePanelOptions,
 ): HTMLElement {
   const type = select(NODE_TYPE_OPTIONS, node.type);
   const actor = select(
@@ -173,6 +179,15 @@ export function createNodePanel(
   const lore = textArea(node.lore, 4);
   const playerNotes = textArea(node.playerNotes);
   const gmNotes = textArea(node.gmNotes);
+  const hidden = checkbox("Скрыт от игроков (виден как «неизвестный»)", node.hidden);
+  const gmOnly = checkbox("Правит только GM", node.gmOnly);
+  // hidden всегда подразумевает gmOnly (core/visibility.ts): флажок включается и блокируется.
+  const syncFlags = () => {
+    if (hidden.input.checked) gmOnly.input.checked = true;
+    gmOnly.input.disabled = hidden.input.checked;
+  };
+  hidden.input.addEventListener("change", syncFlags);
+  syncFlags();
 
   const shell = createPanelShell("Узел", "Удалить узел", {
     onSave: () =>
@@ -188,6 +203,8 @@ export function createNodePanel(
         playerNotes: playerNotes.value,
         gmNotes: gmNotes.value,
         conditions: conditionPicker.value(),
+        hidden: hidden.input.checked,
+        gmOnly: gmOnly.input.checked,
       }),
     onDelete: callbacks.onDelete,
     onClose: callbacks.onClose,
@@ -231,6 +248,7 @@ export function createNodePanel(
     field("Описание", lore),
     field("Заметки для игроков", playerNotes),
     field("Заметки GM", gmNotes),
+    ...(options.isGM ? [hidden.row, gmOnly.row] : []),
   );
   return shell.element;
 }

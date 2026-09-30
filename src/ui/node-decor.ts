@@ -1,6 +1,6 @@
 /**
  * HTML-слой поверх канваса Cytoscape: имя и роль под узлом, ромбики дополнительных фракций
- * (слева сверху) и иконки состояний (справа сверху). Подход проверен в
+ * (слева сверху), иконки состояний (справа сверху) и окольцовка скрытого узла. Подход проверен в
  * spikes/spike-node-badges.html (B5): подпись Cytoscape одностилевая, бейджей у неё нет.
  *
  * Один контейнер повторяет pan/zoom графа через CSS transform, а элементы узлов стоят в
@@ -10,7 +10,7 @@
  */
 
 import type cytoscape from "cytoscape";
-import { buildNodeDecor, type NodeDecor } from "../core/decor";
+import { buildNodeDecor, type DecorOptions, type NodeDecor } from "../core/decor";
 import type { GraphData } from "../core/model";
 
 export interface NodeDecorLayer {
@@ -39,6 +39,7 @@ function plus(): HTMLElement {
 
 function buildElement(decor: NodeDecor): HTMLElement {
   const root = el("frg-node-decor");
+  if (decor.hidden) root.append(el("frg-node-ring"));
 
   const factions = el("frg-badges frg-badges-factions");
   decor.factions.shown.forEach((color) => {
@@ -78,12 +79,17 @@ function buildElement(decor: NodeDecor): HTMLElement {
  * Вызывать после cytoscape(...) на том же container: слой должен оказаться в DOM позже
  * канвасов Cytoscape, чтобы рисоваться поверх них.
  */
-export function createNodeDecorLayer(container: HTMLElement, cy: cytoscape.Core, data: GraphData): NodeDecorLayer {
+export function createNodeDecorLayer(
+  container: HTMLElement,
+  cy: cytoscape.Core,
+  data: GraphData,
+  options: DecorOptions,
+): NodeDecorLayer {
   const layer = el("frg-decor-layer");
   const elementById = new Map<string, HTMLElement>();
 
   data.nodes.forEach((node) => {
-    const element = buildElement(buildNodeDecor(data, node));
+    const element = buildElement(buildNodeDecor(data, node, options));
     elementById.set(node.id, element);
     layer.append(element);
   });

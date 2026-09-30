@@ -66,6 +66,8 @@ function values(overrides: Partial<NodeEditValues> = {}): NodeEditValues {
     playerNotes: "",
     gmNotes: "",
     conditions: [],
+    hidden: false,
+    gmOnly: false,
     ...overrides,
   };
 }
@@ -152,6 +154,17 @@ describe("applyNodeEdit", () => {
     const withCustom: GraphData = { ...data, conditions: [{ id: "cursed", label: "Проклят", icon: "fa-ghost" }] };
     const result = applyNodeEdit(withCustom, "free", values({ conditions: ["cursed", "ghost", "missing", "cursed"] }));
     expect(nodeOf(result, "free").conditions).toEqual(["cursed", "missing"]);
+  });
+
+  it("флаги видимости: hidden включает gmOnly, gmOnly сам по себе hidden не включает", () => {
+    const hidden = applyNodeEdit(data, "free", values({ hidden: true, gmOnly: false }));
+    expect(nodeOf(hidden, "free")).toMatchObject({ hidden: true, gmOnly: true });
+
+    const gmOnly = applyNodeEdit(data, "free", values({ hidden: false, gmOnly: true }));
+    expect(nodeOf(gmOnly, "free")).toMatchObject({ hidden: false, gmOnly: true });
+
+    const cleared = applyNodeEdit(hidden, "free", values());
+    expect(nodeOf(cleared, "free")).toMatchObject({ hidden: false, gmOnly: false });
   });
 
   it("бросает на неизвестном узле", () => {

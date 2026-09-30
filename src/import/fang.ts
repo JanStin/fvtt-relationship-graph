@@ -1,5 +1,6 @@
 import { ensureConditionDefs } from "../core/conditions";
 import { ensureDefaultRelationshipTypes } from "../core/relationship-types";
+import { ensureNodeFlags } from "../core/visibility";
 import type { Faction, GraphData, GraphEdge, GraphNode, RelationshipType } from "../core/model";
 
 export interface ParseResult {
@@ -166,7 +167,10 @@ export function parseFangJson(raw: unknown): ParseResult {
 
   return {
     // состояния, которых нет во встроенном наборе, попадают в справочник
-    data: ensureDefaultRelationshipTypes(ensureConditionDefs({ nodes, edges, factions, relationshipTypes })),
+    // и hidden-узлы получают gmOnly (core/visibility.ts)
+    data: ensureNodeFlags(
+      ensureDefaultRelationshipTypes(ensureConditionDefs({ nodes, edges, factions, relationshipTypes })),
+    ),
     warnings,
   };
 }

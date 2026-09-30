@@ -113,17 +113,69 @@ describe("describeNode", () => {
   });
 });
 
+/** Тот же граф, но Алиса скрыта от игроков. */
+const withHidden: GraphData = {
+  ...data,
+  nodes: data.nodes.map((n) => (n.id === "a" ? { ...n, hidden: true, gmOnly: true, lore: "тайна" } : n)),
+};
+
+describe("describeNode: флаги видимости", () => {
+  it("скрытый узел у игрока — «Неизвестный»: только связи и размер", () => {
+    const d = describeNode(withHidden, "a", { isGM: false })!;
+    expect(d.title).toBe("Неизвестный");
+    expect(d.subtitle).toBeUndefined();
+    expect(d.rows.map((r) => r.label)).toEqual(["Связи (2)", "Размер"]);
+  });
+
+  it("GM видит скрытый узел как есть, с пометкой", () => {
+    const d = describeNode(withHidden, "a", { isGM: true })!;
+    expect(d.title).toBe("Алиса");
+    expect(rowValue(d.rows, "Описание")).toBe("тайна");
+    expect(rowValue(d.rows, "Видимость")).toBe("Скрыт от игроков");
+  });
+
+  it("в связях соседа скрытый узел у игрока назван «Неизвестный»", () => {
+    expect(rowValue(describeNode(withHidden, "b", { isGM: false })!.rows, "Связи")).toBe("← Неизвестный: командует");
+    expect(rowValue(describeNode(withHidden, "b", { isGM: true })!.rows, "Связи")).toBe("← Алиса: командует");
+  });
+
+  it("gmOnly-узел игроку виден как обычно; пометку видит только GM", () => {
+    const gmOnly: GraphData = { ...data, nodes: data.nodes.map((n) => (n.id === "a" ? { ...n, gmOnly: true } : n)) };
+
+    const player = describeNode(gmOnly, "a", { isGM: false })!;
+    expect(player.title).toBe("Алиса");
+    expect(rowValue(player.rows, "Роль")).toBe("Капитан");
+    expect(rowValue(player.rows, "Видимость")).toBeUndefined();
+
+    expect(rowValue(describeNode(gmOnly, "a", { isGM: true })!.rows, "Видимость")).toBe("Правит только GM");
+  });
+});
+
 describe("describeFaction", () => {
   it("возвращает null для неизвестной фракции", () => {
-    expect(describeFaction(data, "nope")).toBeNull();
+    expect(describeFaction(data, "nope", { isGM: true })).toBeNull();
   });
 
   it("собирает описание и список участников", () => {
-    const d = describeFaction(data, "f1")!;
+    const d = describeFaction(data, "f1", { isGM: false })!;
     expect(d.title).toBe("Стража");
     expect(d.rows).toEqual([
       { label: "Описание", value: "Городская стража" },
       { label: "Участники (2)", value: "Алиса\nБоб" },
     ]);
+  });
+
+  it("скрытый участник у игрока — «Неизвестный», у GM — по имени", () => {
+    expect(rowValue(describeFaction(withHidden, "f1", { isGM: false })!.rows, "Участники")).toBe("Неизвестный\nБоб");
+    expect(rowValue(describeFaction(withHidden, "f1", { isGM: true })!.rows, "Участники")).toBe("Алиса\nБоб");
+  });
+
+  it("дополнительные фракции скрытого узла игроку не выдаются", () => {
+    const extra: GraphData = {
+      ...withHidden,
+      nodes: withHidden.nodes.map((n) => (n.id === "a" ? { ...n, factionIds: ["f2", "f1"], primaryFactionId: "f2" } : n)),
+    };
+    expect(rowValue(describeFaction(extra, "f1", { isGM: false })!.rows, "Участники")).toBe("Боб");
+    expect(rowValue(describeFaction(extra, "f1", { isGM: true })!.rows, "Участники")).toBe("Алиса\nБоб");
   });
 });

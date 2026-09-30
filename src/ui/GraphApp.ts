@@ -37,6 +37,7 @@ import {
   updateRelationshipType,
   type RelationshipTypeEditValues,
 } from "../core/relationship-types";
+import { displayName, isMasked } from "../core/visibility";
 import { setupEdgeLabels, type EdgeLabelsHandle } from "./edge-labels";
 import { renderGraph } from "./graph-renderer";
 import { setupInteraction, type GraphTarget, type InteractionHandle, type NodeSnapshot } from "./interaction";
@@ -178,7 +179,7 @@ export class GraphApp extends ApplicationV2 {
     this.#cy = renderGraph(this.#cyHost, hydrated, { isGM: this.#isGM });
     if (viewport) this.#cy.viewport(viewport);
     this.#interaction.bind(this.#cy);
-    this.#decor = createNodeDecorLayer(this.#cyHost, this.#cy, hydrated);
+    this.#decor = createNodeDecorLayer(this.#cyHost, this.#cy, hydrated, { isGM: this.#isGM });
     this.#edgeLabels = setupEdgeLabels(this.#cy);
 
     this.#resizeObserver = new ResizeObserver(() => this.#cy?.resize());
@@ -204,8 +205,14 @@ export class GraphApp extends ApplicationV2 {
     const card =
       target.kind === "node"
         ? describeNode(this.#currentData, target.id, { isGM: this.#isGM })
-        : describeFaction(this.#currentData, target.id);
+        : describeFaction(this.#currentData, target.id, { isGM: this.#isGM });
     if (card) this.#overlays?.showInfo(client, card);
+  }
+
+  /** Имя узла для заголовков панелей; скрытый узел у игрока — «Неизвестный». */
+  #nodeName(data: GraphData, nodeId: string): string {
+    const node = data.nodes.find((n) => n.id === nodeId);
+    return node ? displayName(node, this.#isGM) : "?";
   }
 
   #closePanel(): void {
@@ -280,7 +287,7 @@ export class GraphApp extends ApplicationV2 {
     if (!data) return;
 
     const edgeId = `${sourceId}-${targetId}-${foundry.utils.randomID()}`;
-    const nameOf = (id: string) => data.nodes.find((n) => n.id === id)?.name ?? "?";
+    const nameOf = (id: string) => this.#nodeName(data, id);
     const panel = createEdgePanel(
       blankEdge(edgeId, sourceId, targetId),
       { source: nameOf(sourceId), target: nameOf(targetId) },
@@ -313,15 +320,22 @@ export class GraphApp extends ApplicationV2 {
     const node = data?.nodes.find((n) => n.id === nodeId);
     if (!data || !node) return;
 
-    const panel = createNodePanel(node, data.factions, allConditions(data), this.#actorOptions(), {
-      onSave: (values) => {
-        void this.#saveNode(nodeId, values);
+    const panel = createNodePanel(
+      node,
+      data.factions,
+      allConditions(data),
+      this.#actorOptions(),
+      {
+        onSave: (values) => {
+          void this.#saveNode(nodeId, values);
+        },
+        onDelete: () => {
+          void this.#deleteNode(nodeId, node.name);
+        },
+        onClose: () => this.#closePanel(),
       },
-      onDelete: () => {
-        void this.#deleteNode(nodeId, node.name);
-      },
-      onClose: () => this.#closePanel(),
-    });
+      { isGM: this.#isGM },
+    );
     this.#mountPanel(panel);
   }
 
@@ -343,7 +357,7 @@ export class GraphApp extends ApplicationV2 {
     const edge = data?.edges.find((e) => e.id === edgeId);
     if (!data || !edge) return;
 
-    const nameOf = (id: string) => data.nodes.find((n) => n.id === id)?.name ?? "?";
+    const nameOf = (id: string) => this.#nodeName(data, id);
     const panel = createEdgePanel(
       edge,
       { source: nameOf(edge.source), target: nameOf(edge.target) },
@@ -541,7 +555,9 @@ export class GraphApp extends ApplicationV2 {
       items.push({ label: "Информация", onSelect: () => this.#openInfo(target, client) });
       if (this.#isGM) items.push({ label: "Редактировать", onSelect: () => this.#openNodePanel(nodeId) });
       items.push({ label: "Создать связь", onSelect: () => this.#interaction?.startLinking(nodeId) });
-      const actorId = this.#currentData?.nodes.find((n) => n.id === nodeId)?.actorId;
+      const node = this.#currentData?.nodes.find((n) => n.id === nodeId);
+      // У скрытого узла игроку лист актёра не предлагаем — он выдал бы, кто это.
+      const actorId = node && !isMasked(node, this.#isGM) ? node.actorId : null;
       const actor = actorId ? game.actors?.get(actorId) : null;
       if (actor) items.push({ label: "Открыть лист актёра", onSelect: () => actor.sheet?.render(true) });
       items.push({ label: "Сбросить размер", onSelect: () => this.#interaction?.resetScale(nodeId) });

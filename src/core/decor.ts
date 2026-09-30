@@ -5,6 +5,7 @@
 
 import { allConditions, conditionIconClass, DEFAULT_CONDITION_ICON } from "./conditions";
 import type { GraphData, GraphNode } from "./model";
+import { isMasked } from "./visibility";
 
 /** Не больше стольких значков в углу; если их больше — на месте последнего «плюс». */
 export const MAX_BADGES = 3;
@@ -28,6 +29,13 @@ export interface NodeDecor {
   /** Цвета дополнительных (не основной) фракций. */
   factions: BadgeList<string>;
   conditions: BadgeList<ConditionBadge>;
+  /** Градиентная окольцовка скрытого узла: у игрока — «неизвестный», у GM — пометка «скрыт». */
+  hidden: boolean;
+}
+
+export interface DecorOptions {
+  /** Игроку скрытый узел рисуется без имени, роли и значков. */
+  isGM: boolean;
 }
 
 /** До max значков как есть; если больше — первые max-1 и флаг more. */
@@ -36,7 +44,11 @@ export function limitBadges<T>(items: T[], max = MAX_BADGES): BadgeList<T> {
 }
 
 /** Основная фракция ромбиком не помечается — она показана областью. Неизвестные фракции пропускаются. */
-export function buildNodeDecor(data: GraphData, node: GraphNode): NodeDecor {
+export function buildNodeDecor(data: GraphData, node: GraphNode, options: DecorOptions): NodeDecor {
+  if (isMasked(node, options.isGM)) {
+    return { name: "", role: "", factions: limitBadges([]), conditions: limitBadges([]), hidden: true };
+  }
+
   const colorById = new Map(data.factions.map((f) => [f.id, f.color]));
   const extraColors = node.factionIds
     .filter((id) => id !== node.primaryFactionId)
@@ -52,5 +64,6 @@ export function buildNodeDecor(data: GraphData, node: GraphNode): NodeDecor {
     conditions: limitBadges(
       node.conditions.map((id) => ({ id, icon: conditionIconClass(iconById.get(id) ?? DEFAULT_CONDITION_ICON) })),
     ),
+    hidden: node.hidden,
   };
 }

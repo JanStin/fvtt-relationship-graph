@@ -7,6 +7,7 @@ import { allConditions } from "./conditions";
 import { addFaction, updateEdge, updateFaction, updateNode } from "./graph-state";
 import type { GraphData, GraphEdge, GraphNode, NodeType } from "./model";
 import { SCALE_MAX, SCALE_MIN } from "./selection";
+import { normalizeNodeFlags } from "./visibility";
 
 export interface NodeEditValues {
   /** "actor" без actorId превращается в "placeholder". */
@@ -26,6 +27,10 @@ export interface NodeEditValues {
   gmNotes: string;
   /** id отмеченных состояний; неизвестные справочнику отбрасываются. */
   conditions: string[];
+  /** Игрокам виден как «неизвестный»; включает и gmOnly (core/visibility.ts). */
+  hidden: boolean;
+  /** Узел правит только GM. */
+  gmOnly: boolean;
 }
 
 export interface FactionEditValues {
@@ -83,6 +88,7 @@ export function primaryAfterUncheck(
  * - Пустое имя (кроме узла-изображения) и нечисловой scale игнорируются (остаётся прежнее
  *   значение), scale клампится.
  * - Фракции: см. normalizeFactions.
+ * - Флаги видимости: hidden включает gmOnly (см. normalizeNodeFlags).
  */
 export function applyNodeEdit(data: GraphData, nodeId: string, values: NodeEditValues): GraphData {
   const node = data.nodes.find((n) => n.id === nodeId);
@@ -110,6 +116,7 @@ export function applyNodeEdit(data: GraphData, nodeId: string, values: NodeEditV
     gmNotes: values.gmNotes,
     conditions: [...new Set(values.conditions)].filter((id) => knownConditions.has(id)),
     ...normalizeFactions(data, values.factionIds, values.primaryFactionId),
+    ...normalizeNodeFlags(values),
   });
 }
 

@@ -7,6 +7,7 @@
 import { ensureConditionDefs } from "../core/conditions";
 import type { GraphData } from "../core/model";
 import { ensureDefaultRelationshipTypes } from "../core/relationship-types";
+import { ensureNodeFlags } from "../core/visibility";
 
 declare const game: {
   journal: { getName(name: string): MockableJournalEntry | null };
@@ -49,14 +50,14 @@ export async function allowPlayersToSave(): Promise<void> {
 
 /**
  * null, если граф ещё ни разу не сохранялся (JournalEntry не создан или flag пуст).
- * Данные старого формата (без справочника состояний, без типов связей по умолчанию)
- * дополняются на лету.
+ * Данные старого формата (без справочника состояний, без типов связей по умолчанию,
+ * hidden-узлы без gmOnly) дополняются на лету.
  */
 export async function loadGraphData(): Promise<GraphData | null> {
   const entry = game.journal.getName(JOURNAL_NAME);
   if (!entry) return null;
   const data = entry.getFlag(FLAG_SCOPE, FLAG_KEY);
-  return data ? ensureDefaultRelationshipTypes(ensureConditionDefs(data as GraphData)) : null;
+  return data ? ensureNodeFlags(ensureDefaultRelationshipTypes(ensureConditionDefs(data as GraphData))) : null;
 }
 
 export async function saveGraphData(data: GraphData): Promise<void> {

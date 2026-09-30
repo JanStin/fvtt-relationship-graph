@@ -25,6 +25,9 @@ function makeNode(overrides: Partial<GraphNode> & { id: string }): GraphNode {
   };
 }
 
+const PLAYER = { isGM: false };
+const GM = { isGM: true };
+
 function makeData(node: GraphNode): GraphData {
   return {
     nodes: [node],
@@ -57,48 +60,76 @@ describe("buildNodeDecor", () => {
     const node = makeNode({ id: "a", conditions: ["cursed"] });
     const data = { ...makeData(node), conditions: [{ id: "cursed", label: "Проклят", icon: "fa-regular fa-star" }] };
 
-    expect(buildNodeDecor(data, node).conditions.shown).toEqual([{ id: "cursed", icon: "fa-regular fa-star" }]);
+    expect(buildNodeDecor(data, node, PLAYER).conditions.shown).toEqual([{ id: "cursed", icon: "fa-regular fa-star" }]);
   });
 
   it("узел без роли, фракций и состояний — только имя", () => {
     const node = makeNode({ id: "a", name: "Алиса" });
 
-    expect(buildNodeDecor(makeData(node), node)).toEqual({
+    expect(buildNodeDecor(makeData(node), node, PLAYER)).toEqual({
       name: "Алиса",
       role: "",
       factions: { shown: [], more: false },
       conditions: { shown: [], more: false },
+      hidden: false,
+    });
+  });
+
+  it("скрытый узел: игроку — без имени, роли и значков, GM — как есть; окольцовка у обоих", () => {
+    const node = makeNode({
+      id: "a",
+      name: "Алиса",
+      role: "Шпион",
+      primaryFactionId: "f1",
+      factionIds: ["f1", "f2"],
+      conditions: ["deceased"],
+      hidden: true,
+      gmOnly: true,
+    });
+
+    expect(buildNodeDecor(makeData(node), node, PLAYER)).toEqual({
+      name: "",
+      role: "",
+      factions: { shown: [], more: false },
+      conditions: { shown: [], more: false },
+      hidden: true,
+    });
+    expect(buildNodeDecor(makeData(node), node, GM)).toMatchObject({
+      name: "Алиса",
+      role: "Шпион",
+      factions: { shown: ["#f2"], more: false },
+      hidden: true,
     });
   });
 
   it("роль из одних пробелов считается пустой", () => {
     const node = makeNode({ id: "a", role: "  " });
 
-    expect(buildNodeDecor(makeData(node), node).role).toBe("");
+    expect(buildNodeDecor(makeData(node), node, PLAYER).role).toBe("");
   });
 
   it("основная фракция ромбиком не помечается", () => {
     const node = makeNode({ id: "a", primaryFactionId: "f1", factionIds: ["f1", "f2", "f3"] });
 
-    expect(buildNodeDecor(makeData(node), node).factions).toEqual({ shown: ["#f2", "#f3"], more: false });
+    expect(buildNodeDecor(makeData(node), node, PLAYER).factions).toEqual({ shown: ["#f2", "#f3"], more: false });
   });
 
   it("неизвестная фракция пропускается", () => {
     const node = makeNode({ id: "a", primaryFactionId: "f1", factionIds: ["f1", "ghost", "f2"] });
 
-    expect(buildNodeDecor(makeData(node), node).factions).toEqual({ shown: ["#f2"], more: false });
+    expect(buildNodeDecor(makeData(node), node, PLAYER).factions).toEqual({ shown: ["#f2"], more: false });
   });
 
   it("больше трёх дополнительных фракций — две и плюс", () => {
     const node = makeNode({ id: "a", primaryFactionId: "f1", factionIds: ["f1", "f2", "f3", "f4", "f5"] });
 
-    expect(buildNodeDecor(makeData(node), node).factions).toEqual({ shown: ["#f2", "#f3"], more: true });
+    expect(buildNodeDecor(makeData(node), node, PLAYER).factions).toEqual({ shown: ["#f2", "#f3"], more: true });
   });
 
   it("состояния получают иконки и ограничиваются так же", () => {
     const node = makeNode({ id: "a", conditions: ["deceased", "custom", "missing", "captured"] });
 
-    expect(buildNodeDecor(makeData(node), node).conditions).toEqual({
+    expect(buildNodeDecor(makeData(node), node, PLAYER).conditions).toEqual({
       shown: [
         { id: "deceased", icon: "fa-solid fa-skull" },
         { id: "custom", icon: "fa-solid fa-tag" }, // нет в справочнике — иконка по умолчанию

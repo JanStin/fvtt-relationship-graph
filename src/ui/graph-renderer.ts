@@ -13,6 +13,7 @@ import cytoscape from "cytoscape";
 import fcose from "cytoscape-fcose";
 import type { GraphData } from "../core/model";
 import { parseDash } from "../core/relationship-types";
+import { isMasked } from "../core/visibility";
 import { MODULE_ID } from "../foundry/settings";
 import { EDGE_LABEL_FONT_SIZE } from "./edge-labels";
 
@@ -45,7 +46,10 @@ const GM_ONLY_DASH = [6, 3];
 export const FACTION_SELECTED_CLASS = "faction-selected";
 
 export interface RenderOptions {
-  /** GM видит gmOnly-связи (пунктиром), игрокам они не рисуются вовсе — architecture.md §13. */
+  /**
+   * GM видит gmOnly-связи (пунктиром), игрокам они не рисуются вовсе; hidden-узел игроку
+   * рисуется картинкой-заглушкой — architecture.md §13.
+   */
   isGM: boolean;
 }
 
@@ -73,7 +77,8 @@ function buildElements(data: GraphData, options: RenderOptions): cytoscape.Eleme
         scale: node.scale,
         size,
         // Заглушка — только при пустом пути; битую ссылку не подменяем (tasks.md, B1).
-        img: node.img || DEFAULT_NODE_IMG,
+        // Скрытый узел игроку всегда рисуется заглушкой (B13).
+        img: (isMasked(node, options.isGM) ? "" : node.img) || DEFAULT_NODE_IMG,
       },
       position: { x: node.x, y: node.y },
     });
