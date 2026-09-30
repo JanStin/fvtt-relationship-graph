@@ -3,6 +3,7 @@ import type { NodeEditValues } from "../../src/core/edit";
 import type { Faction, GraphData, GraphEdge, GraphNode } from "../../src/core/model";
 import {
   canEditNode,
+  planDeletion,
   restrictFactionEdit,
   restrictNodeEdit,
   visibleEdgeCount,
@@ -113,6 +114,40 @@ describe("restrictFactionEdit", () => {
 
   it("GM — всё", () => {
     expect(restrictFactionEdit(faction, edit, true)).toEqual(edit);
+  });
+});
+
+describe("planDeletion", () => {
+  const data: GraphData = {
+    nodes: [makeNode({ id: "a" }), makeNode({ id: "locked", gmOnly: true }), makeNode({ id: "c" })],
+    edges: [
+      makeEdge({ id: "e1", source: "a", target: "c" }),
+      makeEdge({ id: "e2", source: "a", target: "locked", gmOnly: true }),
+      makeEdge({ id: "e3", source: "locked", target: "c" }),
+      makeEdge({ id: "secret", source: "c", target: "locked", gmOnly: true }),
+    ],
+    factions: [],
+    relationshipTypes: [],
+    conditions: [],
+  };
+
+  it("игрок: gmOnly-узлы и gmOnly-связи выпадают, скрытые связи не считаются", () => {
+    const plan = planDeletion(data, ["a", "locked", "ghost"], ["secret", "e3"], false);
+    expect(plan.nodeIds).toEqual(["a"]);
+    expect(plan.edgeIds).toEqual(["e3"]);
+    // e1 (связь узла a) + e3 (выбрана); e2 уйдёт с узлом a, но игрок её не видит
+    expect(plan.visibleEdgeCount).toBe(2);
+  });
+
+  it("GM удаляет всё выделенное и видит полный счёт", () => {
+    const plan = planDeletion(data, ["a", "locked"], ["secret"], true);
+    expect(plan.nodeIds).toEqual(["a", "locked"]);
+    expect(plan.edgeIds).toEqual(["secret"]);
+    expect(plan.visibleEdgeCount).toBe(4);
+  });
+
+  it("пустое выделение — пустой план", () => {
+    expect(planDeletion(data, [], [], true)).toEqual({ nodeIds: [], edgeIds: [], visibleEdgeCount: 0 });
   });
 });
 

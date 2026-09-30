@@ -215,6 +215,12 @@
   width: auto;
 }
 
+/* Кнопка-иконка на верхней панели (отмена/повтор). */
+.frg-toolbar .frg-toolbar-icon {
+  min-width: 28px;
+  padding: 0 6px;
+}
+
 .frg-toolbar-group {
   display: flex;
   gap: 8px;

@@ -5,6 +5,7 @@ import {
   addNode,
   moveFaction,
   removeEdge,
+  removeElements,
   removeFaction,
   removeNode,
   updateEdge,
@@ -58,6 +59,25 @@ function makeData(): GraphData {
     conditions: [],
   };
 }
+
+describe("removeElements", () => {
+  it("удаляет узлы с их связями и выбранные связи одним шагом, не мутируя вход", () => {
+    const data: GraphData = {
+      ...makeData(),
+      nodes: [makeNode({ id: "n1" }), makeNode({ id: "n2" }), makeNode({ id: "n3" }), makeNode({ id: "n4" })],
+      edges: [
+        makeEdge({ id: "e1", source: "n1", target: "n2" }),
+        makeEdge({ id: "e2", source: "n3", target: "n4" }),
+        makeEdge({ id: "e3", source: "n2", target: "n3" }),
+      ],
+    };
+    const next = removeElements(data, ["n1", "ghost"], ["e2", "nope"]);
+
+    expect(next.nodes.map((n) => n.id)).toEqual(["n2", "n3", "n4"]);
+    expect(next.edges.map((e) => e.id)).toEqual(["e3"]);
+    expect(data.nodes).toHaveLength(4);
+  });
+});
 
 describe("addNode", () => {
   it("добавляет новый узел, не мутируя исходные данные", () => {

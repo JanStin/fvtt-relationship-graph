@@ -22,6 +22,8 @@
  *   S+ЛКМ по узлу        — быстрое создание связи: начать от узла / завершить на узле; если
  *                          выделен один другой узел — связь сразу от него к нажатому (здесь)
  *   Esc                  — отменить создание связи / снять выделение
+ *   Delete               — удалить выделенное (callback onDeleteSelected)
+ *   Ctrl+Z / Ctrl+Y      — отмена / повтор (callbacks onUndo/onRedo); Ctrl+Shift+Z — тоже повтор
  *
  * Создание связи (startLinking): пока режим активен, клик по другому узлу завершает выбор
  * (callback onLinkPicked), Esc или ПКМ — отменяют; сверху висит подсказка.
@@ -72,6 +74,11 @@ export interface InteractionCallbacks {
   onQuickLink(nodeId: string): void;
   /** В режиме создания связи выбран второй узел. */
   onLinkPicked(sourceId: string, targetId: string): void;
+  /** Delete: выделенные обычные узлы и связи (что из них можно удалить — решает получатель). */
+  onDeleteSelected(nodeIds: string[], edgeIds: string[]): void;
+  /** Ctrl+Z / Ctrl+Y (и Ctrl+Shift+Z). */
+  onUndo(): void;
+  onRedo(): void;
 }
 
 export interface InteractionOptions {
@@ -365,6 +372,34 @@ export function setupInteraction(
   document.addEventListener("keyup", onSKeyUp);
   window.addEventListener("blur", onWindowBlur);
 
+  // Delete и Ctrl+Z/Ctrl+Y — только в режиме редактирования, пока курсор над графом и фокус не в
+  // поле ввода (там это обычная правка текста). Ловим по e.code — в любой раскладке; событие
+  // забираем, чтобы Foundry не выполнил свою отмену (например, перемещения токенов на сцене).
+  const onEditKeyDown = (e: KeyboardEvent) => {
+    if (!editable || !cy || !pointerInside || isTyping(e.target)) return;
+    const ctrl = e.ctrlKey || e.metaKey;
+    let handled = true;
+    if (e.code === "Delete" && !ctrl && !e.altKey) {
+      const selected = cy.$(":selected");
+      callbacks.onDeleteSelected(
+        selected.nodes("[!isFaction]").map((n) => n.id()),
+        selected.edges().map((edge) => edge.id()),
+      );
+    } else if (ctrl && !e.altKey && e.code === "KeyZ") {
+      if (e.shiftKey) callbacks.onRedo();
+      else callbacks.onUndo();
+    } else if (ctrl && !e.altKey && !e.shiftKey && e.code === "KeyY") {
+      callbacks.onRedo();
+    } else {
+      handled = false;
+    }
+    if (handled) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  };
+  document.addEventListener("keydown", onEditKeyDown, { capture: true });
+
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key !== "Escape" || !cy) return;
     if (linkSourceId !== null) {
@@ -471,6 +506,7 @@ export function setupInteraction(
       container.removeEventListener("mouseenter", onMouseEnter);
       container.removeEventListener("mouseleave", onMouseLeave);
       document.removeEventListener("keydown", onKeyDown, { capture: true });
+      document.removeEventListener("keydown", onEditKeyDown, { capture: true });
       document.removeEventListener("keydown", onSKeyDown);
       document.removeEventListener("keyup", onSKeyUp);
       window.removeEventListener("blur", onWindowBlur);

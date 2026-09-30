@@ -52,6 +52,24 @@ export function removeEdge(data: GraphData, edgeId: string): GraphData {
   return { ...data, edges: data.edges.filter((e) => e.id !== edgeId) };
 }
 
+/**
+ * Удаляет несколько узлов и связей одним шагом (Delete по выделению, B16): у узлов каскадно
+ * уходят и их связи. Неизвестные id молча пропускаются.
+ */
+export function removeElements(
+  data: GraphData,
+  nodeIds: Iterable<string>,
+  edgeIds: Iterable<string>,
+): GraphData {
+  const nodes = new Set(nodeIds);
+  const edges = new Set(edgeIds);
+  return {
+    ...data,
+    nodes: data.nodes.filter((n) => !nodes.has(n.id)),
+    edges: data.edges.filter((e) => !edges.has(e.id) && !nodes.has(e.source) && !nodes.has(e.target)),
+  };
+}
+
 export function updateEdge(data: GraphData, edgeId: string, patch: Partial<Omit<GraphEdge, "id">>): GraphData {
   let found = false;
   const edges = data.edges.map((e) => {

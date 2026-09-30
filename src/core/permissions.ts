@@ -38,6 +38,38 @@ export function restrictFactionEdit(faction: Faction, values: FactionEditValues,
   return isGM ? values : { ...values, name: faction.name, color: faction.color };
 }
 
+export interface Deletion {
+  nodeIds: string[];
+  edgeIds: string[];
+  /** Сколько связей уйдёт всего (выбранные + связи удаляемых узлов) — из видимых пользователю. */
+  visibleEdgeCount: number;
+}
+
+/**
+ * Что реально удалит Delete по выделению (B16): у игрока из выделения выпадают gmOnly-узлы и
+ * gmOnly-связи (последних он и не видит); неизвестные id пропускаются. Связи удаляемых узлов
+ * уходят вместе с ними — в счёт для подтверждения идут только видимые.
+ */
+export function planDeletion(
+  data: GraphData,
+  selectedNodeIds: Iterable<string>,
+  selectedEdgeIds: Iterable<string>,
+  isGM: boolean,
+): Deletion {
+  const selectedNodes = new Set(selectedNodeIds);
+  const selectedEdges = new Set(selectedEdgeIds);
+  const nodeIds = data.nodes.filter((n) => selectedNodes.has(n.id) && canEditNode(n, isGM)).map((n) => n.id);
+  const edgeIds = data.edges.filter((e) => selectedEdges.has(e.id) && (isGM || !e.gmOnly)).map((e) => e.id);
+
+  const removedNodes = new Set(nodeIds);
+  const removedEdges = new Set(edgeIds);
+  const visibleEdgeCount = data.edges.filter(
+    (e) =>
+      (removedEdges.has(e.id) || removedNodes.has(e.source) || removedNodes.has(e.target)) && (isGM || !e.gmOnly),
+  ).length;
+  return { nodeIds, edgeIds, visibleEdgeCount };
+}
+
 /**
  * Сколько связей удалится вместе с узлом — из тех, что видит пользователь (для текста
  * подтверждения). Невидимые игроку gmOnly-связи удаляются тоже, но в счёт не входят.

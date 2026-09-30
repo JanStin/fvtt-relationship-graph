@@ -41,7 +41,9 @@ import {
   isBlankEdge,
   type FactionEditValues,
 } from "../core/edit";
-import { addEdge, addNode, removeEdge, removeFaction, removeNode } from "../core/graph-state";
+import { addEdge, addNode, removeEdge, removeElements, removeFaction, removeNode } from "../core/graph-state";
+import { GraphHistory } from "../core/history";
+import { pluralize } from "../core/plural";
 import { clientToModel, type Point } from "../core/hit-test";
 import {
   createRelationshipType,
@@ -50,7 +52,13 @@ import {
   updateRelationshipType,
   type RelationshipTypeEditValues,
 } from "../core/relationship-types";
-import { canEditNode, restrictFactionEdit, restrictNodeEdit, visibleEdgeCount } from "../core/permissions";
+import {
+  canEditNode,
+  planDeletion,
+  restrictFactionEdit,
+  restrictNodeEdit,
+  visibleEdgeCount,
+} from "../core/permissions";
 import { displayName, isMasked } from "../core/visibility";
 import { setupEdgeLabels, type EdgeLabelsHandle } from "./edge-labels";
 import { renderGraph } from "./graph-renderer";
@@ -117,7 +125,13 @@ export class GraphApp extends ApplicationV2 {
   #editing = false;
   #idleTimer: IdleTimer | null = null;
   #editButton: HTMLButtonElement | null = null;
+  #undoButton: HTMLButtonElement | null = null;
+  #redoButton: HTMLButtonElement | null = null;
   #importControl: ImportControl | null = null;
+  /** История отмены/повтора (B17) — только на время сеанса редактирования. */
+  #history = new GraphHistory();
+  /** Следующее сохранение позиций — часть предыдущего шага истории (см. #settle). */
+  #mergeNextStep = false;
   /** Зарегистрированные хуки Foundry — снимаются в close(). */
   #hooks: Array<[string, number]> = [];
 
@@ -136,6 +150,26 @@ export class GraphApp extends ApplicationV2 {
     });
     this.#editButton = editButton;
     toolbar.append(editButton);
+
+    // Отмена/повтор (B17) — доступны в режиме редактирования, когда есть что отменять/повторять.
+    const historyButton = (icon: string, title: string, onClick: () => Promise<void>) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "frg-toolbar-icon";
+      button.innerHTML = `<i class="fa-solid ${icon}"></i>`;
+      button.title = title;
+      button.setAttribute("aria-label", title);
+      button.addEventListener("click", () => {
+        void onClick();
+      });
+      return button;
+    };
+    this.#undoButton = historyButton("fa-rotate-left", "Отменить (Ctrl+Z)", () => this.#undo());
+    this.#redoButton = historyButton("fa-rotate-right", "Повторить (Ctrl+Y)", () => this.#redo());
+    const historyGroup = document.createElement("span");
+    historyGroup.className = "frg-toolbar-group";
+    historyGroup.append(this.#undoButton, this.#redoButton);
+    toolbar.append(historyGroup);
 
     // Импорт — только GM (B18) и только в режиме редактирования.
     if (this.#isGM) {
@@ -186,8 +220,55 @@ export class GraphApp extends ApplicationV2 {
   // здесь только персист + перерисовка уже распарсенных данных.
   async #importAndDisplay(data: GraphData): Promise<void> {
     if (!this.#editing || !this.#isGM) return;
-    await saveGraphData(data);
-    this.#display(data);
+    // шаг истории, как любая правка: импорт отменяется Ctrl+Z (B17)
+    await this.#commit(data);
+    this.#cy?.fit(undefined, 30);
+  }
+
+  // ---------------------------------------------------------------------------------------
+  // Отмена/повтор (B17) и удаление по Delete (B16)
+
+  async #undo(): Promise<void> {
+    if (!this.#editing || !this.#currentData) return;
+    const previous = this.#history.undo(this.#currentData);
+    if (previous) await this.#commit(previous, { record: false });
+  }
+
+  async #redo(): Promise<void> {
+    if (!this.#editing || !this.#currentData) return;
+    const next = this.#history.redo(this.#currentData);
+    if (next) await this.#commit(next, { record: false });
+  }
+
+  /** Delete по выделению: всё разом, одним подтверждением и одним шагом истории. */
+  async #deleteSelected(nodeIds: string[], edgeIds: string[]): Promise<void> {
+    const data = this.#currentData;
+    if (!this.#editing || !data) return;
+    const plan = planDeletion(data, nodeIds, edgeIds, this.#isGM);
+    if (plan.nodeIds.length === 0 && plan.edgeIds.length === 0) return;
+
+    const parts = [
+      plan.nodeIds.length > 0 ? pluralize(plan.nodeIds.length, "узел", "узла", "узлов") : "",
+      plan.visibleEdgeCount > 0 ? pluralize(plan.visibleEdgeCount, "связь", "связи", "связей") : "",
+    ].filter(Boolean);
+    const skipped = nodeIds.length - plan.nodeIds.length;
+    const note = skipped > 0 ? ` Узлы «Правит только GM» (${skipped}) останутся.` : "";
+    const confirmed = await this.#confirm("Удалить выделенное", `Удалить ${parts.join(" и ")}?${note}`);
+    if (!confirmed || !this.#currentData) return;
+    await this.#commit(removeElements(this.#currentData, plan.nodeIds, plan.edgeIds));
+  }
+
+  /**
+   * Раздвигает соседей узла после правки/создания. Сдвиги позиций сохраняются, но в историю
+   * идут тем же шагом, что и сама правка: одна отмена возвращает и то и другое.
+   */
+  #settle(nodeId: string): void {
+    this.#mergeNextStep = true;
+    try {
+      this.#interaction?.settle(nodeId); // синхронно вызывает onNodesChanged → #persistNodeChanges
+    } finally {
+      this.#mergeNextStep = false;
+    }
   }
 
   // ---------------------------------------------------------------------------------------
@@ -293,6 +374,8 @@ export class GraphApp extends ApplicationV2 {
 
   #setEditing(editing: boolean): void {
     this.#editing = editing;
+    // История — на один сеанс редактирования (B17)
+    this.#history.clear();
     this.#idleTimer?.stop();
     this.#idleTimer = null;
     const root = this.#cyHost?.parentElement;
@@ -316,6 +399,8 @@ export class GraphApp extends ApplicationV2 {
         : `<i class="fa-solid fa-pen"></i> Редактировать`;
       button.title = busy && editor ? `Сейчас редактирует: ${userName(editor)}` : "";
     }
+    if (this.#undoButton) this.#undoButton.disabled = !this.#editing || !this.#history.canUndo;
+    if (this.#redoButton) this.#redoButton.disabled = !this.#editing || !this.#history.canRedo;
     this.#importControl?.setEnabled(this.#editing);
   }
 
@@ -355,6 +440,15 @@ export class GraphApp extends ApplicationV2 {
         this.#interaction?.startLinking(nodeId);
       },
       onLinkPicked: (sourceId, targetId) => this.#openNewEdgePanel(sourceId, targetId),
+      onDeleteSelected: (nodeIds, edgeIds) => {
+        void this.#deleteSelected(nodeIds, edgeIds);
+      },
+      onUndo: () => {
+        void this.#undo();
+      },
+      onRedo: () => {
+        void this.#redo();
+      },
     }, { editable: this.#editing });
     this.#cy = renderGraph(this.#cyHost, hydrated, { isGM: this.#isGM, editable: this.#editing });
     if (viewport) this.#cy.viewport(viewport);
@@ -415,9 +509,13 @@ export class GraphApp extends ApplicationV2 {
     this.#cyHost?.parentElement?.append(panel);
   }
 
-  /** Сохраняет изменённый граф и перерисовывает его, не сбрасывая zoom/pan. Только в режиме редактирования. */
-  async #commit(data: GraphData): Promise<void> {
+  /**
+   * Сохраняет изменённый граф и перерисовывает его, не сбрасывая zoom/pan. Только в режиме
+   * редактирования. Каждый commit — шаг истории (B17), кроме самих отмены/повтора (record: false).
+   */
+  async #commit(data: GraphData, { record = true } = {}): Promise<void> {
     if (!this.#editing) return;
+    const before = this.#currentData;
     try {
       await saveGraphData(data);
     } catch (err) {
@@ -426,7 +524,9 @@ export class GraphApp extends ApplicationV2 {
       ui.notifications?.error("Не удалось сохранить граф — см. консоль. Игрокам запись открывается, когда граф откроет GM.");
       return;
     }
+    if (record && before) this.#history.record(before);
     this.#display(data, true);
+    this.#updateToolbar();
   }
 
   async #confirm(title: string, text: string): Promise<boolean> {
@@ -464,7 +564,7 @@ export class GraphApp extends ApplicationV2 {
     const nodeId = foundry.utils.randomID();
     await this.#commit(addNode(this.#currentData, blankNode(nodeId, position, factionId)));
     // Клик мог прийтись вплотную к другому узлу — раздвигаем соседей.
-    this.#interaction?.settle(nodeId);
+    this.#settle(nodeId);
     this.#openNodePanel(nodeId);
   }
 
@@ -534,7 +634,7 @@ export class GraphApp extends ApplicationV2 {
     if (!this.#currentData || !node || !canEditNode(node, this.#isGM)) return;
     await this.#commit(applyNodeEdit(this.#currentData, nodeId, restrictNodeEdit(node, values, this.#isGM)));
     // Размер или область могли измениться — раздвигаем соседей (позиции сохранит onNodesChanged).
-    this.#interaction?.settle(nodeId);
+    this.#settle(nodeId);
   }
 
   /** Удаляются и невидимые игроку gmOnly-связи узла — но в тексте подтверждения их нет. */
@@ -836,16 +936,28 @@ export class GraphApp extends ApplicationV2 {
   }
 
   /** Мержит снэпшот x/y/scale от interaction.ts в текущий GraphData и сохраняет целиком. */
+  /**
+   * Мержит снэпшот x/y/scale от interaction.ts в текущий GraphData и сохраняет целиком.
+   * Шаг истории (drag/resize вместе с сепарацией); после #settle — часть предыдущего шага.
+   * Ничего не сдвинулось — ничего не сохраняем.
+   */
   async #persistNodeChanges(snapshots: NodeSnapshot[]): Promise<void> {
-    if (!this.#currentData || !this.#editing) return;
+    const before = this.#currentData;
+    if (!before || !this.#editing) return;
 
     const byId = new Map(snapshots.map((s) => [s.id, s]));
-    const nodes: GraphNode[] = this.#currentData.nodes.map((n) => {
+    let changed = false;
+    const nodes: GraphNode[] = before.nodes.map((n) => {
       const s = byId.get(n.id);
-      return s ? { ...n, x: s.x, y: s.y, scale: s.scale } : n;
+      if (!s || (s.x === n.x && s.y === n.y && s.scale === n.scale)) return n;
+      changed = true;
+      return { ...n, x: s.x, y: s.y, scale: s.scale };
     });
+    if (!changed) return;
 
-    this.#currentData = { ...this.#currentData, nodes };
+    if (!this.#mergeNextStep) this.#history.record(before);
+    this.#currentData = { ...before, nodes };
+    this.#updateToolbar();
     await saveGraphData(this.#currentData);
   }
 
@@ -863,7 +975,10 @@ export class GraphApp extends ApplicationV2 {
     this.#hooks.forEach(([name, id]) => Hooks.off(name, id));
     this.#hooks = [];
     this.#editButton = null;
+    this.#undoButton = null;
+    this.#redoButton = null;
     this.#importControl = null;
+    this.#history.clear();
     this.#lastInfo = null;
     this.#interaction?.teardown();
     this.#interaction = null;
