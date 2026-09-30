@@ -12,6 +12,7 @@
 import cytoscape from "cytoscape";
 import fcose from "cytoscape-fcose";
 import type { GraphData } from "../core/model";
+import { MODULE_ID } from "../foundry/settings";
 
 let fcoseRegistered = false;
 function ensureFcoseRegistered(): void {
@@ -21,6 +22,9 @@ function ensureFcoseRegistered(): void {
 }
 
 export const BASE_SIZE = 60; // px, scale=1.0 — используется и в interaction.ts для resize
+
+/** Изображение узла с пустым img. В данных не хранится — подставляется только при отрисовке. */
+export const DEFAULT_NODE_IMG = `modules/${MODULE_ID}/assets/placeholder-npc.png`;
 
 const FACTION_ID_PREFIX = "faction-";
 /** id compound-узла Cytoscape для фракции (чтобы не пересекаться с id обычных узлов). */
@@ -42,7 +46,11 @@ export interface RenderOptions {
 function buildElements(data: GraphData, options: RenderOptions): cytoscape.ElementDefinition[] {
   const elements: unknown[] = [];
 
+  // Фракция без узлов не рисуется: пустой compound в Cytoscape — обычный узел в точке (0, 0).
+  // Управлять такой фракцией можно через список фракций (panels/FactionPanel.ts).
+  const populated = new Set(data.nodes.map((n) => n.primaryFactionId));
   data.factions.forEach((faction) => {
+    if (!populated.has(faction.id)) return;
     elements.push({
       data: { id: factionElementId(faction.id), label: faction.name, isFaction: true, factionColor: faction.color },
       selectable: false,
@@ -55,12 +63,11 @@ function buildElements(data: GraphData, options: RenderOptions): cytoscape.Eleme
     elements.push({
       data: {
         id: node.id,
-        label: node.name,
         parent: node.primaryFactionId ? factionElementId(node.primaryFactionId) : undefined,
         scale: node.scale,
         size,
-        // без картинки поле не ставим совсем — стиль с background-image висит на селекторе node[img]
-        ...(node.img ? { img: node.img } : {}),
+        // Заглушка — только при пустом пути; битую ссылку не подменяем (tasks.md, B1).
+        img: node.img || DEFAULT_NODE_IMG,
       },
       position: { x: node.x, y: node.y },
     });
@@ -104,7 +111,8 @@ const STYLE = [
       "text-halign": "center",
       "font-size": 11,
       color: "#ccc",
-      padding: "20px",
+      // запас под HTML-подписи узлов: compound bbox про них не знает
+      padding: "30px",
       events: "no",
     },
   },
@@ -124,24 +132,9 @@ const STYLE = [
       "background-color": "#334155",
       "border-width": 2,
       "border-color": "#64748b",
-      label: "data(label)",
-      "text-valign": "center",
-      "text-halign": "center",
-      "font-size": 9,
-      color: "#e2e8f0",
-      "text-wrap": "wrap",
-      "text-max-width": "data(size)",
-    },
-  },
-  {
-    // Узел с картинкой: изображение вместо заливки, подпись уезжает под узел.
-    selector: "node[img]",
-    style: {
       "background-image": "data(img)",
       "background-fit": "cover",
-      "text-valign": "bottom",
-      "text-margin-y": 4,
-      "text-max-width": 120,
+      // подписи у узла нет: имя, роль и бейджи рисует HTML-слой (node-decor.ts)
     },
   },
   {

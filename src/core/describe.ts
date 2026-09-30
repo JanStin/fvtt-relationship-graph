@@ -39,9 +39,13 @@ export function describeNode(data: GraphData, nodeId: string, options: DescribeO
   const rows: DescriptionRow[] = [];
   pushIfPresent(rows, "Роль", node.role);
 
-  const factionNames = node.factionIds
-    .map((id) => data.factions.find((f) => f.id === id)?.name)
-    .filter((name): name is string => name !== undefined);
+  const factions = node.factionIds
+    .map((id) => data.factions.find((f) => f.id === id))
+    .filter((f) => f !== undefined);
+  // Единственная фракция и так основная — помечаем, только когда есть из чего выбирать.
+  const factionNames = factions.map((f) =>
+    factions.length > 1 && f.id === node.primaryFactionId ? `${f.name} (основная)` : f.name,
+  );
   pushIfPresent(rows, "Фракции", factionNames.join(", "));
   pushIfPresent(rows, "Состояния", node.conditions.join(", "));
 

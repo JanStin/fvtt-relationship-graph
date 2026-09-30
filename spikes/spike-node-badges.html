@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>B5: роль, ромбики фракций и иконки состояний поверх узла</title>
+  <!-- В Foundry Font Awesome уже подключён; в спайке берём с CDN. -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: monospace; background: #1a1a2e; color: #eee; display: flex; height: 100vh; }
+
+    #cy-wrap { flex: 1; position: relative; overflow: hidden; }
+    #cy { position: absolute; inset: 0; background: #16213e; }
+
+    /*
+     * HTML-слой поверх канваса. Один контейнер повторяет pan/zoom Cytoscape через transform,
+     * дочерние элементы стоят в МОДЕЛЬНЫХ координатах узлов — при панорамировании и зуме
+     * меняется только transform контейнера, сами элементы не трогаются.
+     */
+    #overlay {
+      position: absolute; left: 0; top: 0; width: 0; height: 0;
+      transform-origin: 0 0;
+      pointer-events: none; /* мышь целиком остаётся у Cytoscape */
+    }
+    .node-deco {
+      position: absolute;
+      width: var(--size); height: var(--size);
+      transform: translate(-50%, -50%);
+      --badge: calc(var(--size) * 0.28); /* бейджи растут вместе со scale узла */
+    }
+    .badges { position: absolute; top: 0; display: flex; gap: calc(var(--badge) * 0.15); }
+    .badges.factions { left: 0; }
+    .badges.conditions { right: 0; }
+
+    .diamond {
+      width: var(--badge); height: var(--badge);
+      transform: rotate(45deg) scale(0.8);
+      border: 1px solid #0b1220;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .diamond.more { background: #475569; }
+    .diamond.more span { transform: rotate(-45deg); font-size: calc(var(--badge) * 0.9); font-weight: bold; color: #fff; line-height: 1; }
+
+    .condition {
+      width: var(--badge); height: var(--badge);
+      border-radius: 50%;
+      background: #0b1220; color: #fde68a;
+      display: flex; align-items: center; justify-content: center;
+      font-size: calc(var(--badge) * 0.6);
+    }
+
+    .caption {
+      position: absolute; top: 100%; left: 50%;
+      transform: translateX(-50%);
+      width: 120px; margin-top: 4px;
+      text-align: center; line-height: 1.2;
+    }
+    .caption .name { font-size: 9px; color: #e2e8f0; }
+    .caption .role { font-size: 7px; color: #94a3b8; }
+
+    #panel {
+      width: 360px; padding: 16px; background: #0f3460; overflow-y: auto;
+      font-size: 13px; display: flex; flex-direction: column; gap: 12px;
+    }
+    h1 { font-size: 15px; color: #e94560; }
+    h2 { font-size: 13px; color: #a8dadc; margin-bottom: 4px; }
+    p.hint { color: #9ca3af; font-size: 11px; line-height: 1.5; }
+    #status { padding: 10px; border-radius: 6px; font-weight: bold; font-size: 14px; text-align: center; }
+    .pass { background: #1a4a2a; color: #4ade80; border: 1px solid #4ade80; }
+    .fail { background: #4a1a1a; color: #f87171; border: 1px solid #f87171; }
+    .stat { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #1a3a5c; }
+    .stat span:last-child { color: #a8dadc; }
+    button { background: #e94560; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 13px; }
+  </style>
+</head>
+<body>
+
+<div id="cy-wrap">
+  <div id="cy"></div>
+  <div id="overlay"></div>
+</div>
+
+<div id="panel">
+  <h1>B5: декор узла HTML-слоем</h1>
+  <p class="hint">
+    Имя + роль под узлом, ромбики доп. фракций слева сверху, иконки состояний справа сверху.<br>
+    Проверить: зум колесом, панорамирование, перетаскивание узла и группы (Shift+клик),
+    <b>Alt+колесо</b> над узлом — resize. Декор не должен отставать от узла.
+  </p>
+  <div id="status" class="pass">—</div>
+  <div>
+    <h2>Stats</h2>
+    <div class="stat"><span>Макс. расхождение декора и узла (px)</span><span id="st-drift">—</span></div>
+    <div class="stat"><span>Наложения узлов</span><span id="st-overlaps">—</span></div>
+    <div class="stat"><span>Zoom</span><span id="st-zoom">—</span></div>
+  </div>
+  <button onclick="initCy()">↻ Reset</button>
+</div>
+
+<script src="../node_modules/cytoscape/dist/cytoscape.min.js"></script>
+<script src="../node_modules/layout-base/layout-base.js"></script>
+<script src="../node_modules/cose-base/cose-base.js"></script>
+<script src="../node_modules/cytoscape-fcose/cytoscape-fcose.js"></script>
+
+<script>
+const BASE_SIZE = 60;
+const SCALE_MIN = 0.3, SCALE_MAX = 5.0, SCALE_STEP = 0.1;
+const MAX_BADGES = 3; // решено в tasks.md: не больше 3 значков, третий — «плюс», если их больше
+const IMG = '../assets/placeholder-npc.svg';
+
+const FACTIONS = [
+  { id: 'f-zentarim', label: 'Зентарим',     color: '#6366f1' },
+  { id: 'f-church',   label: 'Церковь Тира', color: '#f97316' },
+  { id: 'f-guild',    label: 'Гильдия',      color: '#22c55e' },
+  { id: 'f-cult',     label: 'Культ',        color: '#ef4444' },
+  { id: 'f-court',    label: 'Двор',         color: '#eab308' },
+];
+const CONDITION_ICONS = {
+  deceased: 'fa-skull', questgiver: 'fa-circle-exclamation', captured: 'fa-link', missing: 'fa-circle-question',
+};
+
+// primary — область (compound), extra — ромбики
+const NODES_DATA = [
+  { id: 'n01', label: 'Артадель', role: '',          primary: 'f-zentarim', extra: [], conditions: [], scale: 1.0 },
+  { id: 'n02', label: 'Миффи Вверхтормашкина', role: 'Секретарь', primary: 'f-zentarim', extra: ['f-church'], conditions: ['questgiver'], scale: 1.0 },
+  { id: 'n03', label: 'Дрейк',    role: 'Наёмник',   primary: 'f-zentarim', extra: ['f-church', 'f-guild', 'f-cult'], conditions: ['deceased', 'captured', 'missing'], scale: 1.5 },
+  { id: 'n04', label: 'Корвин',   role: 'Глава',     primary: 'f-zentarim', extra: ['f-church', 'f-guild', 'f-cult', 'f-court'], conditions: ['deceased', 'captured', 'missing', 'questgiver'], scale: 2.5 },
+  { id: 'n05', label: 'Кора',     role: 'Жрица',     primary: 'f-church',   extra: ['f-guild'], conditions: [], scale: 0.5 },
+  { id: 'n06', label: 'Перегрин', role: '',          primary: 'f-church',   extra: [], conditions: ['missing'], scale: 1.0 },
+  { id: 'n07', label: 'Дерек',    role: 'Паладин',   primary: 'f-church',   extra: [], conditions: [], scale: 1.0 },
+  { id: 'n08', label: 'Аспид',    role: 'Информатор', primary: null,        extra: [], conditions: ['captured', 'questgiver'], scale: 0.7 },
+  { id: 'n09', label: 'Цезария',  role: '',          primary: null,         extra: [], conditions: [], scale: 1.0 },
+];
+
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+function buildElements() {
+  const elements = [];
+  FACTIONS.slice(0, 2).forEach(f => elements.push({ data: { id: f.id, label: f.label, isFaction: true, factionColor: f.color }, selectable: false, grabbable: false }));
+  NODES_DATA.forEach(n => elements.push({
+    data: { id: n.id, parent: n.primary ?? undefined, scale: n.scale, size: BASE_SIZE * n.scale },
+  }));
+  return elements;
+}
+
+// ─── HTML-слой ────────────────────────────────────────────────────────────────
+const overlay = document.getElementById('overlay');
+const decoById = new Map();
+
+/** Первые max значков; если их больше — max-1 и «плюс». */
+function limitBadges(items, max) {
+  return items.length > max ? { shown: items.slice(0, max - 1), more: true } : { shown: items, more: false };
+}
+
+function buildDeco(n) {
+  const el = document.createElement('div');
+  el.className = 'node-deco';
+
+  const factions = document.createElement('div');
+  factions.className = 'badges factions';
+  const f = limitBadges(n.extra, MAX_BADGES);
+  f.shown.forEach(id => {
+    const d = document.createElement('div');
+    d.className = 'diamond';
+    d.style.background = FACTIONS.find(x => x.id === id).color;
+    factions.append(d);
+  });
+  if (f.more) {
+    const d = document.createElement('div');
+    d.className = 'diamond more';
+    d.innerHTML = '<span>+</span>';
+    factions.append(d);
+  }
+
+  const conditions = document.createElement('div');
+  conditions.className = 'badges conditions';
+  const c = limitBadges(n.conditions, MAX_BADGES);
+  c.shown.forEach(id => {
+    const d = document.createElement('div');
+    d.className = 'condition';
+    d.innerHTML = `<i class="fa-solid ${CONDITION_ICONS[id]}"></i>`;
+    conditions.append(d);
+  });
+  if (c.more) {
+    const d = document.createElement('div');
+    d.className = 'condition';
+    d.innerHTML = '<i class="fa-solid fa-plus"></i>';
+    conditions.append(d);
+  }
+
+  const caption = document.createElement('div');
+  caption.className = 'caption';
+  const name = document.createElement('div');
+  name.className = 'name';
+  name.textContent = n.label;
+  caption.append(name);
+  if (n.role) { // у узла без роли строки нет
+    const role = document.createElement('div');
+    role.className = 'role';
+    role.textContent = n.role;
+    caption.append(role);
+  }
+
+  el.append(factions, conditions, caption);
+  return el;
+}
+
+function syncViewport() {
+  const pan = cy.pan();
+  overlay.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${cy.zoom()})`;
+}
+function syncNode(node) {
+  const el = decoById.get(node.id());
+  if (!el) return;
+  const p = node.position();
+  el.style.left = `${p.x}px`;
+  el.style.top = `${p.y}px`;
+  el.style.setProperty('--size', `${node.data('size')}px`);
+}
+
+// ─── Cytoscape ────────────────────────────────────────────────────────────────
+let cy;
+let hoveredId = null;
+
+function initCy() {
+  if (cy) cy.destroy();
+  overlay.replaceChildren();
+  decoById.clear();
+
+  cy = cytoscape({
+    container: document.getElementById('cy'),
+    boxSelectionEnabled: true,
+    elements: buildElements(),
+    style: [
+      { selector: 'node[?isFaction]', style: {
+          'shape': 'round-rectangle', 'background-color': 'data(factionColor)', 'background-opacity': 0.15,
+          'border-width': 2, 'border-color': 'data(factionColor)', 'border-opacity': 0.8,
+          'label': 'data(label)', 'text-valign': 'bottom', 'text-halign': 'center', 'font-size': 11, 'color': '#ccc',
+          // снизу запас под HTML-подпись: compound bbox про неё не знает
+          'padding': '30px', 'events': 'no',
+      } },
+      { selector: 'node[!isFaction]', style: {
+          'width': 'data(size)', 'height': 'data(size)', 'background-color': '#334155',
+          'border-width': 2, 'border-color': '#64748b',
+          'background-image': IMG, 'background-fit': 'cover',
+          // подписи у узла нет — её рисует HTML-слой
+      } },
+      { selector: 'node[!isFaction]:selected', style: { 'border-color': '#fbbf24', 'border-width': 4 } },
+    ],
+    layout: {
+      name: 'fcose', animate: false, randomize: true, nodeDimensionsIncludeLabels: false,
+      nodeRepulsion: () => 8000, idealEdgeLength: () => 120, gravity: 0.25,
+      tilingPaddingVertical: 20, tilingPaddingHorizontal: 20, nodeSeparation: 30,
+    },
+  });
+
+  NODES_DATA.forEach(n => {
+    const el = buildDeco(n);
+    decoById.set(n.id, el);
+    overlay.append(el);
+  });
+
+  cy.on('viewport', () => { syncViewport(); updatePanel(); });
+  cy.on('position', 'node[!isFaction]', evt => { syncNode(evt.target); updatePanel(); });
+  cy.on('mouseover', 'node[!isFaction]', evt => { hoveredId = evt.target.id(); });
+  cy.on('mouseout', 'node[!isFaction]', () => { hoveredId = null; });
+  cy.on('dragfreeon', 'node[!isFaction]', evt => {
+    const selected = cy.$('node[!isFaction]:selected');
+    runSeparation(evt.target.selected() && selected.length > 1 ? selected : evt.target);
+    updatePanel();
+  });
+
+  runSeparation(cy.collection());
+  cy.fit(undefined, 40);
+  syncViewport();
+  cy.nodes('[!isFaction]').forEach(syncNode);
+  updatePanel();
+}
+
+function applyScaleDelta(nodeId, delta) {
+  const node = cy.getElementById(nodeId);
+  const selected = cy.$('node[!isFaction]:selected');
+  const group = (node.selected() && selected.length > 1) ? selected : node;
+  const oldScale = node.data('scale');
+  const newScale = clamp(+(oldScale + delta).toFixed(2), SCALE_MIN, SCALE_MAX);
+  const coeff = newScale / oldScale;
+  group.forEach(n => {
+    const s = clamp(+(n.data('scale') * coeff).toFixed(3), SCALE_MIN, SCALE_MAX);
+    n.data('scale', s);
+    n.data('size', BASE_SIZE * s);
+    n.style({ width: BASE_SIZE * s, height: BASE_SIZE * s });
+    syncNode(n); // размер изменился без события position
+  });
+  runSeparation(group);
+  updatePanel();
+}
+
+// Упрощённый push-apart (в модуле — core/layout.separateOverlaps): anchored не двигаются.
+function runSeparation(anchored) {
+  const anchoredIds = new Set(anchored.map(n => n.id()));
+  const nodes = cy.nodes('[!isFaction]').toArray();
+  for (let iter = 0; iter < 50; iter++) {
+    let moved = false;
+    for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+      const a = nodes[i], b = nodes[j];
+      const pa = a.position(), pb = b.position();
+      const dx = pb.x - pa.x, dy = pb.y - pa.y;
+      const dist = Math.hypot(dx, dy) || 0.001;
+      const minDist = a.data('size') / 2 + b.data('size') / 2 + 8;
+      if (dist >= minDist) continue;
+      const push = minDist - dist, ux = dx / dist, uy = dy / dist;
+      const aFixed = anchoredIds.has(a.id()), bFixed = anchoredIds.has(b.id());
+      if (aFixed && bFixed) continue;
+      const ka = aFixed ? 0 : bFixed ? 1 : 0.5, kb = 1 - ka;
+      a.position({ x: pa.x - ux * push * ka, y: pa.y - uy * push * ka });
+      b.position({ x: pb.x + ux * push * kb, y: pb.y + uy * push * kb });
+      moved = true;
+    }
+    if (!moved) break;
+  }
+}
+
+function countOverlaps() {
+  const nodes = cy.nodes('[!isFaction]').toArray();
+  let count = 0;
+  for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+    const pa = nodes[i].position(), pb = nodes[j].position();
+    if (Math.hypot(pa.x - pb.x, pa.y - pb.y) < nodes[i].data('size') / 2 + nodes[j].data('size') / 2) count++;
+  }
+  return count;
+}
+
+/** Расхождение центра и размера HTML-декора с отрисованным узлом, в экранных px. */
+function measureDrift() {
+  const host = document.getElementById('cy').getBoundingClientRect();
+  let worst = 0;
+  cy.nodes('[!isFaction]').forEach(n => {
+    const r = decoById.get(n.id()).getBoundingClientRect();
+    const rp = n.renderedPosition();
+    const rw = n.data('size') * cy.zoom();
+    worst = Math.max(
+      worst,
+      Math.abs(r.left + r.width / 2 - (host.left + rp.x)),
+      Math.abs(r.top + r.height / 2 - (host.top + rp.y)),
+      Math.abs(r.width - rw),
+    );
+  });
+  return worst;
+}
+
+function updatePanel() {
+  const drift = measureDrift();
+  const overlaps = countOverlaps();
+  const ok = drift < 1 && overlaps === 0;
+  const status = document.getElementById('status');
+  status.className = ok ? 'pass' : 'fail';
+  status.textContent = ok ? '✅ PASS' : '❌ FAIL';
+  document.getElementById('st-drift').textContent = drift.toFixed(2);
+  document.getElementById('st-overlaps').textContent = overlaps;
+  document.getElementById('st-zoom').textContent = cy.zoom().toFixed(2);
+}
+
+document.getElementById('cy-wrap').addEventListener('wheel', (e) => {
+  if (!e.altKey) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  if (hoveredId) applyScaleDelta(hoveredId, e.deltaY < 0 ? SCALE_STEP : -SCALE_STEP);
+}, { capture: true, passive: false });
+
+cytoscape.use(cytoscapeFcose);
+window.addEventListener('DOMContentLoaded', () => initCy());
+</script>
+</body>
+</html>

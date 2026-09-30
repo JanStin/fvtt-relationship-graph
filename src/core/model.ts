@@ -36,7 +36,6 @@ export interface Faction {
   name: string;
   color: string; // hex
   description: string;
-  visible: boolean;
 }
 
 export interface RelationshipType {

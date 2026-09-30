@@ -10,5 +10,6 @@
 | S2 | `spike-multiselect.html` | Multi-drag нескольких выделенных узлов в Cytoscape | Не начат |
 | S3 | `spike-resize.html` | Resize узла + пересчёт границ compound node | Не начат |
 | S4 | `spike-foundry-app.ts` | Оболочка `ApplicationV2` для Cytoscape внутри Foundry | Не начат |
+| B5 | `spike-node-badges.html` | Роль под именем, ромбики доп. фракций и иконки состояний HTML-слоем поверх канваса | Проверен в браузере, подход перенесён в `src/ui/node-decor.ts` |
 
 Детали — в самих файлах спайков и в `docs/architecture.md` / `docs/tasks.md`.

@@ -7,6 +7,12 @@ export interface ParseResult {
 
 const DEFAULT_SCALE = 1.0;
 
+/**
+ * Заглушка FANG для узлов без картинки. В наших данных заглушка не хранится: такой путь
+ * превращается в пустой img, а картинку по умолчанию подставляет рендер (graph-renderer.ts).
+ */
+export const FANG_PLACEHOLDER_IMG = "modules/fang/assets/placeholder-npc.svg";
+
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
@@ -40,7 +46,6 @@ function parseFactions(raw: unknown, warnings: string[]): Faction[] {
       name: str(item.name),
       color: str(item.color, "#888888"),
       description: str(item.description),
-      visible: bool(item.playerVisible, true),
     });
   });
   return factions;
@@ -77,13 +82,15 @@ function parseNodes(raw: unknown, factionIds: Set<string>, warnings: string[]): 
       warnings.push(`nodes[${index}] (${item.id}): ссылка на несуществующую фракцию, проигнорирована`);
     }
 
+    const img = str(item.img);
+
     nodes.push({
       id: item.id,
       type: isPlaceholder ? "placeholder" : "actor",
       actorId,
       name: str(item.name),
       originalName: str(item.originalName, str(item.name)),
-      img: str(item.img),
+      img: img === FANG_PLACEHOLDER_IMG ? "" : img,
       x: num(item.x),
       y: num(item.y),
       scale: DEFAULT_SCALE, // FANG-экспорт не содержит размера узла

@@ -48,7 +48,7 @@ const data: GraphData = {
     makeEdge({ id: "e2", source: "c", target: "a", directional: true, relationshipTypeId: "rt1" }),
     makeEdge({ id: "e3", source: "a", target: "c", gmOnly: true, label: "шпионит" }),
   ],
-  factions: [{ id: "f1", name: "Стража", color: "#ff0000", description: "Городская стража", visible: true }],
+  factions: [{ id: "f1", name: "Стража", color: "#ff0000", description: "Городская стража" }],
   relationshipTypes: [{ id: "rt1", label: "враг", color: "#000000", dash: "" }],
 };
 
@@ -68,6 +68,15 @@ describe("describeNode", () => {
     expect(rowValue(d.rows, "Роль")).toBe("Капитан");
     expect(rowValue(d.rows, "Фракции")).toBe("Стража"); // несуществующая фракция пропущена
     expect(rowValue(d.rows, "Размер")).toBe("×1.5");
+  });
+
+  it("при нескольких фракциях помечает основную", () => {
+    const many: GraphData = {
+      ...data,
+      factions: [...data.factions, { id: "f2", name: "Гильдия", color: "#00ff00", description: "" }],
+      nodes: [makeNode({ id: "x", factionIds: ["f2", "f1"], primaryFactionId: "f2" })],
+    };
+    expect(rowValue(describeNode(many, "x", { isGM: false })!.rows, "Фракции")).toBe("Гильдия (основная), Стража");
   });
 
   it("описывает связи: направление, подпись или название типа", () => {

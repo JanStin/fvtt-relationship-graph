@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { applyEdgeEdit, applyNodeEdit, parseConditions, type NodeEditValues } from "../../src/core/edit";
+import {
+  applyEdgeEdit,
+  applyFactionEdit,
+  applyNodeEdit,
+  createFactionFromEdit,
+  normalizeFactions,
+  parseConditions,
+  primaryAfterUncheck,
+  type NodeEditValues,
+} from "../../src/core/edit";
 import type { GraphData, GraphNode } from "../../src/core/model";
 
 function makeNode(overrides: Partial<GraphNode> & { id: string }): GraphNode {
@@ -34,8 +43,8 @@ const data: GraphData = {
   ],
   edges: [{ id: "e1", source: "free", target: "bound", label: "", directional: false, relationshipTypeId: "", gmOnly: false }],
   factions: [
-    { id: "f1", name: "F1", color: "#111111", description: "", visible: true },
-    { id: "f2", name: "F2", color: "#222222", description: "", visible: true },
+    { id: "f1", name: "F1", color: "#111111", description: "" },
+    { id: "f2", name: "F2", color: "#222222", description: "" },
   ],
   relationshipTypes: [{ id: "rt1", label: "друг", color: "#00ff00", dash: "" }],
 };
@@ -45,6 +54,7 @@ function values(overrides: Partial<NodeEditValues> = {}): NodeEditValues {
     name: "Новое",
     img: "new.png",
     role: "",
+    factionIds: [],
     primaryFactionId: null,
     scale: 1,
     lore: "",
@@ -100,25 +110,83 @@ describe("applyNodeEdit", () => {
     expect(nodeOf(applyNodeEdit(data, "free", values({ scale: NaN })), "free").scale).toBe(1);
   });
 
-  it("смена primary-фракции сохраняет остальные как вторичные", () => {
-    const result = applyNodeEdit(data, "member", values({ primaryFactionId: "f2" }));
+  it("смена основной фракции: основная встаёт первой, остальные сохраняются", () => {
+    const result = applyNodeEdit(data, "member", values({ factionIds: ["f1", "f2"], primaryFactionId: "f2" }));
     expect(nodeOf(result, "member")).toMatchObject({ primaryFactionId: "f2", factionIds: ["f2", "f1"] });
   });
 
-  it("выбор 'без фракции' очищает фракции узла", () => {
-    const result = applyNodeEdit(data, "member", values({ primaryFactionId: null }));
+  it("пустой список фракций очищает фракции узла", () => {
+    const result = applyNodeEdit(data, "member", values({ factionIds: [], primaryFactionId: "f1" }));
     expect(nodeOf(result, "member")).toMatchObject({ primaryFactionId: null, factionIds: [] });
   });
 
-  it("неизменённая фракция не трогает factionIds", () => {
-    const kept = applyNodeEdit(data, "member", values({ primaryFactionId: "f1" }));
-    expect(nodeOf(kept, "member").factionIds).toEqual(["f1", "f2"]);
-    const stillNone = applyNodeEdit(data, "secondaryOnly", values({ primaryFactionId: null }));
-    expect(nodeOf(stillNone, "secondaryOnly").factionIds).toEqual(["f2"]);
+  it("добавление второй фракции не меняет основную", () => {
+    const result = applyNodeEdit(data, "free", values({ factionIds: ["f2", "f1"], primaryFactionId: "f1" }));
+    expect(nodeOf(result, "free")).toMatchObject({ primaryFactionId: "f1", factionIds: ["f1", "f2"] });
   });
 
   it("бросает на неизвестном узле", () => {
     expect(() => applyNodeEdit(data, "nope", values())).toThrow(/not found/);
+  });
+});
+
+describe("normalizeFactions", () => {
+  it("без отмеченных фракций основной нет", () => {
+    expect(normalizeFactions(data, [], "f1")).toEqual({ factionIds: [], primaryFactionId: null });
+  });
+
+  it("основная по умолчанию — первая отмеченная", () => {
+    expect(normalizeFactions(data, ["f2", "f1"], null)).toEqual({ factionIds: ["f2", "f1"], primaryFactionId: "f2" });
+  });
+
+  it("основная, не входящая в отмеченные, заменяется первой отмеченной", () => {
+    expect(normalizeFactions(data, ["f2"], "f1")).toEqual({ factionIds: ["f2"], primaryFactionId: "f2" });
+  });
+
+  it("неизвестные и повторные фракции отбрасываются", () => {
+    expect(normalizeFactions(data, ["ghost", "f1", "f1"], "ghost")).toEqual({
+      factionIds: ["f1"],
+      primaryFactionId: "f1",
+    });
+  });
+});
+
+describe("primaryAfterUncheck", () => {
+  const order = ["a", "b", "c", "d"];
+
+  it("роль переходит следующей отмеченной по списку", () => {
+    expect(primaryAfterUncheck(order, new Set(["a", "d"]), "b")).toBe("d");
+  });
+
+  it("если ниже отмеченных нет — первой отмеченной", () => {
+    expect(primaryAfterUncheck(order, new Set(["a", "b"]), "d")).toBe("a");
+  });
+
+  it("отмеченных не осталось — null", () => {
+    expect(primaryAfterUncheck(order, new Set(), "b")).toBeNull();
+  });
+});
+
+describe("applyFactionEdit / createFactionFromEdit", () => {
+  it("обновляет название, цвет и описание", () => {
+    const result = applyFactionEdit(data, "f1", { name: " Стража ", color: "#abcdef", description: "текст" });
+    expect(result.factions[0]).toEqual({ id: "f1", name: "Стража", color: "#abcdef", description: "текст" });
+    expect(data.factions[0].name).toBe("F1");
+  });
+
+  it("пустое имя и пустой цвет оставляют прежние", () => {
+    const result = applyFactionEdit(data, "f1", { name: " ", color: "", description: "" });
+    expect(result.factions[0]).toMatchObject({ name: "F1", color: "#111111" });
+  });
+
+  it("создаёт фракцию, подставляя название по умолчанию", () => {
+    const result = createFactionFromEdit(data, "f3", { name: "", color: "#333333", description: "" });
+    expect(result.factions[2]).toEqual({ id: "f3", name: "Новая фракция", color: "#333333", description: "" });
+  });
+
+  it("бросает на неизвестной фракции и на повторном id", () => {
+    expect(() => applyFactionEdit(data, "nope", { name: "x", color: "", description: "" })).toThrow(/not found/);
+    expect(() => createFactionFromEdit(data, "f1", { name: "x", color: "", description: "" })).toThrow(/already exists/);
   });
 });
 

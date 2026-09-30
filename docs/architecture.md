@@ -84,7 +84,6 @@ interface Faction {
   name: string;
   color: string;            // hex
   description: string;
-  visible: boolean;
 }
 
 interface RelationshipType {

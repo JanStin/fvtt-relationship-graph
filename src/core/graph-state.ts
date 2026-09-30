@@ -3,7 +3,7 @@
  * Не зависит от Cytoscape/Foundry — см. docs/architecture.md §8 (src/core/ не знает о Foundry).
  */
 
-import type { GraphData, GraphEdge, GraphNode } from "./model";
+import type { Faction, GraphData, GraphEdge, GraphNode } from "./model";
 
 export function addNode(data: GraphData, node: GraphNode): GraphData {
   if (data.nodes.some((n) => n.id === node.id)) {
@@ -91,4 +91,38 @@ export function moveFaction(data: GraphData, nodeId: string, factionId: string |
     throw new Error(`moveFaction: node "${nodeId}" not found`);
   }
   return { ...data, nodes };
+}
+
+export function addFaction(data: GraphData, faction: Faction): GraphData {
+  if (data.factions.some((f) => f.id === faction.id)) {
+    throw new Error(`addFaction: faction "${faction.id}" already exists`);
+  }
+  return { ...data, factions: [...data.factions, faction] };
+}
+
+export function updateFaction(data: GraphData, factionId: string, patch: Partial<Omit<Faction, "id">>): GraphData {
+  let found = false;
+  const factions = data.factions.map((f) => {
+    if (f.id !== factionId) return f;
+    found = true;
+    return { ...f, ...patch, id: f.id };
+  });
+  if (!found) {
+    throw new Error(`updateFaction: faction "${factionId}" not found`);
+  }
+  return { ...data, factions };
+}
+
+/**
+ * Удаляет фракцию; узлы остаются, но без неё. Если она была у узла основной, основной
+ * становится следующая из его фракций (или null, если других нет). Не найдена — тихий no-op.
+ */
+export function removeFaction(data: GraphData, factionId: string): GraphData {
+  const nodes = data.nodes.map((n) => {
+    if (!n.factionIds.includes(factionId) && n.primaryFactionId !== factionId) return n;
+    const factionIds = n.factionIds.filter((id) => id !== factionId);
+    const primaryFactionId = n.primaryFactionId === factionId ? (factionIds[0] ?? null) : n.primaryFactionId;
+    return { ...n, factionIds, primaryFactionId };
+  });
+  return { ...data, nodes, factions: data.factions.filter((f) => f.id !== factionId) };
 }

@@ -3,14 +3,12 @@
  * нормализацию и применение к GraphData делает core/edit.ts, сохранение — GraphApp.
  */
 
-import { parseConditions, type NodeEditValues } from "../../core/edit";
+import { parseConditions, primaryAfterUncheck, type NodeEditValues } from "../../core/edit";
 import type { Faction, GraphNode } from "../../core/model";
 import { SCALE_MAX, SCALE_MIN } from "../../core/selection";
-import { createPanelShell, field, hint, select, textArea, textInput } from "./form";
+import { createPanelShell, field, hint, textArea, textInput } from "./form";
 
 declare const foundry: any;
-
-const NO_FACTION = ""; // значение <option> "без фракции"; id фракций пустыми не бывают
 
 export interface NodePanelCallbacks {
   onSave(values: NodeEditValues): void;
@@ -30,6 +28,84 @@ function browseImage(input: HTMLInputElement): void {
   }).browse();
 }
 
+interface FactionPicker {
+  element: HTMLElement;
+  /** Отмеченные фракции в порядке списка и основная среди них (null — ни одной не отмечено). */
+  value(): { factionIds: string[]; primaryFactionId: string | null };
+}
+
+/**
+ * Список фракций: чекбокс «состоит» + радиокнопка «основная» в той же строке.
+ * Если отмечена хотя бы одна фракция, основная обязательна: первая отмеченная становится
+ * основной сама, снятие галочки с основной передаёт роль следующей отмеченной.
+ */
+function createFactionPicker(node: GraphNode, factions: readonly Faction[]): FactionPicker {
+  const element = document.createElement("div");
+  element.className = "frg-field";
+  const caption = document.createElement("span");
+  caption.className = "frg-field-label";
+  caption.textContent = "Фракции (отметка справа — основная, область)";
+  element.append(caption);
+  if (factions.length === 0) element.append(hint("Фракций пока нет — создайте их через ПКМ → «Фракции…»."));
+
+  const order = factions.map((f) => f.id);
+  const rows = new Map<string, { check: HTMLInputElement; radio: HTMLInputElement }>();
+  const checkedIds = () => new Set(order.filter((id) => rows.get(id)!.check.checked));
+  const setPrimary = (id: string | null) => {
+    rows.forEach((row, rowId) => {
+      row.radio.checked = rowId === id;
+    });
+  };
+
+  for (const faction of factions) {
+    const row = document.createElement("div");
+    row.className = "frg-faction-pick";
+
+    const label = document.createElement("label");
+    label.className = "frg-check";
+    const check = document.createElement("input");
+    check.type = "checkbox";
+    check.checked = node.factionIds.includes(faction.id);
+    const swatch = document.createElement("span");
+    swatch.className = "frg-faction-swatch";
+    swatch.style.background = faction.color;
+    const name = document.createElement("span");
+    name.textContent = faction.name;
+    label.append(check, swatch, name);
+
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = `frg-primary-faction-${node.id}`;
+    radio.title = "Основная фракция";
+    radio.checked = node.primaryFactionId === faction.id;
+
+    check.addEventListener("change", () => {
+      if (check.checked) {
+        if (![...rows.values()].some((r) => r.radio.checked)) setPrimary(faction.id);
+      } else if (radio.checked) {
+        setPrimary(primaryAfterUncheck(order, checkedIds(), faction.id));
+      }
+    });
+    // Основной может быть только фракция, в которой узел состоит.
+    radio.addEventListener("change", () => {
+      if (radio.checked) check.checked = true;
+    });
+
+    rows.set(faction.id, { check, radio });
+    row.append(label, radio);
+    element.append(row);
+  }
+
+  return {
+    element,
+    value() {
+      const factionIds = [...checkedIds()];
+      const primaryFactionId = factionIds.find((id) => rows.get(id)!.radio.checked) ?? null;
+      return { factionIds, primaryFactionId };
+    },
+  };
+}
+
 export function createNodePanel(
   node: GraphNode,
   factions: readonly Faction[],
@@ -40,10 +116,7 @@ export function createNodePanel(
   const name = textInput(node.name);
   const img = textInput(node.img);
   const role = textInput(node.role);
-  const faction = select(
-    [{ value: NO_FACTION, label: "— без фракции —" }, ...factions.map((f) => ({ value: f.id, label: f.name }))],
-    node.primaryFactionId ?? NO_FACTION,
-  );
+  const factionPicker = createFactionPicker(node, factions);
   const scale = document.createElement("input");
   scale.type = "number";
   scale.min = String(SCALE_MIN);
@@ -61,7 +134,7 @@ export function createNodePanel(
         name: name.value,
         img: img.value,
         role: role.value,
-        primaryFactionId: faction.value === NO_FACTION ? null : faction.value,
+        ...factionPicker.value(),
         scale: scale.valueAsNumber,
         lore: lore.value,
         playerNotes: playerNotes.value,
@@ -92,7 +165,7 @@ export function createNodePanel(
     field("Изображение", imgRow),
     ...(actorBound ? [hint("Имя и изображение берутся из актёра — меняйте их в листе актёра.")] : []),
     field("Роль", role),
-    field("Фракция (область)", faction),
+    factionPicker.element,
     field("Размер", scale),
     field("Состояния (через запятую)", conditions),
     field("Описание", lore),

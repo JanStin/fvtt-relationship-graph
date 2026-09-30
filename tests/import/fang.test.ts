@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { parseFangJson } from "../../src/import/fang";
+import { FANG_PLACEHOLDER_IMG, parseFangJson } from "../../src/import/fang";
 import fixture from "../fixtures/fang.json";
 
 describe("parseFangJson", () => {
@@ -40,6 +40,30 @@ describe("parseFangJson", () => {
       name: "Кора",
       role: "Жрица",
     });
+  });
+
+  it("заглушка FANG превращается в пустой img", () => {
+    const { data } = parseFangJson(fixture);
+
+    expect(data.nodes.find((n) => n.id === "ph-C5WfkyMhliGgH5SH")?.img).toBe("");
+    expect(data.nodes.find((n) => n.id === "ph-zqpkezu60rcZHESP")?.img).toBe("");
+  });
+
+  it("обычный путь к изображению не трогается", () => {
+    const { data } = parseFangJson(fixture);
+
+    expect(data.nodes.find((n) => n.id === "m7jLJG6ULwiqR6m8")?.img).toBe("tokenizer/pc-images/artadel_.Token.webp");
+    // похожий, но не совпадающий с заглушкой путь — тоже как есть
+    const custom = parseFangJson({ nodes: [{ id: "n1", img: "worlds/my/placeholder-npc.svg" }] });
+    expect(custom.data.nodes[0].img).toBe("worlds/my/placeholder-npc.svg");
+  });
+
+  it("в реальном fang.json не остаётся ни одной заглушки FANG", () => {
+    const raw = JSON.parse(readFileSync(resolve(__dirname, "../../fang.json"), "utf-8"));
+    const { data } = parseFangJson(raw);
+
+    expect(data.nodes.some((n) => n.img === FANG_PLACEHOLDER_IMG)).toBe(false);
+    expect(data.nodes.filter((n) => n.img === "")).toHaveLength(33);
   });
 
   it("маппит псевдо-placeholder (id начинается с ph-, но isPlaceholder: false) как actor", () => {
@@ -96,15 +120,15 @@ describe("parseFangJson", () => {
     expect(warnings.some((w) => w.includes("does-not-exist"))).toBe(true);
   });
 
-  it("фракции маппят playerVisible -> visible", () => {
+  it("фракции: playerVisible из FANG не переносится", () => {
     const { data } = parseFangJson(fixture);
     const faction = data.factions.find((f) => f.id === "8WANCvHmci3zgz7T");
 
-    expect(faction).toMatchObject({
+    expect(faction).toEqual({
+      id: "8WANCvHmci3zgz7T",
       name: "Зентарим",
       color: "#000000",
       description: "Черная Сеть",
-      visible: true,
     });
   });
 

@@ -3,7 +3,7 @@
  * Чистая логика: нормализация ввода + вызовы graph-state. Формы сами ничего не валидируют.
  */
 
-import { moveFaction, updateEdge, updateNode } from "./graph-state";
+import { addFaction, updateEdge, updateFaction, updateNode } from "./graph-state";
 import type { GraphData } from "./model";
 import { SCALE_MAX, SCALE_MIN } from "./selection";
 
@@ -11,13 +11,21 @@ export interface NodeEditValues {
   name: string;
   img: string;
   role: string;
-  /** null — без фракции. */
+  /** Все отмеченные фракции узла. */
+  factionIds: string[];
+  /** Основная (область). Если не входит в factionIds — основной станет первая отмеченная. */
   primaryFactionId: string | null;
   scale: number;
   lore: string;
   playerNotes: string;
   gmNotes: string;
   conditions: string[];
+}
+
+export interface FactionEditValues {
+  name: string;
+  color: string;
+  description: string;
 }
 
 export interface EdgeEditValues {
@@ -37,11 +45,43 @@ export function parseConditions(text: string): string[] {
 }
 
 /**
+ * Приводит выбор фракций к инварианту модели: неизвестные и повторные отбрасываются; если
+ * отмечена хотя бы одна фракция, основная обязательна (по умолчанию — первая отмеченная) и
+ * стоит первой в factionIds.
+ */
+export function normalizeFactions(
+  data: GraphData,
+  factionIds: readonly string[],
+  primaryFactionId: string | null,
+): { factionIds: string[]; primaryFactionId: string | null } {
+  const known = new Set(data.factions.map((f) => f.id));
+  const ids = [...new Set(factionIds)].filter((id) => known.has(id));
+  if (ids.length === 0) return { factionIds: [], primaryFactionId: null };
+
+  const primary = primaryFactionId !== null && ids.includes(primaryFactionId) ? primaryFactionId : ids[0];
+  return { factionIds: [primary, ...ids.filter((id) => id !== primary)], primaryFactionId: primary };
+}
+
+/**
+ * Кому переходит роль основной, когда с основной фракции сняли галочку: следующей отмеченной
+ * по порядку списка, а если ниже отмеченных нет — первой отмеченной. null — отмеченных не осталось.
+ * order — все фракции в порядке списка, checked — отмеченные ПОСЛЕ снятия галочки.
+ */
+export function primaryAfterUncheck(
+  order: readonly string[],
+  checked: ReadonlySet<string>,
+  uncheckedId: string,
+): string | null {
+  const index = order.indexOf(uncheckedId);
+  const after = order.slice(index + 1).find((id) => checked.has(id));
+  return after ?? order.find((id) => checked.has(id)) ?? null;
+}
+
+/**
  * - У узла, привязанного к актёру, name/img не меняются: их при каждом открытии графа
  *   перезаписывает синхронизация с актёром (foundry/actors.ts).
  * - Пустое имя и нечисловой scale игнорируются (остаётся прежнее значение), scale клампится.
- * - Фракция меняется через moveFaction, и только если реально изменилась — иначе
- *   выбор "без фракции" у узла без primary стирал бы его вторичные фракции.
+ * - Фракции: см. normalizeFactions.
  */
 export function applyNodeEdit(data: GraphData, nodeId: string, values: NodeEditValues): GraphData {
   const node = data.nodes.find((n) => n.id === nodeId);
@@ -53,7 +93,7 @@ export function applyNodeEdit(data: GraphData, nodeId: string, values: NodeEditV
   const name = values.name.trim();
   const scale = Number.isFinite(values.scale) ? Math.max(SCALE_MIN, Math.min(SCALE_MAX, values.scale)) : node.scale;
 
-  let result = updateNode(data, nodeId, {
+  return updateNode(data, nodeId, {
     name: actorBound || name === "" ? node.name : name,
     img: actorBound ? node.img : values.img.trim(),
     role: values.role.trim(),
@@ -62,12 +102,32 @@ export function applyNodeEdit(data: GraphData, nodeId: string, values: NodeEditV
     playerNotes: values.playerNotes,
     gmNotes: values.gmNotes,
     conditions: values.conditions,
+    ...normalizeFactions(data, values.factionIds, values.primaryFactionId),
   });
+}
 
-  if (values.primaryFactionId !== node.primaryFactionId) {
-    result = moveFaction(result, nodeId, values.primaryFactionId);
-  }
-  return result;
+const DEFAULT_FACTION_NAME = "Новая фракция";
+const DEFAULT_FACTION_COLOR = "#888888";
+
+/** Пустое имя оставляет прежнее, пустой цвет — прежний. */
+export function applyFactionEdit(data: GraphData, factionId: string, values: FactionEditValues): GraphData {
+  const name = values.name.trim();
+  const color = values.color.trim();
+  return updateFaction(data, factionId, {
+    ...(name === "" ? {} : { name }),
+    ...(color === "" ? {} : { color }),
+    description: values.description,
+  });
+}
+
+/** Создаёт фракцию с заданным id (id генерирует вызывающий — core не знает про Foundry). */
+export function createFactionFromEdit(data: GraphData, factionId: string, values: FactionEditValues): GraphData {
+  return addFaction(data, {
+    id: factionId,
+    name: values.name.trim() || DEFAULT_FACTION_NAME,
+    color: values.color.trim() || DEFAULT_FACTION_COLOR,
+    description: values.description,
+  });
 }
 
 /** Неизвестный тип связи сбрасывается в '' (не задан). */

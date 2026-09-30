@@ -179,3 +179,147 @@
 .frg-panel .frg-panel-delete {
   color: #fca5a5;
 }
+
+/* Декор узлов поверх канваса: подпись, ромбики фракций, иконки состояний (src/ui/node-decor.ts). */
+.frg-decor-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+.frg-node-decor {
+  position: absolute;
+  width: var(--frg-size);
+  height: var(--frg-size);
+  transform: translate(-50%, -50%);
+  /* бейджи растут вместе со scale узла */
+  --frg-badge: calc(var(--frg-size) * 0.28);
+}
+
+.frg-badges {
+  position: absolute;
+  top: 0;
+  display: flex;
+  /* значки идут столбиком вниз от угла */
+  flex-direction: column;
+  gap: calc(var(--frg-badge) * 0.15);
+}
+
+.frg-badges-factions {
+  left: 0;
+}
+
+.frg-badges-conditions {
+  right: 0;
+}
+
+.frg-diamond {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--frg-badge);
+  height: var(--frg-badge);
+  transform: rotate(45deg) scale(0.72);
+  border: 1px solid #0b1220;
+  border-radius: 20%;
+}
+
+/* «Ещё фракции»: просто знак «+» на месте третьего ромба, без фона. */
+.frg-badge-plus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--frg-badge);
+  height: var(--frg-badge);
+  color: #fff;
+  font-size: calc(var(--frg-badge) * 1.1);
+  font-weight: bold;
+  line-height: 1;
+  text-shadow: 0 0 2px #0b1220, 0 0 2px #0b1220;
+}
+
+.frg-condition {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--frg-badge) * 0.9);
+  height: calc(var(--frg-badge) * 0.9);
+  border-radius: 50%;
+  background: #0b1220;
+  color: #fde68a;
+  font-size: calc(var(--frg-badge) * 0.54);
+}
+
+.frg-node-caption {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  /* подпись не шире узла (переносится) и растёт вместе с ним */
+  width: var(--frg-size);
+  margin-top: calc(var(--frg-size) * 0.07);
+  text-align: center;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.frg-node-name {
+  color: #e2e8f0;
+  font-size: calc(var(--frg-size) * 0.15);
+}
+
+.frg-node-role {
+  color: #94a3b8;
+  font-size: calc(var(--frg-size) * 0.117);
+}
+
+/* Фракции: строка выбора в панели узла и строка списка фракций (src/ui/panels/). */
+.frg-faction-pick {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.frg-faction-pick .frg-check {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.frg-faction-pick input {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.frg-faction-swatch {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  border: 1px solid #475569;
+  border-radius: 2px;
+}
+
+.frg-panel .frg-faction-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: auto;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.frg-faction-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.frg-field-row input[type="color"] {
+  flex: 0 0 40px;
+  padding: 0;
+}

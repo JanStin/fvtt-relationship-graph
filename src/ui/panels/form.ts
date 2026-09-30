@@ -16,14 +16,8 @@ export interface PanelShell {
   body: HTMLElement;
 }
 
-export function createPanelShell(title: string, deleteLabel: string, actions: PanelActions): PanelShell {
-  const element = document.createElement("form");
-  element.className = "frg-panel";
-  element.addEventListener("submit", (e) => {
-    e.preventDefault();
-    actions.onSave();
-  });
-
+/** Заголовок панели с кнопкой закрытия. */
+export function panelHeader(title: string, onClose: () => void): HTMLElement {
   const header = document.createElement("div");
   header.className = "frg-panel-header";
   const heading = document.createElement("div");
@@ -34,8 +28,21 @@ export function createPanelShell(title: string, deleteLabel: string, actions: Pa
   close.className = "frg-panel-close";
   close.textContent = "×";
   close.title = "Закрыть";
-  close.addEventListener("click", () => actions.onClose());
+  close.addEventListener("click", () => onClose());
   header.append(heading, close);
+  return header;
+}
+
+/** deleteLabel === null — без кнопки удаления (панель создания нового объекта). */
+export function createPanelShell(title: string, deleteLabel: string | null, actions: PanelActions): PanelShell {
+  const element = document.createElement("form");
+  element.className = "frg-panel";
+  element.addEventListener("submit", (e) => {
+    e.preventDefault();
+    actions.onSave();
+  });
+
+  const header = panelHeader(title, actions.onClose);
 
   const body = document.createElement("div");
   body.className = "frg-panel-body";
@@ -45,12 +52,15 @@ export function createPanelShell(title: string, deleteLabel: string, actions: Pa
   const save = document.createElement("button");
   save.type = "submit";
   save.textContent = "Сохранить";
-  const remove = document.createElement("button");
-  remove.type = "button";
-  remove.className = "frg-panel-delete";
-  remove.textContent = deleteLabel;
-  remove.addEventListener("click", () => actions.onDelete());
-  footer.append(save, remove);
+  footer.append(save);
+  if (deleteLabel !== null) {
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "frg-panel-delete";
+    remove.textContent = deleteLabel;
+    remove.addEventListener("click", () => actions.onDelete());
+    footer.append(remove);
+  }
 
   element.append(header, body, footer);
   return { element, body };

@@ -11,13 +11,21 @@ import type { GraphData, GraphNode } from "../core/model";
 import { syncNodesWithActors } from "../foundry/actors";
 import { loadGraphData, saveGraphData } from "../foundry/storage";
 import { describeFaction, describeNode } from "../core/describe";
-import { applyEdgeEdit, applyNodeEdit } from "../core/edit";
-import { removeEdge, removeNode } from "../core/graph-state";
+import {
+  applyEdgeEdit,
+  applyFactionEdit,
+  applyNodeEdit,
+  createFactionFromEdit,
+  type FactionEditValues,
+} from "../core/edit";
+import { removeEdge, removeFaction, removeNode } from "../core/graph-state";
 import type { Point } from "../core/hit-test";
 import { renderGraph } from "./graph-renderer";
 import { setupInteraction, type GraphTarget, type InteractionHandle, type NodeSnapshot } from "./interaction";
+import { createNodeDecorLayer, type NodeDecorLayer } from "./node-decor";
 import { createOverlays, type MenuItem, type Overlays } from "./overlays";
 import { createEdgePanel } from "./panels/EdgePanel";
+import { createFactionListPanel, createFactionPanel } from "./panels/FactionPanel";
 import { createImportControl } from "./panels/ImportDialog";
 import { createNodePanel } from "./panels/NodePanel";
 
@@ -46,6 +54,7 @@ export class GraphApp extends ApplicationV2 {
   #resizeObserver: ResizeObserver | null = null;
   #interaction: InteractionHandle | null = null;
   #overlays: Overlays | null = null;
+  #decor: NodeDecorLayer | null = null;
   /** Открытая боковая панель редактирования (NodePanel/EdgePanel) — максимум одна. */
   #panel: HTMLElement | null = null;
   #cyHost: HTMLElement | null = null;
@@ -64,7 +73,8 @@ export class GraphApp extends ApplicationV2 {
     });
 
     const cyHost = document.createElement("div");
-    cyHost.style.cssText = "flex:1 1 auto;min-height:0;background:#16213e;";
+    // position/overflow — для слоя декора узлов (node-decor.ts), он живёт внутри cyHost.
+    cyHost.style.cssText = "position:relative;overflow:hidden;flex:1 1 auto;min-height:0;background:#16213e;";
 
     wrapper.append(toolbar, cyHost);
     (wrapper as unknown as { _cyHost: HTMLElement })._cyHost = cyHost;
@@ -108,6 +118,7 @@ export class GraphApp extends ApplicationV2 {
 
     this.#interaction?.teardown();
     this.#overlays?.destroy();
+    this.#decor?.destroy();
     this.#resizeObserver?.disconnect();
     this.#cy?.destroy(); // снимает и собственные DOM-листенеры (включая wheel) старого cytoscape
 
@@ -128,6 +139,7 @@ export class GraphApp extends ApplicationV2 {
     this.#cy = renderGraph(this.#cyHost, hydrated, { isGM: this.#isGM });
     if (viewport) this.#cy.viewport(viewport);
     this.#interaction.bind(this.#cy);
+    this.#decor = createNodeDecorLayer(this.#cyHost, this.#cy, hydrated);
 
     this.#resizeObserver = new ResizeObserver(() => this.#cy?.resize());
     this.#resizeObserver.observe(this.#cyHost);
@@ -232,6 +244,61 @@ export class GraphApp extends ApplicationV2 {
     this.#mountPanel(panel);
   }
 
+  /** Список всех фракций (только GM) — единственный путь к фракции без узлов: её на графе нет. */
+  #openFactionList(): void {
+    const data = this.#currentData;
+    if (!data) return;
+
+    const panel = createFactionListPanel(
+      data.factions,
+      (factionId) => data.nodes.filter((n) => n.factionIds.includes(factionId)).length,
+      {
+        onEdit: (factionId) => this.#openFactionPanel(factionId),
+        onCreate: () => this.#openFactionPanel(null),
+        onClose: () => this.#closePanel(),
+      },
+    );
+    this.#mountPanel(panel);
+  }
+
+  /** factionId === null — создание новой фракции. */
+  #openFactionPanel(factionId: string | null): void {
+    const data = this.#currentData;
+    const faction = factionId === null ? null : data?.factions.find((f) => f.id === factionId);
+    if (!data || faction === undefined) return;
+
+    const panel = createFactionPanel(faction, {
+      onSave: (values) => {
+        void this.#saveFaction(factionId, values);
+      },
+      onDelete: () => {
+        if (faction) void this.#deleteFaction(faction.id, faction.name);
+      },
+      onClose: () => this.#closePanel(),
+    });
+    this.#mountPanel(panel);
+  }
+
+  async #saveFaction(factionId: string | null, values: FactionEditValues): Promise<void> {
+    if (!this.#currentData) return;
+    const data =
+      factionId === null
+        ? createFactionFromEdit(this.#currentData, foundry.utils.randomID(), values)
+        : applyFactionEdit(this.#currentData, factionId, values);
+    await this.#commit(data);
+    this.#openFactionList();
+  }
+
+  async #deleteFaction(factionId: string, name: string): Promise<void> {
+    const confirmed = await this.#confirm(
+      "Удалить фракцию",
+      `Удалить фракцию «${name}»? Её узлы останутся на графе, но без этой фракции.`,
+    );
+    if (!confirmed || !this.#currentData) return;
+    await this.#commit(removeFaction(this.#currentData, factionId));
+    this.#openFactionList();
+  }
+
   async #deleteEdge(edgeId: string): Promise<void> {
     const confirmed = await this.#confirm("Удалить связь", "Удалить эту связь?");
     if (!confirmed || !this.#currentData) return;
@@ -264,6 +331,14 @@ export class GraphApp extends ApplicationV2 {
       const factionId = target.id;
       items.push({ label: "Информация", onSelect: () => this.#openInfo(target, client) });
       items.push({ label: "Выбрать область", onSelect: () => this.#interaction?.selectFaction(factionId) });
+      if (this.#isGM) {
+        items.push({ label: "Редактировать фракцию", onSelect: () => this.#openFactionPanel(factionId) });
+      }
+    }
+
+    // У узла и связи своё меню — общий список фракций там лишний.
+    if (this.#isGM && (target.kind === "faction" || target.kind === "background")) {
+      items.push({ label: "Фракции…", onSelect: () => this.#openFactionList() });
     }
 
     items.push({ label: "Показать весь граф", onSelect: () => this.#cy?.fit(undefined, 30) });
@@ -293,6 +368,8 @@ export class GraphApp extends ApplicationV2 {
     this.#interaction = null;
     this.#overlays?.destroy();
     this.#overlays = null;
+    this.#decor?.destroy();
+    this.#decor = null;
     this.#closePanel();
     this.#resizeObserver?.disconnect();
     this.#resizeObserver = null;

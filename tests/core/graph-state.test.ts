@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   addEdge,
+  addFaction,
   addNode,
   moveFaction,
   removeEdge,
+  removeFaction,
   removeNode,
   updateEdge,
+  updateFaction,
   updateNode,
 } from "../../src/core/graph-state";
 import type { GraphData, GraphEdge, GraphNode } from "../../src/core/model";
@@ -48,8 +51,8 @@ function makeData(): GraphData {
     nodes: [makeNode({ id: "n1" }), makeNode({ id: "n2" })],
     edges: [makeEdge({ id: "e1", source: "n1", target: "n2" })],
     factions: [
-      { id: "f1", name: "Fraction 1", color: "#111", description: "", visible: true },
-      { id: "f2", name: "Fraction 2", color: "#222", description: "", visible: true },
+      { id: "f1", name: "Fraction 1", color: "#111", description: "" },
+      { id: "f2", name: "Fraction 2", color: "#222", description: "" },
     ],
     relationshipTypes: [],
   };
@@ -193,5 +196,67 @@ describe("moveFaction", () => {
   it("бросает ошибку для несуществующего узла", () => {
     const data = makeData();
     expect(() => moveFaction(data, "missing", "f1")).toThrow();
+  });
+});
+
+describe("addFaction / updateFaction", () => {
+  it("добавляет фракцию, не мутируя вход; повторный id — ошибка", () => {
+    const data = makeData();
+    const result = addFaction(data, { id: "f3", name: "Fraction 3", color: "#333", description: "" });
+
+    expect(result.factions.map((f) => f.id)).toEqual(["f1", "f2", "f3"]);
+    expect(data.factions).toHaveLength(2);
+    expect(() => addFaction(data, { id: "f1", name: "", color: "", description: "" })).toThrow(/already exists/);
+  });
+
+  it("обновляет поля фракции, id не меняется; неизвестная — ошибка", () => {
+    const data = makeData();
+    const result = updateFaction(data, "f1", { name: "Новое", color: "#fff" });
+
+    expect(result.factions[0]).toEqual({ id: "f1", name: "Новое", color: "#fff", description: "" });
+    expect(() => updateFaction(data, "nope", { name: "x" })).toThrow(/not found/);
+  });
+});
+
+describe("removeFaction", () => {
+  function dataWithMembers(): GraphData {
+    return {
+      ...makeData(),
+      nodes: [
+        makeNode({ id: "only", primaryFactionId: "f1", factionIds: ["f1"] }),
+        makeNode({ id: "primary", primaryFactionId: "f1", factionIds: ["f1", "f2"] }),
+        makeNode({ id: "secondary", primaryFactionId: "f2", factionIds: ["f2", "f1"] }),
+        makeNode({ id: "other", primaryFactionId: "f2", factionIds: ["f2"] }),
+      ],
+      edges: [],
+    };
+  }
+
+  it("удаляет фракцию, узлы остаются без неё", () => {
+    const result = removeFaction(dataWithMembers(), "f1");
+
+    expect(result.factions.map((f) => f.id)).toEqual(["f2"]);
+    expect(result.nodes).toHaveLength(4);
+    expect(result.nodes.find((n) => n.id === "only")).toMatchObject({ primaryFactionId: null, factionIds: [] });
+    expect(result.nodes.find((n) => n.id === "secondary")).toMatchObject({ primaryFactionId: "f2", factionIds: ["f2"] });
+  });
+
+  it("если удалённая была основной — основной становится следующая фракция узла", () => {
+    const result = removeFaction(dataWithMembers(), "f1");
+
+    expect(result.nodes.find((n) => n.id === "primary")).toMatchObject({ primaryFactionId: "f2", factionIds: ["f2"] });
+  });
+
+  it("не трогает посторонние узлы и не мутирует вход", () => {
+    const data = dataWithMembers();
+    const result = removeFaction(data, "f1");
+
+    expect(result.nodes.find((n) => n.id === "other")).toBe(data.nodes.find((n) => n.id === "other"));
+    expect(data.factions).toHaveLength(2);
+  });
+
+  it("неизвестная фракция — no-op", () => {
+    const data = dataWithMembers();
+    expect(removeFaction(data, "nope")).toEqual(data);
   });
 });
