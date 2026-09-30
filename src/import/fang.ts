@@ -2,6 +2,7 @@ import { ensureConditionDefs } from "../core/conditions";
 import { ensureDefaultRelationshipTypes } from "../core/relationship-types";
 import { ensureNodeFlags } from "../core/visibility";
 import type { Faction, GraphData, GraphEdge, GraphNode, RelationshipType } from "../core/model";
+import { bool, isRecord, num, str, strArray } from "./json-helpers";
 
 export interface ParseResult {
   data: GraphData;
@@ -15,26 +16,6 @@ const DEFAULT_SCALE = 1.0;
  * превращается в пустой img, а картинку по умолчанию подставляет рендер (graph-renderer.ts).
  */
 export const FANG_PLACEHOLDER_IMG = "modules/fang/assets/placeholder-npc.svg";
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
-}
-
-function str(v: unknown, fallback = ""): string {
-  return typeof v === "string" ? v : fallback;
-}
-
-function num(v: unknown, fallback = 0): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
-}
-
-function bool(v: unknown, fallback = false): boolean {
-  return typeof v === "boolean" ? v : fallback;
-}
-
-function strArray(v: unknown): string[] {
-  return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
-}
 
 function parseFactions(raw: unknown, warnings: string[]): Faction[] {
   if (!Array.isArray(raw)) return [];

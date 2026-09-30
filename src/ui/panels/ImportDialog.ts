@@ -1,16 +1,20 @@
 /**
- * Не отдельное ApplicationV2-окно, а лёгкий контрол (кнопка + скрытый file input),
- * который GraphApp вставляет в свой тулбар (только у GM). Полноценный диалог с превью/выбором —
- * можно добавить позже, если понадобится; сейчас достаточно "выбрал файл — импортировалось".
+ * Не отдельное ApplicationV2-окно, а лёгкий контрол (кнопки импорта/экспорта + скрытый file
+ * input), который GraphApp вставляет в свой тулбар (только у GM). Кнопки компактные — иконки
+ * с подсказкой (B19). Полноценный диалог с превью/выбором — можно добавить позже, если
+ * понадобится; сейчас достаточно "выбрал файл — импортировалось".
  */
 
-import { parseFangJson } from "../../import/fang";
+import { parseGraphFile } from "../../import/native";
 import type { GraphData } from "../../core/model";
+import { iconButton } from "./form";
 
 declare const ui: any;
 
 export interface ImportControlCallbacks {
   onImported(data: GraphData, warnings: string[]): void;
+  /** Экспорт — доступен и в режиме просмотра. */
+  onExport(): void;
 }
 
 export interface ImportControl {
@@ -19,13 +23,15 @@ export interface ImportControl {
   setEnabled(enabled: boolean): void;
 }
 
+const IMPORT_TITLE = "Импорт графа (файл экспорта модуля или FANG JSON)";
+
 export function createImportControl(callbacks: ImportControlCallbacks): ImportControl {
   const wrapper = document.createElement("span");
   wrapper.className = "frg-toolbar-group";
 
-  const button = document.createElement("button");
-  button.type = "button";
-  button.textContent = "Импорт FANG JSON";
+  const button = iconButton("fa-file-import", IMPORT_TITLE);
+  const exportButton = iconButton("fa-file-export", "Экспорт графа в файл");
+  exportButton.addEventListener("click", () => callbacks.onExport());
 
   const input = document.createElement("input");
   input.type = "file";
@@ -42,12 +48,12 @@ export function createImportControl(callbacks: ImportControlCallbacks): ImportCo
     void handleFile(file, callbacks);
   });
 
-  wrapper.append(button, input);
+  wrapper.append(button, exportButton, input);
   return {
     element: wrapper,
     setEnabled(enabled) {
       button.disabled = !enabled;
-      button.title = enabled ? "" : "Импорт доступен в режиме редактирования";
+      button.title = enabled ? IMPORT_TITLE : `${IMPORT_TITLE} — доступен в режиме редактирования`;
     },
   };
 }
@@ -56,11 +62,12 @@ async function handleFile(file: File, callbacks: ImportControlCallbacks): Promis
   try {
     const text = await file.text();
     const raw = JSON.parse(text);
-    const { data, warnings } = parseFangJson(raw);
+    const { data, warnings, format } = parseGraphFile(raw);
 
     callbacks.onImported(data, warnings);
 
-    const summary = `Импортировано: ${data.nodes.length} узлов, ${data.edges.length} связей, ${data.factions.length} фракций`;
+    const source = format === "fang" ? "FANG" : "файл графа";
+    const summary = `Импортировано (${source}): ${data.nodes.length} узлов, ${data.edges.length} связей, ${data.factions.length} фракций`;
     if (warnings.length > 0) {
       ui.notifications?.warn(`${summary}. Предупреждений: ${warnings.length} (см. консоль).`);
       console.warn("fvtt-relationship-graph | import warnings", warnings);

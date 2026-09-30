@@ -223,8 +223,13 @@
 
 .frg-toolbar-group {
   display: flex;
-  gap: 8px;
+  gap: 4px;
   align-items: center;
+}
+
+/* Группа, прижатая к правому краю панели (импорт/экспорт). */
+.frg-toolbar-end {
+  margin-left: auto;
 }
 
 /* Кнопка «Редактировать», пока этот пользователь — редактор (B15). */

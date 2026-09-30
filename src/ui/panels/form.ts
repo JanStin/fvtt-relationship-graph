@@ -123,6 +123,17 @@ export function checkbox(label: string, checked: boolean): { row: HTMLElement; i
   return { row, input };
 }
 
+/** Кнопка-иконка Font Awesome (верхняя панель); подпись — во всплывающей подсказке и для экранных дикторов. */
+export function iconButton(icon: string, title: string): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "frg-toolbar-icon";
+  button.innerHTML = `<i class="fa-solid ${icon}"></i>`;
+  button.title = title;
+  button.setAttribute("aria-label", title);
+  return button;
+}
+
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
 /**

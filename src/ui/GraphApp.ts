@@ -43,6 +43,7 @@ import {
 } from "../core/edit";
 import { addEdge, addNode, removeEdge, removeElements, removeFaction, removeNode } from "../core/graph-state";
 import { GraphHistory } from "../core/history";
+import { exportFileName, exportGraphFile } from "../import/native";
 import { pluralize } from "../core/plural";
 import { clientToModel, type Point } from "../core/hit-test";
 import {
@@ -69,6 +70,7 @@ import { createOverlays, type MenuItem, type Overlays } from "./overlays";
 import { createConditionListPanel, createConditionPanel } from "./panels/ConditionPanel";
 import { createEdgePanel } from "./panels/EdgePanel";
 import { createFactionListPanel, createFactionPanel } from "./panels/FactionPanel";
+import { iconButton } from "./panels/form";
 import { createImportControl, type ImportControl } from "./panels/ImportDialog";
 import { createNodePanel, type ActorOption } from "./panels/NodePanel";
 import { createRelationshipTypeListPanel, createRelationshipTypePanel } from "./panels/RelationshipTypePanel";
@@ -151,33 +153,41 @@ export class GraphApp extends ApplicationV2 {
     this.#editButton = editButton;
     toolbar.append(editButton);
 
-    // Отмена/повтор (B17) — доступны в режиме редактирования, когда есть что отменять/повторять.
-    const historyButton = (icon: string, title: string, onClick: () => Promise<void>) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "frg-toolbar-icon";
-      button.innerHTML = `<i class="fa-solid ${icon}"></i>`;
-      button.title = title;
-      button.setAttribute("aria-label", title);
-      button.addEventListener("click", () => {
-        void onClick();
-      });
-      return button;
+    const group = (...buttons: HTMLElement[]) => {
+      const element = document.createElement("span");
+      element.className = "frg-toolbar-group";
+      element.append(...buttons);
+      return element;
     };
-    this.#undoButton = historyButton("fa-rotate-left", "Отменить (Ctrl+Z)", () => this.#undo());
-    this.#redoButton = historyButton("fa-rotate-right", "Повторить (Ctrl+Y)", () => this.#redo());
-    const historyGroup = document.createElement("span");
-    historyGroup.className = "frg-toolbar-group";
-    historyGroup.append(this.#undoButton, this.#redoButton);
-    toolbar.append(historyGroup);
+    const button = (icon: string, title: string, onClick: () => void) => {
+      const element = iconButton(icon, title);
+      element.addEventListener("click", onClick);
+      return element;
+    };
 
-    // Импорт — только GM (B18) и только в режиме редактирования.
+    // Отмена/повтор (B17) — доступны в режиме редактирования, когда есть что отменять/повторять.
+    this.#undoButton = button("fa-rotate-left", "Отменить (Ctrl+Z)", () => void this.#undo());
+    this.#redoButton = button("fa-rotate-right", "Повторить (Ctrl+Y)", () => void this.#redo());
+    toolbar.append(group(this.#undoButton, this.#redoButton));
+
+    // Справочники (B20) — всем и в любом режиме; что в них можно менять, решают сами списки.
+    toolbar.append(
+      group(
+        button("fa-flag", "Фракции", () => this.#openFactionList()),
+        button("fa-share-nodes", "Типы связей", () => this.#openRelationshipTypeList()),
+        button("fa-tags", "Состояния", () => this.#openConditionList()),
+      ),
+    );
+
+    // Импорт и экспорт — только GM (B18), справа. Импорт — только в режиме редактирования.
     if (this.#isGM) {
       this.#importControl = createImportControl({
         onImported: (data) => {
           void this.#importAndDisplay(data);
         },
+        onExport: () => this.#exportToFile(),
       });
+      this.#importControl.element.classList.add("frg-toolbar-end");
       toolbar.append(this.#importControl.element);
     }
     this.#updateToolbar();
@@ -223,6 +233,17 @@ export class GraphApp extends ApplicationV2 {
     // шаг истории, как любая правка: импорт отменяется Ctrl+Z (B17)
     await this.#commit(data);
     this.#cy?.fit(undefined, 30);
+  }
+
+  /**
+   * Экспорт в собственный формат (B18): граф целиком, со скрытыми данными — кнопка есть
+   * только у GM. Работает и в режиме просмотра.
+   */
+  #exportToFile(): void {
+    if (!this.#isGM || !this.#currentData) return;
+    const now = new Date();
+    const json = JSON.stringify(exportGraphFile(this.#currentData, now), null, 2);
+    foundry.utils.saveDataToFile(json, "application/json", exportFileName(now));
   }
 
   // ---------------------------------------------------------------------------------------
