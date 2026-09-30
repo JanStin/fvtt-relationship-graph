@@ -24,18 +24,20 @@
 import type cytoscape from "cytoscape";
 import { clientToModel, findRegionAt, type Point, type Region } from "../core/hit-test";
 import { separateOverlaps, type PositionedCircle } from "../core/layout";
-import { groupScale } from "../core/selection";
+import { groupScale, SCALE_MAX, SCALE_MIN } from "../core/selection";
 import { BASE_SIZE, FACTION_SELECTED_CLASS, factionElementId, factionIdFromElement } from "./graph-renderer";
 
-const SCALE_MIN = 0.3;
-const SCALE_MAX = 5.0;
 const SCALE_STEP = 0.1;
 const SEPARATION_GAP = 8;
 const LEFT_BUTTON = 0;
 const MIDDLE_BUTTON = 1;
 
 /** Что оказалось под курсором. id фракции — из GraphData (без префикса элемента Cytoscape). */
-export type GraphTarget = { kind: "node"; id: string } | { kind: "faction"; id: string } | { kind: "background" };
+export type GraphTarget =
+  | { kind: "node"; id: string }
+  | { kind: "edge"; id: string }
+  | { kind: "faction"; id: string }
+  | { kind: "background" };
 
 export interface NodeSnapshot {
   id: string;
@@ -49,7 +51,7 @@ export interface InteractionCallbacks {
   onNodesChanged(nodes: NodeSnapshot[]): void;
   /** ПКМ. client — clientX/clientY события мыши. */
   onContextMenu(target: GraphTarget, client: Point): void;
-  /** Двойной клик ЛКМ по узлу или области. */
+  /** Двойной клик ЛКМ по узлу, связи или области. */
   onInfo(target: GraphTarget, client: Point): void;
 }
 
@@ -60,6 +62,8 @@ export interface InteractionHandle {
   resetScale(nodeId: string): void;
   /** Выделяет все узлы области (то же, что Alt+ЛКМ по ней). */
   selectFaction(factionId: string): void;
+  /** Раздвигает соседей вокруг узла (после смены размера/фракции извне) и сообщает позиции через onNodesChanged. */
+  settle(nodeId: string): void;
   teardown(): void;
 }
 
@@ -162,11 +166,12 @@ export function setupInteraction(container: HTMLElement, callbacks: InteractionC
     return { x: e.clientX, y: e.clientY };
   }
 
-  /** Цель события Cytoscape. Рёбра пока считаются фоном — EdgePanel ещё нет (см. docs/tasks.md). */
+  /** Цель события Cytoscape. */
   function resolveTarget(evt: cytoscape.EventObject): GraphTarget {
-    const target = evt.target as cytoscape.NodeSingular | cytoscape.Core;
-    if (target !== cy && (target as cytoscape.NodeSingular).isNode()) {
-      return { kind: "node", id: (target as cytoscape.NodeSingular).id() };
+    const target = evt.target as cytoscape.Singular | cytoscape.Core;
+    if (target !== cy) {
+      const element = target as cytoscape.Singular;
+      return { kind: element.isNode() ? "node" : "edge", id: element.id() };
     }
     const factionElement = factionElementAt(clientPoint(evt));
     return factionElement ? { kind: "faction", id: factionIdFromElement(factionElement) } : { kind: "background" };
@@ -311,6 +316,12 @@ export function setupInteraction(container: HTMLElement, callbacks: InteractionC
     },
     selectFaction(factionId: string): void {
       selectFactionElement(factionElementId(factionId), false);
+    },
+    settle(nodeId: string): void {
+      const node = regularNode(nodeId);
+      if (!cy || !node) return;
+      runSeparation(cy, node);
+      callbacks.onNodesChanged(snapshotNodes(cy));
     },
     teardown(): void {
       onPanEnd();

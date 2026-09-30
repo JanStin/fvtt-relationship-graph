@@ -3,6 +3,10 @@
  * Не зависит от Cytoscape — см. docs/architecture.md §5 (resize) и §6 (multi-select drag).
  */
 
+/** Допустимый диапазон scale узла (см. docs/architecture.md §5). */
+export const SCALE_MIN = 0.3;
+export const SCALE_MAX = 5.0;
+
 export interface ScaledEntity {
   id: string;
   scale: number;
@@ -28,7 +32,7 @@ export function groupScale(
   requestedTargetScale: number,
   options: GroupScaleOptions = {},
 ): Map<string, number> {
-  const { min = 0.3, max = 5.0 } = options;
+  const { min = SCALE_MIN, max = SCALE_MAX } = options;
   const target = entities.find((e) => e.id === targetId);
   if (!target) {
     throw new Error(`groupScale: entity "${targetId}" not found in entities`);

@@ -34,7 +34,12 @@ export function factionIdFromElement(elementId: string): string {
 /** Класс подсветки выбранной области — ставится в interaction.ts. */
 export const FACTION_SELECTED_CLASS = "faction-selected";
 
-function buildElements(data: GraphData): cytoscape.ElementDefinition[] {
+export interface RenderOptions {
+  /** GM видит gmOnly-связи (пунктиром), игрокам они не рисуются вовсе — architecture.md §13. */
+  isGM: boolean;
+}
+
+function buildElements(data: GraphData, options: RenderOptions): cytoscape.ElementDefinition[] {
   const elements: unknown[] = [];
 
   data.factions.forEach((faction) => {
@@ -54,6 +59,8 @@ function buildElements(data: GraphData): cytoscape.ElementDefinition[] {
         parent: node.primaryFactionId ? factionElementId(node.primaryFactionId) : undefined,
         scale: node.scale,
         size,
+        // без картинки поле не ставим совсем — стиль с background-image висит на селекторе node[img]
+        ...(node.img ? { img: node.img } : {}),
       },
       position: { x: node.x, y: node.y },
     });
@@ -61,6 +68,7 @@ function buildElements(data: GraphData): cytoscape.ElementDefinition[] {
 
   const relationshipTypeById = new Map(data.relationshipTypes.map((rt) => [rt.id, rt]));
   data.edges.forEach((edge) => {
+    if (edge.gmOnly && !options.isGM) return;
     const relType = relationshipTypeById.get(edge.relationshipTypeId);
     elements.push({
       data: {
@@ -70,6 +78,7 @@ function buildElements(data: GraphData): cytoscape.ElementDefinition[] {
         label: edge.label,
         arrow: edge.directional ? "triangle" : "none",
         edgeColor: relType?.color ?? "#64748b",
+        lineStyle: edge.gmOnly ? "dashed" : "solid",
       },
     });
   });
@@ -125,6 +134,17 @@ const STYLE = [
     },
   },
   {
+    // Узел с картинкой: изображение вместо заливки, подпись уезжает под узел.
+    selector: "node[img]",
+    style: {
+      "background-image": "data(img)",
+      "background-fit": "cover",
+      "text-valign": "bottom",
+      "text-margin-y": 4,
+      "text-max-width": 120,
+    },
+  },
+  {
     selector: "node[!isFaction]:selected",
     style: {
       "border-width": 4,
@@ -138,10 +158,19 @@ const STYLE = [
       "line-color": "data(edgeColor)",
       "target-arrow-color": "data(edgeColor)",
       "target-arrow-shape": "data(arrow)",
+      "line-style": "data(lineStyle)",
       "curve-style": "bezier",
       label: "data(label)",
       "font-size": 8,
       color: "#cbd5e1",
+    },
+  },
+  {
+    selector: "edge:selected",
+    style: {
+      width: 4,
+      "line-color": "#facc15",
+      "target-arrow-color": "#facc15",
     },
   },
 ] as unknown as cytoscape.StylesheetStyle[];
@@ -161,7 +190,7 @@ function hasStoredPositions(data: GraphData): boolean {
  * для графа без сохранённой раскладки (первый импорт без позиций, пустой граф).
  * Не занимается overlap-сепарацией — см. core/layout.ts.
  */
-export function renderGraph(container: HTMLElement, data: GraphData): cytoscape.Core {
+export function renderGraph(container: HTMLElement, data: GraphData, options: RenderOptions): cytoscape.Core {
   ensureFcoseRegistered();
 
   const layout = hasStoredPositions(data)
@@ -181,7 +210,7 @@ export function renderGraph(container: HTMLElement, data: GraphData): cytoscape.
   return cytoscape({
     container,
     boxSelectionEnabled: true, // Shift+ЛКМ-drag — rubber-band, нативное поведение Cytoscape, см. §6
-    elements: buildElements(data),
+    elements: buildElements(data, options),
     style: STYLE,
     layout,
   });

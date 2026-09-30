@@ -69,3 +69,113 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* Боковая панель редактирования узла/связи (src/ui/panels/). */
+.frg-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  width: 300px;
+  max-width: 80%;
+  background: #0f172a;
+  color: #e2e8f0;
+  border-left: 1px solid #475569;
+  box-shadow: -6px 0 18px rgba(0, 0, 0, 0.4);
+  font-size: 13px;
+}
+
+.frg-panel-header,
+.frg-panel-footer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+}
+
+.frg-panel-title {
+  flex: 1 1 auto;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.frg-panel .frg-panel-close {
+  flex: 0 0 auto;
+  width: 28px;
+  padding: 0;
+}
+
+.frg-panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 12px 12px;
+}
+
+.frg-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.frg-field-label,
+.frg-field-hint {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.frg-field-label {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.frg-field-row {
+  display: flex;
+  gap: 6px;
+}
+
+.frg-field-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.frg-field-row button {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.frg-panel input[type="text"],
+.frg-panel input[type="number"],
+.frg-panel select,
+.frg-panel textarea {
+  width: 100%;
+  background: #1e293b;
+  color: #e2e8f0;
+  border: 1px solid #475569;
+}
+
+.frg-panel textarea {
+  resize: vertical;
+  min-height: 3em;
+}
+
+.frg-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.frg-panel-footer button {
+  flex: 1 1 0;
+}
+
+.frg-panel .frg-panel-delete {
+  color: #fca5a5;
+}
