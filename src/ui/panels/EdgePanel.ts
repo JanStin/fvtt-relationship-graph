@@ -18,7 +18,7 @@ export interface EdgePanelCallbacks {
 export interface EdgePanelOptions {
   /** true — связь ещё не создана: появится только после сохранения, кнопки удаления нет. */
   isNew?: boolean;
-  /** Игрок не видит флажок «Видна только GM» и не может удалить связь. */
+  /** Игрок не видит флажок «Видна только GM» (удалять связи может, B14). */
   isGM: boolean;
 }
 
@@ -39,7 +39,7 @@ export function createEdgePanel(
   const directional = checkbox("Направленная (со стрелкой)", edge.directional);
   const gmOnly = checkbox("Видна только GM", edge.gmOnly);
 
-  const shell = createPanelShell(isNew ? "Новая связь" : "Связь", isNew || !isGM ? null : "Удалить связь", {
+  const shell = createPanelShell(isNew ? "Новая связь" : "Связь", isNew ? null : "Удалить связь", {
     onSave: () =>
       callbacks.onSave({
         label: label.value,

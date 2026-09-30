@@ -25,7 +25,7 @@ export interface ActorOption {
 }
 
 export interface NodePanelOptions {
-  /** Флажки видимости (hidden/gmOnly) показываются только GM. */
+  /** Только GM видит заметки GM, флажки видимости (hidden/gmOnly) и привязку к актёру. */
   isGM: boolean;
 }
 
@@ -58,14 +58,16 @@ interface FactionPicker {
  * Если отмечена хотя бы одна фракция, основная обязательна: первая отмеченная становится
  * основной сама, снятие галочки с основной передаёт роль следующей отмеченной.
  */
-function createFactionPicker(node: GraphNode, factions: readonly Faction[]): FactionPicker {
+function createFactionPicker(node: GraphNode, factions: readonly Faction[], isGM: boolean): FactionPicker {
   const element = document.createElement("div");
   element.className = "frg-field";
   const caption = document.createElement("span");
   caption.className = "frg-field-label";
   caption.textContent = "Фракции (отметка справа — основная, область)";
   element.append(caption);
-  if (factions.length === 0) element.append(hint("Фракций пока нет — создайте их через ПКМ → «Фракции…»."));
+  if (factions.length === 0) {
+    element.append(hint(isGM ? "Фракций пока нет — создайте их через ПКМ → «Фракции…»." : "Фракций пока нет."));
+  }
 
   const order = factions.map((f) => f.id);
   const rows = new Map<string, { check: HTMLInputElement; radio: HTMLInputElement }>();
@@ -159,7 +161,14 @@ export function createNodePanel(
   callbacks: NodePanelCallbacks,
   options: NodePanelOptions,
 ): HTMLElement {
-  const type = select(NODE_TYPE_OPTIONS, node.type);
+  const { isGM } = options;
+  // Привязку к актёру меняет только GM (B14): игрок выбирает лишь между «без актёра» и
+  // «просто изображение», а у привязанного узла поля типа и актёра не видит вовсе.
+  // (У привязанного узла список полный — поле всё равно скрыто, а значение "actor" нужно
+  // syncBinding, чтобы заблокировать имя и изображение.)
+  const typeOptions =
+    isGM || node.type === "actor" ? NODE_TYPE_OPTIONS : NODE_TYPE_OPTIONS.filter((o) => o.value !== "actor");
+  const type = select(typeOptions, node.type);
   const actor = select(
     [{ value: NO_ACTOR, label: "— не выбран —" }, ...actors.map((a) => ({ value: a.id, label: a.name }))],
     node.actorId ?? NO_ACTOR,
@@ -168,7 +177,7 @@ export function createNodePanel(
   const name = textInput(node.name);
   const img = textInput(node.img);
   const role = textInput(node.role);
-  const factionPicker = createFactionPicker(node, factions);
+  const factionPicker = createFactionPicker(node, factions, isGM);
   const scale = document.createElement("input");
   scale.type = "number";
   scale.min = String(SCALE_MIN);
@@ -225,7 +234,7 @@ export function createNodePanel(
   const syncBinding = () => {
     const isActor = type.value === "actor";
     const bound = isActor && actor.value !== NO_ACTOR;
-    actorField.hidden = !isActor;
+    actorField.hidden = !isActor || !isGM;
     actorHint.hidden = !bound;
     name.disabled = bound;
     img.disabled = bound;
@@ -235,8 +244,11 @@ export function createNodePanel(
   actor.addEventListener("change", syncBinding);
   syncBinding();
 
+  const typeField = field("Тип узла", type);
+  typeField.hidden = !isGM && node.type === "actor";
+
   shell.body.append(
-    field("Тип узла", type),
+    typeField,
     actorField,
     field("Имя", name),
     field("Изображение", imgRow),
@@ -247,8 +259,8 @@ export function createNodePanel(
     conditionPicker.element,
     field("Описание", lore),
     field("Заметки для игроков", playerNotes),
-    field("Заметки GM", gmNotes),
-    ...(options.isGM ? [hidden.row, gmOnly.row] : []),
+    // у игрока этих полей нет — при сохранении прежние значения подставит core/permissions.ts
+    ...(isGM ? [field("Заметки GM", gmNotes), hidden.row, gmOnly.row] : []),
   );
   return shell.element;
 }

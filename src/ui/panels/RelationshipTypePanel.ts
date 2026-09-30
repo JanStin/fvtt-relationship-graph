@@ -1,5 +1,6 @@
 /**
- * Панели справочника типов связей (только GM): список и форма одного типа.
+ * Панели справочника типов связей: список и форма одного типа. Правит только GM, игрок видит
+ * список только для чтения (B14).
  * Устроены как панели фракций (FactionPanel.ts): только DOM, логика — core/relationship-types.ts.
  */
 
@@ -20,7 +21,10 @@ export function createRelationshipTypeListPanel(
   /** Сколько связей имеют этот тип. */
   usageCount: (typeId: string) => number,
   callbacks: RelationshipTypeListCallbacks,
+  /** Игрок видит список только для чтения: без правки и создания (B14). */
+  options: { isGM: boolean },
 ): HTMLElement {
+  const { isGM } = options;
   const element = document.createElement("div");
   element.className = "frg-panel";
 
@@ -29,8 +33,9 @@ export function createRelationshipTypeListPanel(
 
   if (types.length === 0) body.append(hint("Типов связей пока нет."));
   for (const type of types) {
-    const row = document.createElement("button");
-    row.type = "button";
+    // у игрока строка — просто текст, без клика
+    const row = document.createElement(isGM ? "button" : "div");
+    if (row instanceof HTMLButtonElement) row.type = "button";
     row.className = "frg-faction-row";
     const swatch = document.createElement("span");
     swatch.className = "frg-faction-swatch";
@@ -43,19 +48,21 @@ export function createRelationshipTypeListPanel(
     count.textContent = String(usageCount(type.id));
     count.title = "Связей этого типа";
     row.append(swatch, name, count);
-    row.addEventListener("click", () => callbacks.onEdit(type.id));
+    if (isGM) row.addEventListener("click", () => callbacks.onEdit(type.id));
     body.append(row);
   }
 
-  const footer = document.createElement("div");
-  footer.className = "frg-panel-footer";
-  const create = document.createElement("button");
-  create.type = "button";
-  create.textContent = "Создать тип связи";
-  create.addEventListener("click", () => callbacks.onCreate());
-  footer.append(create);
-
-  element.append(panelHeader("Типы связей", callbacks.onClose), body, footer);
+  element.append(panelHeader("Типы связей", callbacks.onClose), body);
+  if (isGM) {
+    const footer = document.createElement("div");
+    footer.className = "frg-panel-footer";
+    const create = document.createElement("button");
+    create.type = "button";
+    create.textContent = "Создать тип связи";
+    create.addEventListener("click", () => callbacks.onCreate());
+    footer.append(create);
+    element.append(footer);
+  }
   return element;
 }
 

@@ -7,6 +7,10 @@
  *   колесо               — масштаб вида (нативно Cytoscape)
  *   зажатое колесо       — панорамирование вида (здесь)
  *   Alt+колесо           — resize выделенных узлов, а без выделения — узла под курсором (здесь)
+ *
+ * pinned-узлы (data.pinned, ставит graph-renderer.ts; у игрока — gmOnly) не перетаскиваются
+ * (grabbable: false — Cytoscape исключает их и из группового drag), не ресайзятся и не
+ * сдвигаются сепарацией.
  *   ЛКМ по узлу          — выделение и перетаскивание, выделенные двигаются группой (нативно)
  *   ЛКМ мимо узла        — панорамирование, в том числе по области фракции: области
  *                          "прозрачны" для мыши, см. graph-renderer.ts (нативно)
@@ -73,7 +77,7 @@ export interface InteractionCallbacks {
 export interface InteractionHandle {
   /** Вызвать сразу после создания cytoscape(...) на том же container. */
   bind(cy: cytoscape.Core): void;
-  /** Возвращает узлу scale = 1.0 (группе выделенных — пропорционально, как Alt+колесо). */
+  /** Возвращает узлу scale = 1.0 (группе выделенных — пропорционально, как Alt+колесо). pinned-узлы не трогает. */
   resetScale(nodeId: string): void;
   /** Выделяет все узлы области (то же, что Alt+ЛКМ по ней). */
   selectFaction(factionId: string): void;
@@ -99,7 +103,15 @@ function resolveGroup(cy: cytoscape.Core, node: cytoscape.NodeSingular): cytosca
   return node.selected() && selected.length > 1 ? selected : node;
 }
 
-/** Раздвигает узлы после resize/drag: anchored — только что изменённая группа, остальные могут подвинуться. */
+/** Узлы, которые пользователь может двигать и ресайзить (без pinned — см. graph-renderer.ts). */
+function movable(nodes: cytoscape.NodeCollection): cytoscape.NodeCollection {
+  return nodes.filter((n) => n.data("pinned") !== true);
+}
+
+/**
+ * Раздвигает узлы после resize/drag: anchored — только что изменённая группа, остальные могут
+ * подвинуться. pinned-узлы (у игрока — gmOnly) тоже закреплены: сепарация их не сдвигает.
+ */
 function runSeparation(cy: cytoscape.Core, anchored: cytoscape.NodeCollection): void {
   const regularNodes = cy.nodes("[!isFaction]");
   const circles: PositionedCircle[] = regularNodes.map((n) => ({
@@ -109,7 +121,7 @@ function runSeparation(cy: cytoscape.Core, anchored: cytoscape.NodeCollection): 
     radius: (n.data("size") as number) / 2,
   }));
 
-  const anchoredIds = new Set(anchored.map((n) => n.id()));
+  const anchoredIds = new Set([...anchored.map((n) => n.id()), ...regularNodes.filter("[?pinned]").map((n) => n.id())]);
   const result = separateOverlaps(circles, { anchoredIds, gap: SEPARATION_GAP });
 
   result.positions.forEach((pos, id) => {
@@ -159,9 +171,19 @@ export function setupInteraction(container: HTMLElement, callbacks: InteractionC
     return node.empty() ? null : node;
   }
 
-  /** Масштабирует группу пропорционально: target получает requestedScale, остальные — тот же коэффициент. */
-  function resizeGroup(group: cytoscape.NodeCollection, target: cytoscape.NodeSingular, requestedScale: number): void {
+  /**
+   * Масштабирует группу пропорционально: target получает requestedScale, остальные — тот же коэффициент.
+   * pinned-узлы из группы выпадают; если target среди них — масштаб отсчитывается от первого подвижного.
+   */
+  function resizeGroup(
+    requestedGroup: cytoscape.NodeCollection,
+    requestedTarget: cytoscape.NodeSingular,
+    requestedScale: number,
+  ): void {
     if (!cy) return;
+    const group = movable(requestedGroup);
+    if (group.empty()) return;
+    const target = group.contains(requestedTarget) ? requestedTarget : group.first();
     const entities = group.map((n) => ({ id: n.id(), scale: n.data("scale") as number }));
     const newScales = groupScale(entities, target.id(), requestedScale, { min: SCALE_MIN, max: SCALE_MAX });
 
@@ -219,8 +241,10 @@ export function setupInteraction(container: HTMLElement, callbacks: InteractionC
     e.stopImmediatePropagation();
     if (!cy) return;
 
-    const selected = cy.$("node[!isFaction]:selected") as cytoscape.NodeCollection;
-    const hovered = regularNode(hoveredNodeId);
+    // pinned-узлы (у игрока — gmOnly) не ресайзятся: их нет ни в группе, ни «под курсором».
+    const selected = movable(cy.$("node[!isFaction]:selected") as cytoscape.NodeCollection);
+    const hoveredAny = regularNode(hoveredNodeId);
+    const hovered = hoveredAny && hoveredAny.data("pinned") !== true ? hoveredAny : null;
     let group: cytoscape.NodeCollection;
     let target: cytoscape.NodeSingular;
     if (selected.nonempty()) {

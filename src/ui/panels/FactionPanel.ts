@@ -1,5 +1,6 @@
 /**
- * Панели фракций (только GM): список всех фракций и форма одной фракции (создание/правка).
+ * Панели фракций: список всех фракций и форма одной фракции (создание/правка). Игрок видит
+ * список и правит только описание (B14).
  * Как и NodePanel — только DOM; применение значений — core/edit.ts, сохранение — GraphApp.
  *
  * Список нужен потому, что фракция без узлов на графе не рисуется (см. graph-renderer.ts) —
@@ -18,11 +19,17 @@ export interface FactionListCallbacks {
   onClose(): void;
 }
 
+export interface FactionPanelOptions {
+  /** Создание, удаление, название и цвет — только GM; игрок правит только описание (B14). */
+  isGM: boolean;
+}
+
 export function createFactionListPanel(
   factions: readonly Faction[],
   /** Сколько узлов состоит во фракции (в любой роли). */
   memberCount: (factionId: string) => number,
   callbacks: FactionListCallbacks,
+  options: FactionPanelOptions,
 ): HTMLElement {
   const element = document.createElement("div");
   element.className = "frg-panel";
@@ -50,15 +57,17 @@ export function createFactionListPanel(
     body.append(row);
   }
 
-  const footer = document.createElement("div");
-  footer.className = "frg-panel-footer";
-  const create = document.createElement("button");
-  create.type = "button";
-  create.textContent = "Создать фракцию";
-  create.addEventListener("click", () => callbacks.onCreate());
-  footer.append(create);
-
-  element.append(panelHeader("Фракции", callbacks.onClose), body, footer);
+  element.append(panelHeader("Фракции", callbacks.onClose), body);
+  if (options.isGM) {
+    const footer = document.createElement("div");
+    footer.className = "frg-panel-footer";
+    const create = document.createElement("button");
+    create.type = "button";
+    create.textContent = "Создать фракцию";
+    create.addEventListener("click", () => callbacks.onCreate());
+    footer.append(create);
+    element.append(footer);
+  }
   return element;
 }
 
@@ -68,19 +77,32 @@ export interface FactionPanelCallbacks {
   onClose(): void;
 }
 
-/** faction === null — создание новой фракции (без кнопки удаления). */
-export function createFactionPanel(faction: Faction | null, callbacks: FactionPanelCallbacks): HTMLElement {
+/**
+ * faction === null — создание новой фракции (без кнопки удаления). У игрока название и цвет
+ * заблокированы и кнопки удаления нет — править можно только описание.
+ */
+export function createFactionPanel(
+  faction: Faction | null,
+  callbacks: FactionPanelCallbacks,
+  options: FactionPanelOptions,
+): HTMLElement {
+  const { isGM } = options;
   const name = textInput(faction?.name ?? "");
   const color = colorField(faction?.color ?? NEW_FACTION_COLOR);
+  name.disabled = !isGM;
+  color.element.querySelectorAll("input").forEach((input) => {
+    input.disabled = !isGM;
+  });
 
   const description = textArea(faction?.description ?? "", 4);
 
-  const shell = createPanelShell(faction ? "Фракция" : "Новая фракция", faction ? "Удалить фракцию" : null, {
+  const shell = createPanelShell(faction ? "Фракция" : "Новая фракция", faction && isGM ? "Удалить фракцию" : null, {
     onSave: () => callbacks.onSave({ name: name.value, color: color.value(), description: description.value }),
     onDelete: callbacks.onDelete,
     onClose: callbacks.onClose,
   });
 
   shell.body.append(field("Название", name), field("Цвет", color.element), field("Описание", description));
+  if (!isGM) shell.body.append(hint("Название и цвет фракции меняет только GM."));
   return shell.element;
 }

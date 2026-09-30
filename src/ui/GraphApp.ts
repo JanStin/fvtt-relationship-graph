@@ -37,6 +37,7 @@ import {
   updateRelationshipType,
   type RelationshipTypeEditValues,
 } from "../core/relationship-types";
+import { canEditNode, restrictFactionEdit, restrictNodeEdit, visibleEdgeCount } from "../core/permissions";
 import { displayName, isMasked } from "../core/visibility";
 import { setupEdgeLabels, type EdgeLabelsHandle } from "./edge-labels";
 import { renderGraph } from "./graph-renderer";
@@ -187,8 +188,9 @@ export class GraphApp extends ApplicationV2 {
   }
 
   /**
-   * Узлы, фракции, состояния и типы связей правит только GM. Связи создают и правят все
-   * (игроку недоступны «Видна только GM» и удаление) — для этого журнал-хранилище открыт
+   * Что можно игроку — core/permissions.ts (B14): обычные узлы и связи он правит, создаёт и
+   * удаляет наравне с GM; gmOnly-узлы, флаги видимости, заметки GM, привязка к актёру и
+   * справочники (кроме описания фракции) — только GM. Для этого журнал-хранилище открыт
    * игрокам на запись (foundry/storage.ts).
    */
   get #isGM(): boolean {
@@ -318,7 +320,7 @@ export class GraphApp extends ApplicationV2 {
   #openNodePanel(nodeId: string): void {
     const data = this.#currentData;
     const node = data?.nodes.find((n) => n.id === nodeId);
-    if (!data || !node) return;
+    if (!data || !node || !canEditNode(node, this.#isGM)) return;
 
     const panel = createNodePanel(
       node,
@@ -340,14 +342,21 @@ export class GraphApp extends ApplicationV2 {
   }
 
   async #saveNode(nodeId: string, values: Parameters<typeof applyNodeEdit>[2]): Promise<void> {
-    if (!this.#currentData) return;
-    await this.#commit(applyNodeEdit(this.#currentData, nodeId, values));
+    const node = this.#currentData?.nodes.find((n) => n.id === nodeId);
+    if (!this.#currentData || !node || !canEditNode(node, this.#isGM)) return;
+    await this.#commit(applyNodeEdit(this.#currentData, nodeId, restrictNodeEdit(node, values, this.#isGM)));
     // Размер или область могли измениться — раздвигаем соседей (позиции сохранит onNodesChanged).
     this.#interaction?.settle(nodeId);
   }
 
+  /** Удаляются и невидимые игроку gmOnly-связи узла — но в тексте подтверждения их нет. */
   async #deleteNode(nodeId: string, name: string): Promise<void> {
-    const confirmed = await this.#confirm("Удалить узел", `Удалить узел «${name}» и все его связи?`);
+    const data = this.#currentData;
+    const node = data?.nodes.find((n) => n.id === nodeId);
+    if (!data || !node || !canEditNode(node, this.#isGM)) return;
+    const edges = visibleEdgeCount(data, nodeId, this.#isGM);
+    const text = edges > 0 ? `Удалить узел «${name}» и его связи (${edges})?` : `Удалить узел «${name}»?`;
+    const confirmed = await this.#confirm("Удалить узел", text);
     if (!confirmed || !this.#currentData) return;
     await this.#commit(removeNode(this.#currentData, nodeId));
   }
@@ -376,52 +385,71 @@ export class GraphApp extends ApplicationV2 {
     this.#mountPanel(panel);
   }
 
-  /** Список всех фракций (только GM) — единственный путь к фракции без узлов: её на графе нет. */
+  /**
+   * Список всех фракций — единственный путь к фракции без узлов: её на графе нет. Игрок видит
+   * список и правит описание (B14). Дополнительные фракции скрытых узлов игроку в счёт не идут.
+   */
   #openFactionList(): void {
     const data = this.#currentData;
     if (!data) return;
 
+    const isGM = this.#isGM;
     const panel = createFactionListPanel(
       data.factions,
-      (factionId) => data.nodes.filter((n) => n.factionIds.includes(factionId)).length,
+      (factionId) =>
+        data.nodes.filter((n) =>
+          isMasked(n, isGM) ? n.primaryFactionId === factionId : n.factionIds.includes(factionId),
+        ).length,
       {
         onEdit: (factionId) => this.#openFactionPanel(factionId),
         onCreate: () => this.#openFactionPanel(null),
         onClose: () => this.#closePanel(),
       },
+      { isGM },
     );
     this.#mountPanel(panel);
   }
 
-  /** factionId === null — создание новой фракции. */
+  /** factionId === null — создание новой фракции (только GM). */
   #openFactionPanel(factionId: string | null): void {
     const data = this.#currentData;
     const faction = factionId === null ? null : data?.factions.find((f) => f.id === factionId);
-    if (!data || faction === undefined) return;
+    if (!data || faction === undefined || (faction === null && !this.#isGM)) return;
 
-    const panel = createFactionPanel(faction, {
-      onSave: (values) => {
-        void this.#saveFaction(factionId, values);
+    const panel = createFactionPanel(
+      faction,
+      {
+        onSave: (values) => {
+          void this.#saveFaction(factionId, values);
+        },
+        onDelete: () => {
+          if (faction) void this.#deleteFaction(faction.id, faction.name);
+        },
+        onClose: () => this.#closePanel(),
       },
-      onDelete: () => {
-        if (faction) void this.#deleteFaction(faction.id, faction.name);
-      },
-      onClose: () => this.#closePanel(),
-    });
+      { isGM: this.#isGM },
+    );
     this.#mountPanel(panel);
   }
 
   async #saveFaction(factionId: string | null, values: FactionEditValues): Promise<void> {
-    if (!this.#currentData) return;
-    const data =
-      factionId === null
-        ? createFactionFromEdit(this.#currentData, foundry.utils.randomID(), values)
-        : applyFactionEdit(this.#currentData, factionId, values);
+    const current = this.#currentData;
+    if (!current) return;
+    let data: GraphData;
+    if (factionId === null) {
+      if (!this.#isGM) return;
+      data = createFactionFromEdit(current, foundry.utils.randomID(), values);
+    } else {
+      const faction = current.factions.find((f) => f.id === factionId);
+      if (!faction) return;
+      data = applyFactionEdit(current, factionId, restrictFactionEdit(faction, values, this.#isGM));
+    }
     await this.#commit(data);
     this.#openFactionList();
   }
 
   async #deleteFaction(factionId: string, name: string): Promise<void> {
+    if (!this.#isGM) return;
     const confirmed = await this.#confirm(
       "Удалить фракцию",
       `Удалить фракцию «${name}»? Её узлы останутся на графе, но без этой фракции.`,
@@ -431,28 +459,33 @@ export class GraphApp extends ApplicationV2 {
     this.#openFactionList();
   }
 
-  /** Справочник состояний (только GM): встроенные + свои. */
+  /**
+   * Справочник состояний: встроенные + свои. Правит только GM, игрок видит список (B14).
+   * Состояния скрытых узлов игроку в счёт не идут — их значков он не видит.
+   */
   #openConditionList(): void {
     const data = this.#currentData;
     if (!data) return;
 
+    const isGM = this.#isGM;
     const panel = createConditionListPanel(
       allConditions(data),
-      (conditionId) => data.nodes.filter((n) => n.conditions.includes(conditionId)).length,
+      (conditionId) => data.nodes.filter((n) => !isMasked(n, isGM) && n.conditions.includes(conditionId)).length,
       {
         onEdit: (conditionId) => this.#openConditionPanel(conditionId),
         onCreate: () => this.#openConditionPanel(null),
         onClose: () => this.#closePanel(),
       },
+      { isGM },
     );
     this.#mountPanel(panel);
   }
 
-  /** conditionId === null — создание нового состояния. Встроенные сюда не попадают. */
+  /** conditionId === null — создание нового состояния. Встроенные сюда не попадают. Только GM. */
   #openConditionPanel(conditionId: string | null): void {
     const data = this.#currentData;
     const condition = conditionId === null ? null : data?.conditions.find((c) => c.id === conditionId);
-    if (!data || condition === undefined) return;
+    if (!data || condition === undefined || !this.#isGM) return;
 
     const panel = createConditionPanel(condition, {
       onSave: (values) => {
@@ -486,28 +519,30 @@ export class GraphApp extends ApplicationV2 {
     this.#openConditionList();
   }
 
-  /** Справочник типов связей (только GM). */
+  /** Справочник типов связей. Правит только GM, игрок видит список; gmOnly-связи игроку в счёт не идут. */
   #openRelationshipTypeList(): void {
     const data = this.#currentData;
     if (!data) return;
 
+    const isGM = this.#isGM;
     const panel = createRelationshipTypeListPanel(
       data.relationshipTypes,
-      (typeId) => data.edges.filter((e) => e.relationshipTypeId === typeId).length,
+      (typeId) => data.edges.filter((e) => e.relationshipTypeId === typeId && (isGM || !e.gmOnly)).length,
       {
         onEdit: (typeId) => this.#openRelationshipTypePanel(typeId),
         onCreate: () => this.#openRelationshipTypePanel(null),
         onClose: () => this.#closePanel(),
       },
+      { isGM },
     );
     this.#mountPanel(panel);
   }
 
-  /** typeId === null — создание нового типа связи. */
+  /** typeId === null — создание нового типа связи. Только GM. */
   #openRelationshipTypePanel(typeId: string | null): void {
     const data = this.#currentData;
     const type = typeId === null ? null : data?.relationshipTypes.find((rt) => rt.id === typeId);
-    if (!data || type === undefined) return;
+    if (!data || type === undefined || !this.#isGM) return;
 
     const panel = createRelationshipTypePanel(type, {
       onSave: (values) => {
@@ -542,6 +577,8 @@ export class GraphApp extends ApplicationV2 {
   }
 
   async #deleteEdge(edgeId: string): Promise<void> {
+    const edge = this.#currentData?.edges.find((e) => e.id === edgeId);
+    if (!edge || (edge.gmOnly && !this.#isGM)) return;
     const confirmed = await this.#confirm("Удалить связь", "Удалить эту связь?");
     if (!confirmed || !this.#currentData) return;
     await this.#commit(removeEdge(this.#currentData, edgeId));
@@ -552,37 +589,36 @@ export class GraphApp extends ApplicationV2 {
 
     if (target.kind === "node") {
       const nodeId = target.id;
-      items.push({ label: "Информация", onSelect: () => this.#openInfo(target, client) });
-      if (this.#isGM) items.push({ label: "Редактировать", onSelect: () => this.#openNodePanel(nodeId) });
-      items.push({ label: "Создать связь", onSelect: () => this.#interaction?.startLinking(nodeId) });
       const node = this.#currentData?.nodes.find((n) => n.id === nodeId);
+      // gmOnly-узел игрок не правит и не ресайзит (B14)
+      const editable = node !== undefined && canEditNode(node, this.#isGM);
+      items.push({ label: "Информация", onSelect: () => this.#openInfo(target, client) });
+      if (editable) items.push({ label: "Редактировать", onSelect: () => this.#openNodePanel(nodeId) });
+      items.push({ label: "Создать связь", onSelect: () => this.#interaction?.startLinking(nodeId) });
       // У скрытого узла игроку лист актёра не предлагаем — он выдал бы, кто это.
       const actorId = node && !isMasked(node, this.#isGM) ? node.actorId : null;
       const actor = actorId ? game.actors?.get(actorId) : null;
       if (actor) items.push({ label: "Открыть лист актёра", onSelect: () => actor.sheet?.render(true) });
-      items.push({ label: "Сбросить размер", onSelect: () => this.#interaction?.resetScale(nodeId) });
+      if (editable) items.push({ label: "Сбросить размер", onSelect: () => this.#interaction?.resetScale(nodeId) });
     } else if (target.kind === "edge") {
       const edgeId = target.id;
       items.push({ label: "Редактировать связь", onSelect: () => this.#openEdgePanel(edgeId) });
-      if (this.#isGM) {
-        items.push({
-          label: "Удалить связь",
-          onSelect: () => {
-            void this.#deleteEdge(edgeId);
-          },
-        });
-      }
+      items.push({
+        label: "Удалить связь",
+        onSelect: () => {
+          void this.#deleteEdge(edgeId);
+        },
+      });
     } else if (target.kind === "faction") {
       const factionId = target.id;
       items.push({ label: "Информация", onSelect: () => this.#openInfo(target, client) });
       items.push({ label: "Выбрать область", onSelect: () => this.#interaction?.selectFaction(factionId) });
-      if (this.#isGM) {
-        items.push({ label: "Редактировать фракцию", onSelect: () => this.#openFactionPanel(factionId) });
-      }
+      // игроку форма фракции открывается с правкой только описания
+      items.push({ label: "Редактировать фракцию", onSelect: () => this.#openFactionPanel(factionId) });
     }
 
     // У узла и связи своё меню — создание узла и общие списки там лишние.
-    if (this.#isGM && (target.kind === "faction" || target.kind === "background")) {
+    if (target.kind === "faction" || target.kind === "background") {
       const factionId = target.kind === "faction" ? target.id : null;
       items.push({
         label: "Добавить узел",

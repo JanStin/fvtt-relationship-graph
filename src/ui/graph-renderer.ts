@@ -12,6 +12,7 @@
 import cytoscape from "cytoscape";
 import fcose from "cytoscape-fcose";
 import type { GraphData } from "../core/model";
+import { canEditNode } from "../core/permissions";
 import { parseDash } from "../core/relationship-types";
 import { isMasked } from "../core/visibility";
 import { MODULE_ID } from "../foundry/settings";
@@ -48,7 +49,7 @@ export const FACTION_SELECTED_CLASS = "faction-selected";
 export interface RenderOptions {
   /**
    * GM видит gmOnly-связи (пунктиром), игрокам они не рисуются вовсе; hidden-узел игроку
-   * рисуется картинкой-заглушкой — architecture.md §13.
+   * рисуется картинкой-заглушкой — architecture.md §13. gmOnly-узлы игрок не двигает (B14).
    */
   isGM: boolean;
 }
@@ -70,12 +71,18 @@ function buildElements(data: GraphData, options: RenderOptions): cytoscape.Eleme
 
   data.nodes.forEach((node) => {
     const size = BASE_SIZE * node.scale;
+    // Узел, который пользователь не может трогать (у игрока — gmOnly, B14): не перетаскивается,
+    // в том числе в группе выделенных; interaction.ts по флагу pinned не ресайзит его и не
+    // сдвигает сепарацией.
+    const pinned = !canEditNode(node, options.isGM);
     elements.push({
+      grabbable: !pinned,
       data: {
         id: node.id,
         parent: node.primaryFactionId ? factionElementId(node.primaryFactionId) : undefined,
         scale: node.scale,
         size,
+        pinned,
         // Заглушка — только при пустом пути; битую ссылку не подменяем (tasks.md, B1).
         // Скрытый узел игроку всегда рисуется заглушкой (B13).
         img: (isMasked(node, options.isGM) ? "" : node.img) || DEFAULT_NODE_IMG,

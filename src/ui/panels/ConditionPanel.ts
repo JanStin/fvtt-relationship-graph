@@ -1,5 +1,6 @@
 /**
- * Панели справочника состояний (только GM): список и форма одного состояния.
+ * Панели справочника состояний: список и форма одного состояния. Правит только GM, игрок
+ * видит список только для чтения (B14).
  * Устроены как панели фракций (FactionPanel.ts): только DOM, логика — core/conditions.ts.
  * Встроенные состояния показаны в списке, но не редактируются.
  */
@@ -25,6 +26,8 @@ export function createConditionListPanel(
   /** Сколько узлов имеют это состояние. */
   usageCount: (conditionId: string) => number,
   callbacks: ConditionListCallbacks,
+  /** Игрок видит список только для чтения: без правки и создания (B14). */
+  options: { isGM: boolean },
 ): HTMLElement {
   const element = document.createElement("div");
   element.className = "frg-panel";
@@ -33,9 +36,8 @@ export function createConditionListPanel(
   body.className = "frg-panel-body";
 
   for (const condition of conditions) {
-    const builtin = isBuiltinCondition(condition.id);
-    const row = document.createElement("button");
-    row.type = "button";
+    // у игрока строка — просто текст, без клика
+    const row = document.createElement(options.isGM ? "button" : "div");
     row.className = "frg-faction-row";
     const name = document.createElement("span");
     name.className = "frg-faction-name";
@@ -45,24 +47,29 @@ export function createConditionListPanel(
     count.textContent = String(usageCount(condition.id));
     count.title = "Узлов с этим состоянием";
     row.append(iconElement(condition.icon), name, count);
-    if (builtin) {
-      row.disabled = true;
-      row.title = "Встроенное состояние — не редактируется";
-    } else {
-      row.addEventListener("click", () => callbacks.onEdit(condition.id));
+    if (row instanceof HTMLButtonElement) {
+      row.type = "button";
+      if (isBuiltinCondition(condition.id)) {
+        row.disabled = true;
+        row.title = "Встроенное состояние — не редактируется";
+      } else {
+        row.addEventListener("click", () => callbacks.onEdit(condition.id));
+      }
     }
     body.append(row);
   }
 
-  const footer = document.createElement("div");
-  footer.className = "frg-panel-footer";
-  const create = document.createElement("button");
-  create.type = "button";
-  create.textContent = "Создать состояние";
-  create.addEventListener("click", () => callbacks.onCreate());
-  footer.append(create);
-
-  element.append(panelHeader("Состояния", callbacks.onClose), body, footer);
+  element.append(panelHeader("Состояния", callbacks.onClose), body);
+  if (options.isGM) {
+    const footer = document.createElement("div");
+    footer.className = "frg-panel-footer";
+    const create = document.createElement("button");
+    create.type = "button";
+    create.textContent = "Создать состояние";
+    create.addEventListener("click", () => callbacks.onCreate());
+    footer.append(create);
+    element.append(footer);
+  }
   return element;
 }
 
