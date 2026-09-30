@@ -122,3 +122,27 @@ export function checkbox(label: string, checked: boolean): { row: HTMLElement; i
   row.append(input, caption);
   return { row, input };
 }
+
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+
+/**
+ * Цвет: текстовое поле + штатный выбор цвета. <input type="color"> понимает только #rrggbb;
+ * другой формат (например "#000" из импорта) показал бы чёрный и затёр цвет при сохранении —
+ * поэтому значением считается текст, а палитра лишь заполняет его.
+ */
+export function colorField(current: string): { element: HTMLElement; value(): string } {
+  const text = textInput(current);
+  const picker = document.createElement("input");
+  picker.type = "color";
+  picker.value = HEX_COLOR.test(current) ? current : "#000000";
+  picker.addEventListener("input", () => {
+    text.value = picker.value;
+  });
+  text.addEventListener("input", () => {
+    if (HEX_COLOR.test(text.value.trim())) picker.value = text.value.trim();
+  });
+  const element = document.createElement("div");
+  element.className = "frg-field-row";
+  element.append(text, picker);
+  return { element, value: () => text.value };
+}

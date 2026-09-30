@@ -14,13 +14,19 @@ export interface MockJournalEntry {
   name: string;
   getFlag(scope: string, key: string): unknown;
   setFlag(scope: string, key: string, value: unknown): Promise<void>;
+  ownership: { default: number };
+  update(data: { ownership: { default: number } }): Promise<void>;
 }
 
-export function createMockJournalEntry(name: string, id = name): MockJournalEntry {
+export function createMockJournalEntry(name: string, id = name, ownershipDefault = 0): MockJournalEntry {
   const flags: Record<string, Record<string, unknown>> = {};
   return {
     id,
     name,
+    ownership: { default: ownershipDefault },
+    async update(data) {
+      this.ownership = { ...this.ownership, ...data.ownership };
+    },
     getFlag(scope, key) {
       return flags[scope]?.[key];
     },
@@ -54,7 +60,7 @@ export interface MockFoundryHandles {
   ui: {
     notifications: { info: (msg: string) => void; warn: (msg: string) => void; error: (msg: string) => void };
   };
-  JournalEntry: { create: (data: { name: string }) => Promise<MockJournalEntry> };
+  JournalEntry: { create: (data: { name: string; ownership?: { default: number } }) => Promise<MockJournalEntry> };
   journalEntries: MockJournalEntry[];
   notifications: Array<{ level: "info" | "warn" | "error"; message: string }>;
 }
@@ -104,7 +110,7 @@ export function installMockFoundry(options: MockFoundryOptions = {}): MockFoundr
 
   const JournalEntry: MockFoundryHandles["JournalEntry"] = {
     create: async (data) => {
-      const entry = createMockJournalEntry(data.name);
+      const entry = createMockJournalEntry(data.name, data.name, data.ownership?.default ?? 0);
       journalEntries.push(entry);
       return entry;
     },

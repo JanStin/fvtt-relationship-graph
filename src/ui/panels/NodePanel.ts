@@ -5,11 +5,24 @@
 
 import { conditionIconClass } from "../../core/conditions";
 import { primaryAfterUncheck, type NodeEditValues } from "../../core/edit";
-import type { ConditionDef, Faction, GraphNode } from "../../core/model";
+import type { ConditionDef, Faction, GraphNode, NodeType } from "../../core/model";
 import { SCALE_MAX, SCALE_MIN } from "../../core/selection";
-import { checkbox, createPanelShell, field, hint, textArea, textInput } from "./form";
+import { checkbox, createPanelShell, field, hint, select, textArea, textInput } from "./form";
 
 declare const foundry: any;
+
+const NO_ACTOR = ""; // значение <option> «не выбран»; id актёров пустыми не бывают
+
+const NODE_TYPE_OPTIONS: ReadonlyArray<{ value: NodeType; label: string }> = [
+  { value: "actor", label: "Актёр" },
+  { value: "placeholder", label: "Без актёра" },
+  { value: "image", label: "Просто изображение" },
+];
+
+export interface ActorOption {
+  id: string;
+  name: string;
+}
 
 export interface NodePanelCallbacks {
   onSave(values: NodeEditValues): void;
@@ -136,9 +149,15 @@ export function createNodePanel(
   factions: readonly Faction[],
   /** Весь справочник состояний: встроенные + свои. */
   conditions: readonly ConditionDef[],
+  /** Актёры мира для привязки узла. */
+  actors: readonly ActorOption[],
   callbacks: NodePanelCallbacks,
 ): HTMLElement {
-  const actorBound = node.actorId !== null;
+  const type = select(NODE_TYPE_OPTIONS, node.type);
+  const actor = select(
+    [{ value: NO_ACTOR, label: "— не выбран —" }, ...actors.map((a) => ({ value: a.id, label: a.name }))],
+    node.actorId ?? NO_ACTOR,
+  );
 
   const name = textInput(node.name);
   const img = textInput(node.img);
@@ -158,6 +177,8 @@ export function createNodePanel(
   const shell = createPanelShell("Узел", "Удалить узел", {
     onSave: () =>
       callbacks.onSave({
+        type: type.value as NodeType,
+        actorId: actor.value === NO_ACTOR ? null : actor.value,
         name: name.value,
         img: img.value,
         role: role.value,
@@ -180,17 +201,29 @@ export function createNodePanel(
   browse.addEventListener("click", () => browseImage(img));
   imgRow.append(img, browse);
 
-  if (actorBound) {
-    // Имя и картинку привязанного узла при каждом открытии графа перезаписывает актёр.
-    name.disabled = true;
-    img.disabled = true;
-    browse.disabled = true;
-  }
+  const actorField = field("Актёр", actor);
+  const actorHint = hint("Имя и изображение берутся из актёра — меняйте их в листе актёра.");
+  // Имя и картинку привязанного узла при каждом открытии графа перезаписывает актёр,
+  // поэтому при выбранном актёре эти поля заблокированы.
+  const syncBinding = () => {
+    const isActor = type.value === "actor";
+    const bound = isActor && actor.value !== NO_ACTOR;
+    actorField.hidden = !isActor;
+    actorHint.hidden = !bound;
+    name.disabled = bound;
+    img.disabled = bound;
+    browse.disabled = bound;
+  };
+  type.addEventListener("change", syncBinding);
+  actor.addEventListener("change", syncBinding);
+  syncBinding();
 
   shell.body.append(
+    field("Тип узла", type),
+    actorField,
     field("Имя", name),
     field("Изображение", imgRow),
-    ...(actorBound ? [hint("Имя и изображение берутся из актёра — меняйте их в листе актёра.")] : []),
+    actorHint,
     field("Роль", role),
     factionPicker.element,
     field("Размер", scale),

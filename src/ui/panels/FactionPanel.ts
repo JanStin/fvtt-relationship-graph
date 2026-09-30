@@ -8,10 +8,9 @@
 
 import type { FactionEditValues } from "../../core/edit";
 import type { Faction } from "../../core/model";
-import { createPanelShell, field, hint, panelHeader, textArea, textInput } from "./form";
+import { colorField, createPanelShell, field, hint, panelHeader, textArea, textInput } from "./form";
 
 const NEW_FACTION_COLOR = "#6366f1";
-const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
 export interface FactionListCallbacks {
   onEdit(factionId: string): void;
@@ -72,31 +71,16 @@ export interface FactionPanelCallbacks {
 /** faction === null — создание новой фракции (без кнопки удаления). */
 export function createFactionPanel(faction: Faction | null, callbacks: FactionPanelCallbacks): HTMLElement {
   const name = textInput(faction?.name ?? "");
-  const color = document.createElement("input");
-  color.type = "color";
-  // <input type="color"> понимает только #rrggbb; другой формат (например "#000" из импорта)
-  // показал бы чёрный и затёр цвет при сохранении — тогда даём править его текстом.
-  const storedColor = faction?.color ?? NEW_FACTION_COLOR;
-  const colorText = textInput(storedColor);
-  color.value = HEX_COLOR.test(storedColor) ? storedColor : "#000000";
-  color.addEventListener("input", () => {
-    colorText.value = color.value;
-  });
-  colorText.addEventListener("input", () => {
-    if (HEX_COLOR.test(colorText.value.trim())) color.value = colorText.value.trim();
-  });
-  const colorRow = document.createElement("div");
-  colorRow.className = "frg-field-row";
-  colorRow.append(colorText, color);
+  const color = colorField(faction?.color ?? NEW_FACTION_COLOR);
 
   const description = textArea(faction?.description ?? "", 4);
 
   const shell = createPanelShell(faction ? "Фракция" : "Новая фракция", faction ? "Удалить фракцию" : null, {
-    onSave: () => callbacks.onSave({ name: name.value, color: colorText.value, description: description.value }),
+    onSave: () => callbacks.onSave({ name: name.value, color: color.value(), description: description.value }),
     onDelete: callbacks.onDelete,
     onClose: callbacks.onClose,
   });
 
-  shell.body.append(field("Название", name), field("Цвет", colorRow), field("Описание", description));
+  shell.body.append(field("Название", name), field("Цвет", color.element), field("Описание", description));
   return shell.element;
 }

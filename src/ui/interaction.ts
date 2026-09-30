@@ -15,7 +15,12 @@
  *   Alt+ЛКМ              — выбор области: выделяются все узлы фракции (здесь)
  *   двойной клик ЛКМ     — информация об узле/области (callback onInfo)
  *   ПКМ                  — контекстное меню (callback onContextMenu)
- *   Esc                  — снять выделение
+ *   S+ЛКМ по узлу        — быстрое создание связи: начать от узла / завершить на узле; если
+ *                          выделен один другой узел — связь сразу от него к нажатому (здесь)
+ *   Esc                  — отменить создание связи / снять выделение
+ *
+ * Создание связи (startLinking): пока режим активен, клик по другому узлу завершает выбор
+ * (callback onLinkPicked), Esc или ПКМ — отменяют; сверху висит подсказка.
  *
  * Сами меню и карточка информации — в overlays.ts, наполняет их GraphApp: этот файл
  * ничего не знает про GraphData.
@@ -25,7 +30,13 @@ import type cytoscape from "cytoscape";
 import { clientToModel, findRegionAt, type Point, type Region } from "../core/hit-test";
 import { separateOverlaps, type PositionedCircle } from "../core/layout";
 import { groupScale, SCALE_MAX, SCALE_MIN } from "../core/selection";
-import { BASE_SIZE, FACTION_SELECTED_CLASS, factionElementId, factionIdFromElement } from "./graph-renderer";
+import {
+  BASE_SIZE,
+  FACTION_SELECTED_CLASS,
+  factionElementId,
+  factionIdFromElement,
+  LINK_SOURCE_CLASS,
+} from "./graph-renderer";
 
 const SCALE_STEP = 0.1;
 const SEPARATION_GAP = 8;
@@ -53,6 +64,10 @@ export interface InteractionCallbacks {
   onContextMenu(target: GraphTarget, client: Point): void;
   /** Двойной клик ЛКМ по узлу, связи или области. */
   onInfo(target: GraphTarget, client: Point): void;
+  /** S+ЛКМ по узлу вне режима создания связи. Начинать ли режим (startLinking) — решает получатель. */
+  onQuickLink(nodeId: string): void;
+  /** В режиме создания связи выбран второй узел. */
+  onLinkPicked(sourceId: string, targetId: string): void;
 }
 
 export interface InteractionHandle {
@@ -62,6 +77,8 @@ export interface InteractionHandle {
   resetScale(nodeId: string): void;
   /** Выделяет все узлы области (то же, что Alt+ЛКМ по ней). */
   selectFaction(factionId: string): void;
+  /** Включает режим создания связи от узла: следующий клик по другому узлу — onLinkPicked. */
+  startLinking(sourceId: string): void;
   /** Раздвигает соседей вокруг узла (после смены размера/фракции извне) и сообщает позиции через onNodesChanged. */
   settle(nodeId: string): void;
   teardown(): void;
@@ -117,6 +134,24 @@ export function setupInteraction(container: HTMLElement, callbacks: InteractionC
   let cy: cytoscape.Core | null = null;
   let hoveredNodeId: string | null = null;
   let pointerInside = false;
+  let linkSourceId: string | null = null;
+  let linkHint: HTMLElement | null = null;
+
+  /** Клик по узлу в режиме создания связи. Клик по самому источнику игнорируется. */
+  function pickLinkTarget(targetId: string): void {
+    if (linkSourceId === null || targetId === linkSourceId) return;
+    const sourceId = linkSourceId;
+    endLinking();
+    callbacks.onLinkPicked(sourceId, targetId);
+  }
+
+  function endLinking(): void {
+    if (linkSourceId !== null) regularNode(linkSourceId)?.removeClass(LINK_SOURCE_CLASS);
+    linkSourceId = null;
+    linkHint?.remove();
+    linkHint = null;
+    container.style.cursor = "";
+  }
 
   function regularNode(id: string | null): cytoscape.NodeSingular | null {
     if (!cy || id === null) return null;
@@ -221,6 +256,25 @@ export function setupInteraction(container: HTMLElement, callbacks: InteractionC
   // Жесты, которые забираем у Cytoscape целиком (она не должна увидеть mousedown, иначе
   // начнёт свой drag/рамку/снятие выделения).
   const onMouseDown = (e: MouseEvent) => {
+    // S+ЛКМ по узлу — быстрое создание связи. Забираем клик у Cytoscape, чтобы узел не
+    // выделялся и не начинал перетаскиваться.
+    if (sKeyDown && e.button === LEFT_BUTTON && !e.ctrlKey && !e.altKey && hoveredNodeId !== null) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (linkSourceId !== null) {
+        pickLinkTarget(hoveredNodeId);
+        return;
+      }
+      // Выделен ровно один другой узел — связь сразу от него к нажатому, без второго клика.
+      const selected = cy ? cy.$("node[!isFaction]:selected") : null;
+      if (selected && selected.length === 1 && selected.first().id() !== hoveredNodeId) {
+        callbacks.onLinkPicked(selected.first().id(), hoveredNodeId);
+      } else {
+        callbacks.onQuickLink(hoveredNodeId);
+      }
+      return;
+    }
+
     const isPan = e.button === MIDDLE_BUTTON || (e.button === LEFT_BUTTON && e.ctrlKey);
     const isFactionSelect = e.button === LEFT_BUTTON && e.altKey && !e.ctrlKey;
     if (!isPan && !isFactionSelect) return;
@@ -255,8 +309,34 @@ export function setupInteraction(container: HTMLElement, callbacks: InteractionC
   };
   container.addEventListener("mouseenter", onMouseEnter);
   container.addEventListener("mouseleave", onMouseLeave);
+  // Клавиша S отслеживается по физической клавише (e.code) — работает в любой раскладке.
+  // Пока фокус в поле ввода, S — обычная буква.
+  let sKeyDown = false;
+  const isTyping = (target: EventTarget | null) =>
+    target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
+  const onSKeyDown = (e: KeyboardEvent) => {
+    if (e.code === "KeyS" && !isTyping(e.target)) sKeyDown = true;
+  };
+  const onSKeyUp = (e: KeyboardEvent) => {
+    if (e.code === "KeyS") sKeyDown = false;
+  };
+  const onWindowBlur = () => {
+    sKeyDown = false; // keyup в другом окне мы не увидим
+  };
+  document.addEventListener("keydown", onSKeyDown);
+  document.addEventListener("keyup", onSKeyUp);
+  window.addEventListener("blur", onWindowBlur);
+
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key !== "Escape" || !pointerInside || !cy) return;
+    if (e.key !== "Escape" || !cy) return;
+    if (linkSourceId !== null) {
+      // отмена создания связи — где бы ни был курсор
+      endLinking();
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if (!pointerInside) return;
     const selected = cy.$(":selected");
     if (selected.empty()) return;
     selected.unselect();
@@ -291,7 +371,15 @@ export function setupInteraction(container: HTMLElement, callbacks: InteractionC
     parent.toggleClass(FACTION_SELECTED_CLASS, children.filter(":selected").length === children.length);
   };
 
+  const onNodeTap = (evt: cytoscape.EventObject) => {
+    pickLinkTarget((evt.target as cytoscape.NodeSingular).id());
+  };
+
   const onCxtTap = (evt: cytoscape.EventObject) => {
+    if (linkSourceId !== null) {
+      endLinking(); // ПКМ во время выбора второго узла — отмена, меню не открываем
+      return;
+    }
     callbacks.onContextMenu(resolveTarget(evt), clientPoint(evt));
   };
 
@@ -307,6 +395,7 @@ export function setupInteraction(container: HTMLElement, callbacks: InteractionC
       cy.on("mouseout", "node[!isFaction]", onMouseOut);
       cy.on("dragfreeon", "node[!isFaction]", onDragFreeOn);
       cy.on("select unselect", "node[!isFaction]", onSelectionChanged);
+      cy.on("tap", "node[!isFaction]", onNodeTap);
       cy.on("cxttap", onCxtTap);
       cy.on("dbltap", onDblTap);
     },
@@ -323,7 +412,20 @@ export function setupInteraction(container: HTMLElement, callbacks: InteractionC
       runSeparation(cy, node);
       callbacks.onNodesChanged(snapshotNodes(cy));
     },
+    startLinking(sourceId: string): void {
+      const source = regularNode(sourceId);
+      if (!source) return;
+      endLinking();
+      linkSourceId = sourceId;
+      source.addClass(LINK_SOURCE_CLASS);
+      container.style.cursor = "crosshair";
+      linkHint = document.createElement("div");
+      linkHint.className = "frg-link-hint";
+      linkHint.textContent = "Создание связи: выберите второй узел. Esc или ПКМ — отмена";
+      container.append(linkHint);
+    },
     teardown(): void {
+      endLinking();
       onPanEnd();
       container.removeEventListener("wheel", onWheel, { capture: true });
       container.removeEventListener("mousedown", onMouseDown, { capture: true });
@@ -331,10 +433,14 @@ export function setupInteraction(container: HTMLElement, callbacks: InteractionC
       container.removeEventListener("mouseenter", onMouseEnter);
       container.removeEventListener("mouseleave", onMouseLeave);
       document.removeEventListener("keydown", onKeyDown, { capture: true });
+      document.removeEventListener("keydown", onSKeyDown);
+      document.removeEventListener("keyup", onSKeyUp);
+      window.removeEventListener("blur", onWindowBlur);
       cy?.off("mouseover", "node[!isFaction]", onMouseOver);
       cy?.off("mouseout", "node[!isFaction]", onMouseOut);
       cy?.off("dragfreeon", "node[!isFaction]", onDragFreeOn);
       cy?.off("select unselect", "node[!isFaction]", onSelectionChanged);
+      cy?.off("tap", "node[!isFaction]", onNodeTap);
       cy?.off("cxttap", onCxtTap);
       cy?.off("dbltap", onDblTap);
       cy = null;

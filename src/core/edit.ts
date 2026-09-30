@@ -5,10 +5,14 @@
 
 import { allConditions } from "./conditions";
 import { addFaction, updateEdge, updateFaction, updateNode } from "./graph-state";
-import type { GraphData } from "./model";
+import type { GraphData, GraphEdge, GraphNode, NodeType } from "./model";
 import { SCALE_MAX, SCALE_MIN } from "./selection";
 
 export interface NodeEditValues {
+  /** "actor" без actorId превращается в "placeholder". */
+  type: NodeType;
+  /** Учитывается только при type === "actor". null — без актёра. */
+  actorId: string | null;
   name: string;
   img: string;
   role: string;
@@ -72,9 +76,12 @@ export function primaryAfterUncheck(
 }
 
 /**
+ * - Тип и привязка: узел с выбранным актёром — "actor"; без актёра — "placeholder" или "image".
+ *   Привязать, сменить и отвязать актёра можно у любого узла.
  * - У узла, привязанного к актёру, name/img не меняются: их при каждом открытии графа
  *   перезаписывает синхронизация с актёром (foundry/actors.ts).
- * - Пустое имя и нечисловой scale игнорируются (остаётся прежнее значение), scale клампится.
+ * - Пустое имя (кроме узла-изображения) и нечисловой scale игнорируются (остаётся прежнее
+ *   значение), scale клампится.
  * - Фракции: см. normalizeFactions.
  */
 export function applyNodeEdit(data: GraphData, nodeId: string, values: NodeEditValues): GraphData {
@@ -83,13 +90,18 @@ export function applyNodeEdit(data: GraphData, nodeId: string, values: NodeEditV
     throw new Error(`applyNodeEdit: node "${nodeId}" not found`);
   }
 
-  const actorBound = node.actorId !== null;
+  const actorId = values.type === "actor" ? values.actorId : null;
+  const type: NodeType = actorId !== null ? "actor" : values.type === "image" ? "image" : "placeholder";
+  const actorBound = actorId !== null;
   const knownConditions = new Set(allConditions(data).map((c) => c.id));
   const name = values.name.trim();
   const scale = Number.isFinite(values.scale) ? Math.max(SCALE_MIN, Math.min(SCALE_MAX, values.scale)) : node.scale;
 
   return updateNode(data, nodeId, {
-    name: actorBound || name === "" ? node.name : name,
+    type,
+    actorId,
+    // «просто изображение» может быть без подписи, остальным узлам имя обязательно
+    name: actorBound || (name === "" && type !== "image") ? node.name : name,
     img: actorBound ? node.img : values.img.trim(),
     role: values.role.trim(),
     scale,
@@ -134,4 +146,43 @@ export function applyEdgeEdit(data: GraphData, edgeId: string, values: EdgeEditV
     directional: values.directional,
     gmOnly: values.gmOnly,
   });
+}
+
+const NEW_NODE_NAME = "Новый узел";
+
+/**
+ * Заготовка узла для «Добавить узел»: без актёра, в заданной точке; factionId — область,
+ * по которой кликнули (null — пустое место). id генерирует вызывающий.
+ */
+export function blankNode(id: string, position: { x: number; y: number }, factionId: string | null): GraphNode {
+  return {
+    id,
+    type: "placeholder",
+    actorId: null,
+    name: NEW_NODE_NAME,
+    originalName: NEW_NODE_NAME,
+    img: "",
+    x: position.x,
+    y: position.y,
+    scale: 1.0,
+    primaryFactionId: factionId,
+    factionIds: factionId === null ? [] : [factionId],
+    role: "",
+    lore: "",
+    playerNotes: "",
+    gmNotes: "",
+    conditions: [],
+    hidden: false,
+    gmOnly: false,
+  };
+}
+
+/** Заготовка связи для «Создать связь»: без подписи и типа, ненаправленная. */
+export function blankEdge(id: string, source: string, target: string): GraphEdge {
+  return { id, source, target, label: "", directional: false, relationshipTypeId: "", gmOnly: false };
+}
+
+/** Связь «не заполнена ничем»: без подписи и типа, ненаправленная, не «только GM». */
+export function isBlankEdge(edge: GraphEdge): boolean {
+  return edge.label.trim() === "" && edge.relationshipTypeId === "" && !edge.directional && !edge.gmOnly;
 }

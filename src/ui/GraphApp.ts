@@ -7,9 +7,9 @@
  */
 
 import type cytoscape from "cytoscape";
-import type { GraphData, GraphNode } from "../core/model";
+import type { GraphData, GraphEdge, GraphNode } from "../core/model";
 import { syncNodesWithActors } from "../foundry/actors";
-import { loadGraphData, saveGraphData } from "../foundry/storage";
+import { allowPlayersToSave, loadGraphData, saveGraphData } from "../foundry/storage";
 import {
   allConditions,
   createCondition,
@@ -22,11 +22,22 @@ import {
   applyEdgeEdit,
   applyFactionEdit,
   applyNodeEdit,
+  blankEdge,
+  blankNode,
   createFactionFromEdit,
+  isBlankEdge,
   type FactionEditValues,
 } from "../core/edit";
-import { removeEdge, removeFaction, removeNode } from "../core/graph-state";
-import type { Point } from "../core/hit-test";
+import { addEdge, addNode, removeEdge, removeFaction, removeNode } from "../core/graph-state";
+import { clientToModel, type Point } from "../core/hit-test";
+import {
+  createRelationshipType,
+  ensureDefaultRelationshipTypes,
+  removeRelationshipType,
+  updateRelationshipType,
+  type RelationshipTypeEditValues,
+} from "../core/relationship-types";
+import { setupEdgeLabels, type EdgeLabelsHandle } from "./edge-labels";
 import { renderGraph } from "./graph-renderer";
 import { setupInteraction, type GraphTarget, type InteractionHandle, type NodeSnapshot } from "./interaction";
 import { createNodeDecorLayer, type NodeDecorLayer } from "./node-decor";
@@ -35,12 +46,20 @@ import { createConditionListPanel, createConditionPanel } from "./panels/Conditi
 import { createEdgePanel } from "./panels/EdgePanel";
 import { createFactionListPanel, createFactionPanel } from "./panels/FactionPanel";
 import { createImportControl } from "./panels/ImportDialog";
-import { createNodePanel } from "./panels/NodePanel";
+import { createNodePanel, type ActorOption } from "./panels/NodePanel";
+import { createRelationshipTypeListPanel, createRelationshipTypePanel } from "./panels/RelationshipTypePanel";
 
 declare const foundry: any;
 declare const game: any;
+declare const ui: any;
 
-const EMPTY_GRAPH: GraphData = { nodes: [], edges: [], factions: [], relationshipTypes: [], conditions: [] };
+const EMPTY_GRAPH: GraphData = ensureDefaultRelationshipTypes({
+  nodes: [],
+  edges: [],
+  factions: [],
+  relationshipTypes: [],
+  conditions: [],
+});
 
 const ApplicationV2 = foundry.applications.api.ApplicationV2;
 
@@ -63,6 +82,7 @@ export class GraphApp extends ApplicationV2 {
   #interaction: InteractionHandle | null = null;
   #overlays: Overlays | null = null;
   #decor: NodeDecorLayer | null = null;
+  #edgeLabels: EdgeLabelsHandle | null = null;
   /** Открытая боковая панель редактирования (NodePanel/EdgePanel) — максимум одна. */
   #panel: HTMLElement | null = null;
   #cyHost: HTMLElement | null = null;
@@ -103,6 +123,12 @@ export class GraphApp extends ApplicationV2 {
   }
 
   async #loadAndDisplay(): Promise<void> {
+    // Игроки создают и правят связи — им нужно право записи в журнал-хранилище.
+    if (this.#isGM) {
+      await allowPlayersToSave().catch((err: unknown) => {
+        console.warn("fvtt-relationship-graph | could not open storage to players", err);
+      });
+    }
     const stored = await loadGraphData();
     this.#display(stored ?? EMPTY_GRAPH);
   }
@@ -127,6 +153,7 @@ export class GraphApp extends ApplicationV2 {
     this.#interaction?.teardown();
     this.#overlays?.destroy();
     this.#decor?.destroy();
+    this.#edgeLabels?.destroy();
     this.#resizeObserver?.disconnect();
     this.#cy?.destroy(); // снимает и собственные DOM-листенеры (включая wheel) старого cytoscape
 
@@ -143,17 +170,26 @@ export class GraphApp extends ApplicationV2 {
       },
       onContextMenu: (target, client) => this.#openContextMenu(target, client),
       onInfo: (target, client) => this.#openInfo(target, client),
+      onQuickLink: (nodeId) => {
+        this.#interaction?.startLinking(nodeId);
+      },
+      onLinkPicked: (sourceId, targetId) => this.#openNewEdgePanel(sourceId, targetId),
     });
     this.#cy = renderGraph(this.#cyHost, hydrated, { isGM: this.#isGM });
     if (viewport) this.#cy.viewport(viewport);
     this.#interaction.bind(this.#cy);
     this.#decor = createNodeDecorLayer(this.#cyHost, this.#cy, hydrated);
+    this.#edgeLabels = setupEdgeLabels(this.#cy);
 
     this.#resizeObserver = new ResizeObserver(() => this.#cy?.resize());
     this.#resizeObserver.observe(this.#cyHost);
   }
 
-  /** Редактировать граф может только GM: данные лежат в JournalEntry, игрок его не сохранит. */
+  /**
+   * Узлы, фракции, состояния и типы связей правит только GM. Связи создают и правят все
+   * (игроку недоступны «Видна только GM» и удаление) — для этого журнал-хранилище открыт
+   * игрокам на запись (foundry/storage.ts).
+   */
   get #isGM(): boolean {
     return game.user?.isGM === true;
   }
@@ -161,8 +197,8 @@ export class GraphApp extends ApplicationV2 {
   #openInfo(target: GraphTarget, client: Point): void {
     if (!this.#currentData || target.kind === "background") return;
     if (target.kind === "edge") {
-      // У связи отдельной карточки нет — двойной клик сразу открывает панель (только GM).
-      if (this.#isGM) this.#openEdgePanel(target.id);
+      // У связи отдельной карточки нет — двойной клик сразу открывает панель.
+      this.#openEdgePanel(target.id);
       return;
     }
     const card =
@@ -185,7 +221,14 @@ export class GraphApp extends ApplicationV2 {
 
   /** Сохраняет изменённый граф и перерисовывает его, не сбрасывая zoom/pan. */
   async #commit(data: GraphData): Promise<void> {
-    await saveGraphData(data);
+    try {
+      await saveGraphData(data);
+    } catch (err) {
+      // Типичный случай: игрок без права записи (GM ещё не открывал граф после обновления модуля).
+      console.error("fvtt-relationship-graph | save failed", err);
+      ui.notifications?.error("Не удалось сохранить граф — см. консоль. Игрокам запись открывается, когда граф откроет GM.");
+      return;
+    }
     this.#display(data, true);
   }
 
@@ -199,12 +242,78 @@ export class GraphApp extends ApplicationV2 {
     return result === true;
   }
 
+  /** Актёры мира для привязки узла, по алфавиту. */
+  #actorOptions(): ActorOption[] {
+    const actors: ActorOption[] = (game.actors?.contents ?? []).map((a: { id: string; name: string }) => ({
+      id: a.id,
+      name: a.name,
+    }));
+    return actors.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  /**
+   * «Добавить узел»: узел появляется в точке клика и сразу открывается его панель.
+   * factionId — область, по которой кликнули (узел сразу входит в её фракцию).
+   */
+  async #createNode(client: Point, factionId: string | null): Promise<void> {
+    if (!this.#currentData || !this.#cy || !this.#cyHost) return;
+    const rect = this.#cyHost.getBoundingClientRect();
+    const position = clientToModel(client.x, client.y, {
+      left: rect.left,
+      top: rect.top,
+      pan: this.#cy.pan(),
+      zoom: this.#cy.zoom(),
+    });
+    const nodeId = foundry.utils.randomID();
+    await this.#commit(addNode(this.#currentData, blankNode(nodeId, position, factionId)));
+    // Клик мог прийтись вплотную к другому узлу — раздвигаем соседей.
+    this.#interaction?.settle(nodeId);
+    this.#openNodePanel(nodeId);
+  }
+
+  /**
+   * Завершение «Создать связь»: открывается панель новой связи. Сама связь появляется только
+   * после сохранения, и только если в ней хоть что-то заполнено — пустые связи не создаём.
+   */
+  #openNewEdgePanel(sourceId: string, targetId: string): void {
+    const data = this.#currentData;
+    if (!data) return;
+
+    const edgeId = `${sourceId}-${targetId}-${foundry.utils.randomID()}`;
+    const nameOf = (id: string) => data.nodes.find((n) => n.id === id)?.name ?? "?";
+    const panel = createEdgePanel(
+      blankEdge(edgeId, sourceId, targetId),
+      { source: nameOf(sourceId), target: nameOf(targetId) },
+      data.relationshipTypes,
+      {
+        onSave: (values) => {
+          void this.#saveNewEdge(blankEdge(edgeId, sourceId, targetId), values);
+        },
+        onDelete: () => this.#closePanel(),
+        onClose: () => this.#closePanel(),
+      },
+      { isNew: true, isGM: this.#isGM },
+    );
+    this.#mountPanel(panel);
+  }
+
+  async #saveNewEdge(edge: GraphEdge, values: Parameters<typeof applyEdgeEdit>[2]): Promise<void> {
+    if (!this.#currentData) return;
+    const data = applyEdgeEdit(addEdge(this.#currentData, edge), edge.id, values);
+    if (isBlankEdge(data.edges.find((e) => e.id === edge.id)!)) {
+      this.#closePanel();
+      ui.notifications?.info("Связь не создана: в ней ничего не заполнено.");
+      return;
+    }
+    await this.#commit(data);
+  }
+
   #openNodePanel(nodeId: string): void {
     const data = this.#currentData;
     const node = data?.nodes.find((n) => n.id === nodeId);
     if (!data || !node) return;
 
-    const panel = createNodePanel(node, data.factions, allConditions(data), {
+    const panel = createNodePanel(node, data.factions, allConditions(data), this.#actorOptions(), {
       onSave: (values) => {
         void this.#saveNode(nodeId, values);
       },
@@ -248,6 +357,7 @@ export class GraphApp extends ApplicationV2 {
         },
         onClose: () => this.#closePanel(),
       },
+      { isGM: this.#isGM },
     );
     this.#mountPanel(panel);
   }
@@ -362,6 +472,61 @@ export class GraphApp extends ApplicationV2 {
     this.#openConditionList();
   }
 
+  /** Справочник типов связей (только GM). */
+  #openRelationshipTypeList(): void {
+    const data = this.#currentData;
+    if (!data) return;
+
+    const panel = createRelationshipTypeListPanel(
+      data.relationshipTypes,
+      (typeId) => data.edges.filter((e) => e.relationshipTypeId === typeId).length,
+      {
+        onEdit: (typeId) => this.#openRelationshipTypePanel(typeId),
+        onCreate: () => this.#openRelationshipTypePanel(null),
+        onClose: () => this.#closePanel(),
+      },
+    );
+    this.#mountPanel(panel);
+  }
+
+  /** typeId === null — создание нового типа связи. */
+  #openRelationshipTypePanel(typeId: string | null): void {
+    const data = this.#currentData;
+    const type = typeId === null ? null : data?.relationshipTypes.find((rt) => rt.id === typeId);
+    if (!data || type === undefined) return;
+
+    const panel = createRelationshipTypePanel(type, {
+      onSave: (values) => {
+        void this.#saveRelationshipType(typeId, values);
+      },
+      onDelete: () => {
+        if (type) void this.#deleteRelationshipType(type.id, type.label);
+      },
+      onClose: () => this.#closePanel(),
+    });
+    this.#mountPanel(panel);
+  }
+
+  async #saveRelationshipType(typeId: string | null, values: RelationshipTypeEditValues): Promise<void> {
+    if (!this.#currentData) return;
+    const data =
+      typeId === null
+        ? createRelationshipType(this.#currentData, foundry.utils.randomID(), values)
+        : updateRelationshipType(this.#currentData, typeId, values);
+    await this.#commit(data);
+    this.#openRelationshipTypeList();
+  }
+
+  async #deleteRelationshipType(typeId: string, label: string): Promise<void> {
+    const confirmed = await this.#confirm(
+      "Удалить тип связи",
+      `Удалить тип связи «${label}»? Связи этого типа останутся, но без типа.`,
+    );
+    if (!confirmed || !this.#currentData) return;
+    await this.#commit(removeRelationshipType(this.#currentData, typeId));
+    this.#openRelationshipTypeList();
+  }
+
   async #deleteEdge(edgeId: string): Promise<void> {
     const confirmed = await this.#confirm("Удалить связь", "Удалить эту связь?");
     if (!confirmed || !this.#currentData) return;
@@ -375,14 +540,15 @@ export class GraphApp extends ApplicationV2 {
       const nodeId = target.id;
       items.push({ label: "Информация", onSelect: () => this.#openInfo(target, client) });
       if (this.#isGM) items.push({ label: "Редактировать", onSelect: () => this.#openNodePanel(nodeId) });
+      items.push({ label: "Создать связь", onSelect: () => this.#interaction?.startLinking(nodeId) });
       const actorId = this.#currentData?.nodes.find((n) => n.id === nodeId)?.actorId;
       const actor = actorId ? game.actors?.get(actorId) : null;
       if (actor) items.push({ label: "Открыть лист актёра", onSelect: () => actor.sheet?.render(true) });
       items.push({ label: "Сбросить размер", onSelect: () => this.#interaction?.resetScale(nodeId) });
     } else if (target.kind === "edge") {
       const edgeId = target.id;
+      items.push({ label: "Редактировать связь", onSelect: () => this.#openEdgePanel(edgeId) });
       if (this.#isGM) {
-        items.push({ label: "Редактировать связь", onSelect: () => this.#openEdgePanel(edgeId) });
         items.push({
           label: "Удалить связь",
           onSelect: () => {
@@ -399,9 +565,17 @@ export class GraphApp extends ApplicationV2 {
       }
     }
 
-    // У узла и связи своё меню — общие списки там лишние.
+    // У узла и связи своё меню — создание узла и общие списки там лишние.
     if (this.#isGM && (target.kind === "faction" || target.kind === "background")) {
+      const factionId = target.kind === "faction" ? target.id : null;
+      items.push({
+        label: "Добавить узел",
+        onSelect: () => {
+          void this.#createNode(client, factionId);
+        },
+      });
       items.push({ label: "Фракции…", onSelect: () => this.#openFactionList() });
+      items.push({ label: "Типы связей…", onSelect: () => this.#openRelationshipTypeList() });
       items.push({ label: "Состояния…", onSelect: () => this.#openConditionList() });
     }
 
@@ -434,6 +608,8 @@ export class GraphApp extends ApplicationV2 {
     this.#overlays = null;
     this.#decor?.destroy();
     this.#decor = null;
+    this.#edgeLabels?.destroy();
+    this.#edgeLabels = null;
     this.#closePanel();
     this.#resizeObserver?.disconnect();
     this.#resizeObserver = null;

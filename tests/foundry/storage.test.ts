@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { loadGraphData, saveGraphData } from "../../src/foundry/storage";
+import { allowPlayersToSave, loadGraphData, saveGraphData } from "../../src/foundry/storage";
 import type { GraphData } from "../../src/core/model";
 import { createMockJournalEntry, installMockFoundry } from "../mocks/foundry";
 
@@ -63,12 +63,15 @@ describe("saveGraphData + loadGraphData", () => {
     expect(mock.journalEntries[0].name).toBe("Relationship Graph Data");
   });
 
-  it("сохранённые данные читаются обратно как есть", async () => {
+  it("сохранённые данные читаются обратно; дописывается только тип связи по умолчанию", async () => {
     mock = installMockFoundry();
     await saveGraphData(SAMPLE);
 
     const loaded = await loadGraphData();
-    expect(loaded).toEqual(SAMPLE);
+    expect(loaded).toEqual({
+      ...SAMPLE,
+      relationshipTypes: [{ id: "romantic", label: "Романтическая", color: "#ec4899", dash: "" }],
+    });
   });
 
   it("повторное сохранение переиспользует существующий JournalEntry, не создаёт дубликат", async () => {
@@ -92,5 +95,28 @@ describe("миграция сохранённых данных", () => {
 
     expect(loaded?.conditions).toEqual([{ id: "ранен", label: "ранен", icon: "fa-tag" }]);
     expect(loaded?.nodes[0].conditions).toEqual(["deceased", "ранен"]);
+  });
+});
+
+describe("права игроков на хранилище", () => {
+  it("новый JournalEntry создаётся с правом записи для всех", async () => {
+    mock = installMockFoundry();
+    await saveGraphData(SAMPLE);
+    expect(mock.journalEntries[0].ownership.default).toBe(3);
+  });
+
+  it("allowPlayersToSave поднимает права у старого журнала", async () => {
+    const entry = createMockJournalEntry("Relationship Graph Data");
+    mock = installMockFoundry({ journalEntries: [entry] });
+
+    await allowPlayersToSave();
+
+    expect(entry.ownership.default).toBe(3);
+  });
+
+  it("allowPlayersToSave не создаёт журнал, если его ещё нет", async () => {
+    mock = installMockFoundry();
+    await allowPlayersToSave();
+    expect(mock.journalEntries).toHaveLength(0);
   });
 });

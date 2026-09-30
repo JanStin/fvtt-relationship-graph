@@ -3,6 +3,9 @@ import {
   applyEdgeEdit,
   applyFactionEdit,
   applyNodeEdit,
+  blankEdge,
+  blankNode,
+  isBlankEdge,
   createFactionFromEdit,
   normalizeFactions,
   primaryAfterUncheck,
@@ -51,6 +54,8 @@ const data: GraphData = {
 
 function values(overrides: Partial<NodeEditValues> = {}): NodeEditValues {
   return {
+    type: "placeholder",
+    actorId: null,
     name: "Новое",
     img: "new.png",
     role: "",
@@ -89,8 +94,33 @@ describe("applyNodeEdit", () => {
   });
 
   it("у узла с актёром name/img не меняются", () => {
-    const result = applyNodeEdit(data, "bound", values({ role: "Страж" }));
+    const result = applyNodeEdit(data, "bound", values({ type: "actor", actorId: "actor1", role: "Страж" }));
     expect(nodeOf(result, "bound")).toMatchObject({ name: "Актёр", img: "actor.png", role: "Страж" });
+  });
+
+  it("привязка актёра: тип actor, name/img остаются до синхронизации", () => {
+    const result = applyNodeEdit(data, "free", values({ type: "actor", actorId: "actor2" }));
+    expect(nodeOf(result, "free")).toMatchObject({ type: "actor", actorId: "actor2", name: "Старое", img: "old.png" });
+  });
+
+  it("смена актёра у привязанного узла", () => {
+    const result = applyNodeEdit(data, "bound", values({ type: "actor", actorId: "actor2" }));
+    expect(nodeOf(result, "bound")).toMatchObject({ type: "actor", actorId: "actor2" });
+  });
+
+  it("отвязка актёра: узел становится placeholder, name/img берутся из формы", () => {
+    const result = applyNodeEdit(data, "bound", values({ type: "placeholder", actorId: "actor1" }));
+    expect(nodeOf(result, "bound")).toMatchObject({ type: "placeholder", actorId: null, name: "Новое", img: "new.png" });
+  });
+
+  it("тип actor без выбранного актёра превращается в placeholder", () => {
+    const result = applyNodeEdit(data, "free", values({ type: "actor", actorId: null }));
+    expect(nodeOf(result, "free")).toMatchObject({ type: "placeholder", actorId: null });
+  });
+
+  it("узел-изображение может быть без имени", () => {
+    const result = applyNodeEdit(data, "free", values({ type: "image", name: " " }));
+    expect(nodeOf(result, "free")).toMatchObject({ type: "image", actorId: null, name: "" });
   });
 
   it("пустое имя оставляет прежнее", () => {
@@ -186,6 +216,50 @@ describe("applyFactionEdit / createFactionFromEdit", () => {
   it("бросает на неизвестной фракции и на повторном id", () => {
     expect(() => applyFactionEdit(data, "nope", { name: "x", color: "", description: "" })).toThrow(/not found/);
     expect(() => createFactionFromEdit(data, "f1", { name: "x", color: "", description: "" })).toThrow(/already exists/);
+  });
+});
+
+describe("blankNode / blankEdge", () => {
+  it("узел-заготовка: без актёра, в точке клика, без фракции", () => {
+    expect(blankNode("n1", { x: 10, y: -5 }, null)).toMatchObject({
+      id: "n1",
+      type: "placeholder",
+      actorId: null,
+      name: "Новый узел",
+      x: 10,
+      y: -5,
+      scale: 1,
+      primaryFactionId: null,
+      factionIds: [],
+    });
+  });
+
+  it("узел, созданный в области, сразу состоит в её фракции", () => {
+    expect(blankNode("n1", { x: 0, y: 0 }, "f1")).toMatchObject({ primaryFactionId: "f1", factionIds: ["f1"] });
+  });
+
+  it("связь-заготовка: без подписи и типа, ненаправленная", () => {
+    expect(blankEdge("e9", "a", "b")).toEqual({
+      id: "e9",
+      source: "a",
+      target: "b",
+      label: "",
+      directional: false,
+      relationshipTypeId: "",
+      gmOnly: false,
+    });
+  });
+});
+
+describe("isBlankEdge", () => {
+  it("заготовка связи пустая; любое заполненное поле делает её непустой", () => {
+    const blank = blankEdge("e9", "a", "b");
+    expect(isBlankEdge(blank)).toBe(true);
+    expect(isBlankEdge({ ...blank, label: "  " })).toBe(true);
+    expect(isBlankEdge({ ...blank, label: "друг" })).toBe(false);
+    expect(isBlankEdge({ ...blank, relationshipTypeId: "rt1" })).toBe(false);
+    expect(isBlankEdge({ ...blank, directional: true })).toBe(false);
+    expect(isBlankEdge({ ...blank, gmOnly: true })).toBe(false);
   });
 });
 

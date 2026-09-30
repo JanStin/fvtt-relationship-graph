@@ -12,7 +12,9 @@
 import cytoscape from "cytoscape";
 import fcose from "cytoscape-fcose";
 import type { GraphData } from "../core/model";
+import { parseDash } from "../core/relationship-types";
 import { MODULE_ID } from "../foundry/settings";
+import { EDGE_LABEL_FONT_SIZE } from "./edge-labels";
 
 let fcoseRegistered = false;
 function ensureFcoseRegistered(): void {
@@ -35,6 +37,10 @@ export function factionElementId(factionId: string): string {
 export function factionIdFromElement(elementId: string): string {
   return elementId.slice(FACTION_ID_PREFIX.length);
 }
+/** Класс узла-источника, пока выбирается второй узел новой связи — ставится в interaction.ts. */
+export const LINK_SOURCE_CLASS = "link-source";
+/** Пунктир gmOnly-связи, у типа которой линия сплошная. */
+const GM_ONLY_DASH = [6, 3];
 /** Класс подсветки выбранной области — ставится в interaction.ts. */
 export const FACTION_SELECTED_CLASS = "faction-selected";
 
@@ -77,15 +83,22 @@ function buildElements(data: GraphData, options: RenderOptions): cytoscape.Eleme
   data.edges.forEach((edge) => {
     if (edge.gmOnly && !options.isGM) return;
     const relType = relationshipTypeById.get(edge.relationshipTypeId);
+    // Стиль линии задаёт тип связи; gmOnly-связь всегда пунктирная и полупрозрачная —
+    // так GM отличит её и от связи пунктирного типа.
+    const dashPattern = parseDash(relType?.dash ?? "") ?? (edge.gmOnly ? GM_ONLY_DASH : null);
     elements.push({
       data: {
         id: edge.id,
         source: edge.source,
         target: edge.target,
         label: edge.label,
+        // место подписи на связи; настоящее значение сразу после рендера ставит edge-labels.ts
+        labelOffset: 0,
         arrow: edge.directional ? "triangle" : "none",
         edgeColor: relType?.color ?? "#64748b",
-        lineStyle: edge.gmOnly ? "dashed" : "solid",
+        lineStyle: dashPattern ? "dashed" : "solid",
+        ...(dashPattern ? { dashPattern } : {}),
+        edgeOpacity: edge.gmOnly ? 0.6 : 1,
       },
     });
   });
@@ -152,10 +165,32 @@ const STYLE = [
       "target-arrow-color": "data(edgeColor)",
       "target-arrow-shape": "data(arrow)",
       "line-style": "data(lineStyle)",
+      "line-opacity": "data(edgeOpacity)",
       "curve-style": "bezier",
-      label: "data(label)",
-      "font-size": 8,
-      color: "#cbd5e1",
+      // Подпись — source-label: её можно двигать вдоль связи (source-text-offset), чтобы
+      // подписи соседних связей не накладывались (edge-labels.ts).
+      "source-label": "data(label)",
+      "source-text-offset": "data(labelOffset)",
+      "font-size": EDGE_LABEL_FONT_SIZE,
+      color: "#f8fafc",
+      // тёмная подложка — текст читается поверх линии любого цвета
+      "text-background-color": "#0f172a",
+      "text-background-opacity": 0.8,
+      "text-background-padding": "2px",
+      "text-background-shape": "roundrectangle",
+    },
+  },
+  {
+    selector: "edge[dashPattern]",
+    style: {
+      "line-dash-pattern": (edge: cytoscape.EdgeSingular) => edge.data("dashPattern") as number[],
+    },
+  },
+  {
+    selector: `node.${LINK_SOURCE_CLASS}`,
+    style: {
+      "border-width": 4,
+      "border-color": "#38bdf8",
     },
   },
   {
