@@ -3,6 +3,7 @@
  * Чистая логика поверх GraphData — без DOM и Foundry; GM-only данные отсекаются здесь же.
  */
 
+import { allConditions } from "./conditions";
 import type { GraphData, NodeType } from "./model";
 
 export interface DescriptionRow {
@@ -47,7 +48,8 @@ export function describeNode(data: GraphData, nodeId: string, options: DescribeO
     factions.length > 1 && f.id === node.primaryFactionId ? `${f.name} (основная)` : f.name,
   );
   pushIfPresent(rows, "Фракции", factionNames.join(", "));
-  pushIfPresent(rows, "Состояния", node.conditions.join(", "));
+  const conditionLabels = new Map(allConditions(data).map((c) => [c.id, c.label]));
+  pushIfPresent(rows, "Состояния", node.conditions.map((id) => conditionLabels.get(id) ?? id).join(", "));
 
   const nameById = new Map(data.nodes.map((n) => [n.id, n.name]));
   const typeLabelById = new Map(data.relationshipTypes.map((rt) => [rt.id, rt.label]));

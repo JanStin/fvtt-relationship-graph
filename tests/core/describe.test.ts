@@ -50,6 +50,7 @@ const data: GraphData = {
   ],
   factions: [{ id: "f1", name: "Стража", color: "#ff0000", description: "Городская стража" }],
   relationshipTypes: [{ id: "rt1", label: "враг", color: "#000000", dash: "" }],
+  conditions: [],
 };
 
 function rowValue(rows: { label: string; value: string }[], labelStart: string): string | undefined {
@@ -77,6 +78,17 @@ describe("describeNode", () => {
       nodes: [makeNode({ id: "x", factionIds: ["f2", "f1"], primaryFactionId: "f2" })],
     };
     expect(rowValue(describeNode(many, "x", { isGM: false })!.rows, "Фракции")).toBe("Гильдия (основная), Стража");
+  });
+
+  it("состояния выводятся названиями из справочника", () => {
+    const withConditions: GraphData = {
+      ...data,
+      conditions: [{ id: "cursed", label: "Проклят", icon: "fa-ghost" }],
+      nodes: [makeNode({ id: "x", conditions: ["deceased", "cursed", "неизвестное"] })],
+    };
+    expect(rowValue(describeNode(withConditions, "x", { isGM: false })!.rows, "Состояния")).toBe(
+      "Мёртв, Проклят, неизвестное",
+    );
   });
 
   it("описывает связи: направление, подпись или название типа", () => {

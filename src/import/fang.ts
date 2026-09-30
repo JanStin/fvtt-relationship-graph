@@ -1,3 +1,4 @@
+import { ensureConditionDefs } from "../core/conditions";
 import type { Faction, GraphData, GraphEdge, GraphNode, RelationshipType } from "../core/model";
 
 export interface ParseResult {
@@ -163,7 +164,8 @@ export function parseFangJson(raw: unknown): ParseResult {
   const relationshipTypes = parseRelationshipTypes(raw.relationshipTypes);
 
   return {
-    data: { nodes, edges, factions, relationshipTypes },
+    // состояния, которых нет во встроенном наборе, попадают в справочник
+    data: ensureConditionDefs({ nodes, edges, factions, relationshipTypes }),
     warnings,
   };
 }

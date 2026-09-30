@@ -16,7 +16,7 @@ export interface GraphNode {
   lore: string;
   playerNotes: string;
   gmNotes: string; // заметки GM — не видны игрокам
-  conditions: string[];
+  conditions: string[]; // id состояний из справочника (core/conditions.ts)
   hidden: boolean;
   gmOnly: boolean;
 }
@@ -45,9 +45,17 @@ export interface RelationshipType {
   dash: string; // '' | '8,5' | '4,4' etc.
 }
 
+/** Состояние узла в справочнике. Встроенные — в core/conditions.ts, в данных только свои. */
+export interface ConditionDef {
+  id: string;
+  label: string;
+  icon: string; // класс Font Awesome: "fa-skull" или набор классов
+}
+
 export interface GraphData {
   nodes: GraphNode[];
   edges: GraphEdge[];
   factions: Faction[];
   relationshipTypes: RelationshipType[];
+  conditions: ConditionDef[]; // свои состояния; встроенные сюда не входят
 }

@@ -55,6 +55,7 @@ function makeData(): GraphData {
       { id: "f2", name: "Fraction 2", color: "#222", description: "" },
     ],
     relationshipTypes: [],
+    conditions: [],
   };
 }
 

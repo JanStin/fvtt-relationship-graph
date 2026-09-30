@@ -141,6 +141,18 @@ describe("parseFangJson", () => {
     ]);
   });
 
+  it("неизвестные состояния узлов попадают в справочник, встроенные — нет", () => {
+    const { data } = parseFangJson({
+      nodes: [
+        { id: "n1", conditions: ["deceased", "ранен"] },
+        { id: "n2", conditions: ["ранен"] },
+      ],
+    });
+
+    expect(data.conditions).toEqual([{ id: "ранен", label: "ранен", icon: "fa-tag" }]);
+    expect(data.nodes[0].conditions).toEqual(["deceased", "ранен"]);
+  });
+
   it("отсутствующие поля не ломают парсер — используются дефолты", () => {
     const raw = {
       nodes: [{ id: "n1" }],

@@ -3,6 +3,7 @@
  * Чистая логика: нормализация ввода + вызовы graph-state. Формы сами ничего не валидируют.
  */
 
+import { allConditions } from "./conditions";
 import { addFaction, updateEdge, updateFaction, updateNode } from "./graph-state";
 import type { GraphData } from "./model";
 import { SCALE_MAX, SCALE_MIN } from "./selection";
@@ -19,6 +20,7 @@ export interface NodeEditValues {
   lore: string;
   playerNotes: string;
   gmNotes: string;
+  /** id отмеченных состояний; неизвестные справочнику отбрасываются. */
   conditions: string[];
 }
 
@@ -34,14 +36,6 @@ export interface EdgeEditValues {
   relationshipTypeId: string;
   directional: boolean;
   gmOnly: boolean;
-}
-
-/** "ранен,  отравлен, ," → ["ранен", "отравлен"]. */
-export function parseConditions(text: string): string[] {
-  return text
-    .split(",")
-    .map((part) => part.trim())
-    .filter((part) => part !== "");
 }
 
 /**
@@ -90,6 +84,7 @@ export function applyNodeEdit(data: GraphData, nodeId: string, values: NodeEditV
   }
 
   const actorBound = node.actorId !== null;
+  const knownConditions = new Set(allConditions(data).map((c) => c.id));
   const name = values.name.trim();
   const scale = Number.isFinite(values.scale) ? Math.max(SCALE_MIN, Math.min(SCALE_MAX, values.scale)) : node.scale;
 
@@ -101,7 +96,7 @@ export function applyNodeEdit(data: GraphData, nodeId: string, values: NodeEditV
     lore: values.lore,
     playerNotes: values.playerNotes,
     gmNotes: values.gmNotes,
-    conditions: values.conditions,
+    conditions: [...new Set(values.conditions)].filter((id) => knownConditions.has(id)),
     ...normalizeFactions(data, values.factionIds, values.primaryFactionId),
   });
 }

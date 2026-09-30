@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildNodeDecor, conditionIcon, limitBadges } from "../../src/core/decor";
+import { buildNodeDecor, limitBadges } from "../../src/core/decor";
 import type { GraphData, GraphNode } from "../../src/core/model";
 
 function makeNode(overrides: Partial<GraphNode> & { id: string }): GraphNode {
@@ -36,6 +36,7 @@ function makeData(node: GraphNode): GraphData {
       description: "",
     })),
     relationshipTypes: [],
+    conditions: [],
   };
 }
 
@@ -51,14 +52,14 @@ describe("limitBadges", () => {
   });
 });
 
-describe("conditionIcon", () => {
-  it("известное состояние — своя иконка, неизвестное — иконка по умолчанию", () => {
-    expect(conditionIcon("deceased")).toBe("fa-skull");
-    expect(conditionIcon("что-то своё")).toBe("fa-tag");
-  });
-});
-
 describe("buildNodeDecor", () => {
+  it("иконка своего состояния берётся из справочника", () => {
+    const node = makeNode({ id: "a", conditions: ["cursed"] });
+    const data = { ...makeData(node), conditions: [{ id: "cursed", label: "Проклят", icon: "fa-regular fa-star" }] };
+
+    expect(buildNodeDecor(data, node).conditions.shown).toEqual([{ id: "cursed", icon: "fa-regular fa-star" }]);
+  });
+
   it("узел без роли, фракций и состояний — только имя", () => {
     const node = makeNode({ id: "a", name: "Алиса" });
 
@@ -99,8 +100,8 @@ describe("buildNodeDecor", () => {
 
     expect(buildNodeDecor(makeData(node), node).conditions).toEqual({
       shown: [
-        { id: "deceased", icon: "fa-skull" },
-        { id: "custom", icon: "fa-tag" },
+        { id: "deceased", icon: "fa-solid fa-skull" },
+        { id: "custom", icon: "fa-solid fa-tag" }, // нет в справочнике — иконка по умолчанию
       ],
       more: true,
     });

@@ -4,6 +4,7 @@
  * возиться с HTML-контентом Journal Page, просто произвольный JSON-совместимый объект.
  */
 
+import { ensureConditionDefs } from "../core/conditions";
 import type { GraphData } from "../core/model";
 
 declare const game: {
@@ -26,12 +27,15 @@ async function getOrCreateStorageEntry(): Promise<MockableJournalEntry> {
   return JournalEntry.create({ name: JOURNAL_NAME, pages: [] });
 }
 
-/** null, если граф ещё ни разу не сохранялся (JournalEntry не создан или flag пуст). */
+/**
+ * null, если граф ещё ни разу не сохранялся (JournalEntry не создан или flag пуст).
+ * Данные старого формата (без справочника состояний) дополняются на лету — ensureConditionDefs.
+ */
 export async function loadGraphData(): Promise<GraphData | null> {
   const entry = game.journal.getName(JOURNAL_NAME);
   if (!entry) return null;
   const data = entry.getFlag(FLAG_SCOPE, FLAG_KEY);
-  return (data as GraphData | undefined) ?? null;
+  return data ? ensureConditionDefs(data as GraphData) : null;
 }
 
 export async function saveGraphData(data: GraphData): Promise<void> {

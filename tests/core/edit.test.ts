@@ -5,7 +5,6 @@ import {
   applyNodeEdit,
   createFactionFromEdit,
   normalizeFactions,
-  parseConditions,
   primaryAfterUncheck,
   type NodeEditValues,
 } from "../../src/core/edit";
@@ -47,6 +46,7 @@ const data: GraphData = {
     { id: "f2", name: "F2", color: "#222222", description: "" },
   ],
   relationshipTypes: [{ id: "rt1", label: "друг", color: "#00ff00", dash: "" }],
+  conditions: [],
 };
 
 function values(overrides: Partial<NodeEditValues> = {}): NodeEditValues {
@@ -69,19 +69,12 @@ function nodeOf(result: GraphData, id: string): GraphNode {
   return result.nodes.find((n) => n.id === id)!;
 }
 
-describe("parseConditions", () => {
-  it("режет по запятым, обрезает пробелы, выкидывает пустые", () => {
-    expect(parseConditions("ранен,  отравлен, ,")).toEqual(["ранен", "отравлен"]);
-    expect(parseConditions("   ")).toEqual([]);
-  });
-});
-
 describe("applyNodeEdit", () => {
   it("обновляет поля свободного узла и не мутирует вход", () => {
     const result = applyNodeEdit(
       data,
       "free",
-      values({ role: " Вор ", lore: "история", gmNotes: "секрет", conditions: ["ранен"], scale: 2 }),
+      values({ role: " Вор ", lore: "история", gmNotes: "секрет", conditions: ["deceased"], scale: 2 }),
     );
     expect(nodeOf(result, "free")).toMatchObject({
       name: "Новое",
@@ -89,7 +82,7 @@ describe("applyNodeEdit", () => {
       role: "Вор",
       lore: "история",
       gmNotes: "секрет",
-      conditions: ["ранен"],
+      conditions: ["deceased"],
       scale: 2,
     });
     expect(nodeOf(data, "free").name).toBe("Старое");
@@ -123,6 +116,12 @@ describe("applyNodeEdit", () => {
   it("добавление второй фракции не меняет основную", () => {
     const result = applyNodeEdit(data, "free", values({ factionIds: ["f2", "f1"], primaryFactionId: "f1" }));
     expect(nodeOf(result, "free")).toMatchObject({ primaryFactionId: "f1", factionIds: ["f1", "f2"] });
+  });
+
+  it("состояния: неизвестные справочнику и повторные отбрасываются", () => {
+    const withCustom: GraphData = { ...data, conditions: [{ id: "cursed", label: "Проклят", icon: "fa-ghost" }] };
+    const result = applyNodeEdit(withCustom, "free", values({ conditions: ["cursed", "ghost", "missing", "cursed"] }));
+    expect(nodeOf(result, "free").conditions).toEqual(["cursed", "missing"]);
   });
 
   it("бросает на неизвестном узле", () => {

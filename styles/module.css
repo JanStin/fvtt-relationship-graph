@@ -228,7 +228,7 @@
   border-radius: 20%;
 }
 
-/* «Ещё фракции»: просто знак «+» на месте третьего ромба, без фона. */
+/* «Ещё значки» (фракции и состояния): просто знак «+» на месте третьего значка, без фона. */
 .frg-badge-plus {
   display: flex;
   align-items: center;
@@ -322,4 +322,19 @@
 .frg-field-row input[type="color"] {
   flex: 0 0 40px;
   padding: 0;
+}
+
+/* Иконка состояния в панелях (список состояний, чекбоксы в панели узла, предпросмотр). */
+.frg-condition-icon {
+  flex: 0 0 auto;
+  width: 16px;
+  text-align: center;
+  color: #fde68a;
+}
+
+.frg-condition-preview {
+  flex: 0 0 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }

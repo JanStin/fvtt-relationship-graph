@@ -29,6 +29,7 @@ const SAMPLE: GraphData = {
   edges: [],
   factions: [],
   relationshipTypes: [],
+  conditions: [],
 };
 
 let mock: ReturnType<typeof installMockFoundry> | undefined;
@@ -76,5 +77,20 @@ describe("saveGraphData + loadGraphData", () => {
     await saveGraphData({ ...SAMPLE, edges: [] });
 
     expect(mock.journalEntries).toHaveLength(1);
+  });
+});
+
+describe("миграция сохранённых данных", () => {
+  it("граф без справочника состояний получает его при загрузке", async () => {
+    const { conditions: _dropped, ...legacy } = SAMPLE;
+    const legacyData = { ...legacy, nodes: [{ ...SAMPLE.nodes[0], conditions: ["deceased", "ранен"] }] };
+    const entry = createMockJournalEntry("Relationship Graph Data");
+    await entry.setFlag("fvtt-relationship-graph", "graphData", legacyData);
+    mock = installMockFoundry({ journalEntries: [entry] });
+
+    const loaded = await loadGraphData();
+
+    expect(loaded?.conditions).toEqual([{ id: "ранен", label: "ранен", icon: "fa-tag" }]);
+    expect(loaded?.nodes[0].conditions).toEqual(["deceased", "ранен"]);
   });
 });

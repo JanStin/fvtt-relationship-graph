@@ -3,19 +3,11 @@
  * Чистая логика поверх GraphData — без DOM; в HTML это превращает ui/node-decor.ts.
  */
 
+import { allConditions, conditionIconClass, DEFAULT_CONDITION_ICON } from "./conditions";
 import type { GraphData, GraphNode } from "./model";
 
 /** Не больше стольких значков в углу; если их больше — на месте последнего «плюс». */
 export const MAX_BADGES = 3;
-
-/** Иконки Font Awesome (есть в Foundry) для состояний, встречающихся в экспорте FANG. */
-const CONDITION_ICONS: Record<string, string> = {
-  deceased: "fa-skull",
-  questgiver: "fa-circle-exclamation",
-  captured: "fa-link",
-  missing: "fa-circle-question",
-};
-const DEFAULT_CONDITION_ICON = "fa-tag";
 
 export interface BadgeList<T> {
   shown: T[];
@@ -25,7 +17,7 @@ export interface BadgeList<T> {
 
 export interface ConditionBadge {
   id: string;
-  /** CSS-класс иконки Font Awesome. */
+  /** Готовые CSS-классы иконки Font Awesome для <i>. */
   icon: string;
 }
 
@@ -43,10 +35,6 @@ export function limitBadges<T>(items: T[], max = MAX_BADGES): BadgeList<T> {
   return items.length > max ? { shown: items.slice(0, max - 1), more: true } : { shown: [...items], more: false };
 }
 
-export function conditionIcon(condition: string): string {
-  return CONDITION_ICONS[condition] ?? DEFAULT_CONDITION_ICON;
-}
-
 /** Основная фракция ромбиком не помечается — она показана областью. Неизвестные фракции пропускаются. */
 export function buildNodeDecor(data: GraphData, node: GraphNode): NodeDecor {
   const colorById = new Map(data.factions.map((f) => [f.id, f.color]));
@@ -55,10 +43,14 @@ export function buildNodeDecor(data: GraphData, node: GraphNode): NodeDecor {
     .map((id) => colorById.get(id))
     .filter((color): color is string => color !== undefined);
 
+  const iconById = new Map(allConditions(data).map((c) => [c.id, c.icon]));
+
   return {
     name: node.name,
     role: node.role.trim(),
     factions: limitBadges(extraColors),
-    conditions: limitBadges(node.conditions.map((id) => ({ id, icon: conditionIcon(id) }))),
+    conditions: limitBadges(
+      node.conditions.map((id) => ({ id, icon: conditionIconClass(iconById.get(id) ?? DEFAULT_CONDITION_ICON) })),
+    ),
   };
 }

@@ -3,10 +3,11 @@
  * нормализацию и применение к GraphData делает core/edit.ts, сохранение — GraphApp.
  */
 
-import { parseConditions, primaryAfterUncheck, type NodeEditValues } from "../../core/edit";
-import type { Faction, GraphNode } from "../../core/model";
+import { conditionIconClass } from "../../core/conditions";
+import { primaryAfterUncheck, type NodeEditValues } from "../../core/edit";
+import type { ConditionDef, Faction, GraphNode } from "../../core/model";
 import { SCALE_MAX, SCALE_MIN } from "../../core/selection";
-import { createPanelShell, field, hint, textArea, textInput } from "./form";
+import { checkbox, createPanelShell, field, hint, textArea, textInput } from "./form";
 
 declare const foundry: any;
 
@@ -106,9 +107,35 @@ function createFactionPicker(node: GraphNode, factions: readonly Faction[]): Fac
   };
 }
 
+/** Состояния чекбоксами: весь справочник (встроенные + свои), у каждого его иконка. */
+function createConditionPicker(
+  node: GraphNode,
+  conditions: readonly ConditionDef[],
+): { element: HTMLElement; value(): string[] } {
+  const element = document.createElement("div");
+  element.className = "frg-field";
+  const caption = document.createElement("span");
+  caption.className = "frg-field-label";
+  caption.textContent = "Состояния";
+  element.append(caption);
+
+  const inputs = conditions.map((condition) => {
+    const { row, input } = checkbox(condition.label, node.conditions.includes(condition.id));
+    const icon = document.createElement("i");
+    icon.className = `${conditionIconClass(condition.icon)} frg-condition-icon`;
+    input.after(icon);
+    element.append(row);
+    return { id: condition.id, input };
+  });
+
+  return { element, value: () => inputs.filter((i) => i.input.checked).map((i) => i.id) };
+}
+
 export function createNodePanel(
   node: GraphNode,
   factions: readonly Faction[],
+  /** Весь справочник состояний: встроенные + свои. */
+  conditions: readonly ConditionDef[],
   callbacks: NodePanelCallbacks,
 ): HTMLElement {
   const actorBound = node.actorId !== null;
@@ -123,7 +150,7 @@ export function createNodePanel(
   scale.max = String(SCALE_MAX);
   scale.step = "0.1";
   scale.value = String(node.scale);
-  const conditions = textInput(node.conditions.join(", "));
+  const conditionPicker = createConditionPicker(node, conditions);
   const lore = textArea(node.lore, 4);
   const playerNotes = textArea(node.playerNotes);
   const gmNotes = textArea(node.gmNotes);
@@ -139,7 +166,7 @@ export function createNodePanel(
         lore: lore.value,
         playerNotes: playerNotes.value,
         gmNotes: gmNotes.value,
-        conditions: parseConditions(conditions.value),
+        conditions: conditionPicker.value(),
       }),
     onDelete: callbacks.onDelete,
     onClose: callbacks.onClose,
@@ -167,7 +194,7 @@ export function createNodePanel(
     field("Роль", role),
     factionPicker.element,
     field("Размер", scale),
-    field("Состояния (через запятую)", conditions),
+    conditionPicker.element,
     field("Описание", lore),
     field("Заметки для игроков", playerNotes),
     field("Заметки GM", gmNotes),

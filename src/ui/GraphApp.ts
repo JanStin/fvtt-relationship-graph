@@ -10,6 +10,13 @@ import type cytoscape from "cytoscape";
 import type { GraphData, GraphNode } from "../core/model";
 import { syncNodesWithActors } from "../foundry/actors";
 import { loadGraphData, saveGraphData } from "../foundry/storage";
+import {
+  allConditions,
+  createCondition,
+  removeCondition,
+  updateCondition,
+  type ConditionEditValues,
+} from "../core/conditions";
 import { describeFaction, describeNode } from "../core/describe";
 import {
   applyEdgeEdit,
@@ -24,6 +31,7 @@ import { renderGraph } from "./graph-renderer";
 import { setupInteraction, type GraphTarget, type InteractionHandle, type NodeSnapshot } from "./interaction";
 import { createNodeDecorLayer, type NodeDecorLayer } from "./node-decor";
 import { createOverlays, type MenuItem, type Overlays } from "./overlays";
+import { createConditionListPanel, createConditionPanel } from "./panels/ConditionPanel";
 import { createEdgePanel } from "./panels/EdgePanel";
 import { createFactionListPanel, createFactionPanel } from "./panels/FactionPanel";
 import { createImportControl } from "./panels/ImportDialog";
@@ -32,7 +40,7 @@ import { createNodePanel } from "./panels/NodePanel";
 declare const foundry: any;
 declare const game: any;
 
-const EMPTY_GRAPH: GraphData = { nodes: [], edges: [], factions: [], relationshipTypes: [] };
+const EMPTY_GRAPH: GraphData = { nodes: [], edges: [], factions: [], relationshipTypes: [], conditions: [] };
 
 const ApplicationV2 = foundry.applications.api.ApplicationV2;
 
@@ -196,7 +204,7 @@ export class GraphApp extends ApplicationV2 {
     const node = data?.nodes.find((n) => n.id === nodeId);
     if (!data || !node) return;
 
-    const panel = createNodePanel(node, data.factions, {
+    const panel = createNodePanel(node, data.factions, allConditions(data), {
       onSave: (values) => {
         void this.#saveNode(nodeId, values);
       },
@@ -299,6 +307,61 @@ export class GraphApp extends ApplicationV2 {
     this.#openFactionList();
   }
 
+  /** Справочник состояний (только GM): встроенные + свои. */
+  #openConditionList(): void {
+    const data = this.#currentData;
+    if (!data) return;
+
+    const panel = createConditionListPanel(
+      allConditions(data),
+      (conditionId) => data.nodes.filter((n) => n.conditions.includes(conditionId)).length,
+      {
+        onEdit: (conditionId) => this.#openConditionPanel(conditionId),
+        onCreate: () => this.#openConditionPanel(null),
+        onClose: () => this.#closePanel(),
+      },
+    );
+    this.#mountPanel(panel);
+  }
+
+  /** conditionId === null — создание нового состояния. Встроенные сюда не попадают. */
+  #openConditionPanel(conditionId: string | null): void {
+    const data = this.#currentData;
+    const condition = conditionId === null ? null : data?.conditions.find((c) => c.id === conditionId);
+    if (!data || condition === undefined) return;
+
+    const panel = createConditionPanel(condition, {
+      onSave: (values) => {
+        void this.#saveCondition(conditionId, values);
+      },
+      onDelete: () => {
+        if (condition) void this.#deleteCondition(condition.id, condition.label);
+      },
+      onClose: () => this.#closePanel(),
+    });
+    this.#mountPanel(panel);
+  }
+
+  async #saveCondition(conditionId: string | null, values: ConditionEditValues): Promise<void> {
+    if (!this.#currentData) return;
+    const data =
+      conditionId === null
+        ? createCondition(this.#currentData, foundry.utils.randomID(), values)
+        : updateCondition(this.#currentData, conditionId, values);
+    await this.#commit(data);
+    this.#openConditionList();
+  }
+
+  async #deleteCondition(conditionId: string, label: string): Promise<void> {
+    const confirmed = await this.#confirm(
+      "Удалить состояние",
+      `Удалить состояние «${label}»? Оно будет снято со всех узлов.`,
+    );
+    if (!confirmed || !this.#currentData) return;
+    await this.#commit(removeCondition(this.#currentData, conditionId));
+    this.#openConditionList();
+  }
+
   async #deleteEdge(edgeId: string): Promise<void> {
     const confirmed = await this.#confirm("Удалить связь", "Удалить эту связь?");
     if (!confirmed || !this.#currentData) return;
@@ -336,9 +399,10 @@ export class GraphApp extends ApplicationV2 {
       }
     }
 
-    // У узла и связи своё меню — общий список фракций там лишний.
+    // У узла и связи своё меню — общие списки там лишние.
     if (this.#isGM && (target.kind === "faction" || target.kind === "background")) {
       items.push({ label: "Фракции…", onSelect: () => this.#openFactionList() });
+      items.push({ label: "Состояния…", onSelect: () => this.#openConditionList() });
     }
 
     items.push({ label: "Показать весь граф", onSelect: () => this.#cy?.fit(undefined, 30) });

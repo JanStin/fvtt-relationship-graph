@@ -64,7 +64,7 @@ interface GraphNode {
   lore: string;
   playerNotes: string;
   gmNotes: string;          // заметки GM — не видны игрокам
-  conditions: string[];
+  conditions: string[];     // id состояний из справочника
   hidden: boolean;
   gmOnly: boolean;
 }
@@ -98,6 +98,13 @@ interface GraphData {
   edges: GraphEdge[];
   factions: Faction[];
   relationshipTypes: RelationshipType[];
+  conditions: ConditionDef[]; // свои состояния; встроенные — в core/conditions.ts
+}
+
+interface ConditionDef {
+  id: string;
+  label: string;
+  icon: string;             // класс Font Awesome
 }
 ```
 

@@ -23,10 +23,18 @@ function el(className: string): HTMLDivElement {
   return div;
 }
 
-function icon(faClass: string): HTMLElement {
+/** faClasses — готовый набор классов Font Awesome (см. core/conditions.conditionIconClass). */
+function icon(faClasses: string): HTMLElement {
   const i = document.createElement("i");
-  i.className = `fa-solid ${faClass}`;
+  i.className = faClasses;
   return i;
+}
+
+/** «Ещё значки»: простой знак «+» на месте третьего значка. */
+function plus(): HTMLElement {
+  const element = el("frg-badge-plus");
+  element.textContent = "+";
+  return element;
 }
 
 function buildElement(decor: NodeDecor): HTMLElement {
@@ -39,9 +47,7 @@ function buildElement(decor: NodeDecor): HTMLElement {
     factions.append(diamond);
   });
   if (decor.factions.more) {
-    const plus = el("frg-badge-plus");
-    plus.textContent = "+";
-    factions.append(plus);
+    factions.append(plus());
   }
 
   const conditions = el("frg-badges frg-badges-conditions");
@@ -51,9 +57,7 @@ function buildElement(decor: NodeDecor): HTMLElement {
     conditions.append(badge);
   });
   if (decor.conditions.more) {
-    const badge = el("frg-condition");
-    badge.append(icon("fa-plus"));
-    conditions.append(badge);
+    conditions.append(plus());
   }
 
   const caption = el("frg-node-caption");
