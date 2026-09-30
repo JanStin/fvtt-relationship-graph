@@ -4,12 +4,25 @@
  * storage.loadGraphData() -> actors.syncNodesWithActors() -> graph-renderer.renderGraph()
  * -> interaction.setupInteraction() (мышь/клавиши, см. interaction.ts и docs/controls.md).
  * Контекстное меню и карточку информации (overlays.ts) наполняет этот класс.
+ *
+ * Совместная работа (tasks.md, B15): граф открывается в режиме просмотра. Кнопка
+ * «Редактировать» берёт блокировку (foundry/edit-lock.ts) — редактор один на всех. Каждое его
+ * сохранение приходит остальным хуком updateJournalEntry, и их граф перерисовывается с
+ * сохранением вида, выделения, карточки и открытого списка.
  */
 
 import type cytoscape from "cytoscape";
 import type { GraphData, GraphEdge, GraphNode } from "../core/model";
 import { syncNodesWithActors } from "../foundry/actors";
-import { allowPlayersToSave, loadGraphData, saveGraphData } from "../foundry/storage";
+import { acquireEditLock, currentEditor, LOCK_FLAG_KEY, releaseEditLock, userName } from "../foundry/edit-lock";
+import {
+  allowPlayersToSave,
+  FLAG_SCOPE,
+  GRAPH_FLAG_KEY,
+  isStorageEntry,
+  loadGraphData,
+  saveGraphData,
+} from "../foundry/storage";
 import {
   allConditions,
   createCondition,
@@ -17,7 +30,7 @@ import {
   updateCondition,
   type ConditionEditValues,
 } from "../core/conditions";
-import { describeFaction, describeNode } from "../core/describe";
+import { describeEdge, describeFaction, describeNode } from "../core/describe";
 import {
   applyEdgeEdit,
   applyFactionEdit,
@@ -42,18 +55,23 @@ import { displayName, isMasked } from "../core/visibility";
 import { setupEdgeLabels, type EdgeLabelsHandle } from "./edge-labels";
 import { renderGraph } from "./graph-renderer";
 import { setupInteraction, type GraphTarget, type InteractionHandle, type NodeSnapshot } from "./interaction";
+import { startIdleTimer, type IdleTimer } from "./idle-timer";
 import { createNodeDecorLayer, type NodeDecorLayer } from "./node-decor";
 import { createOverlays, type MenuItem, type Overlays } from "./overlays";
 import { createConditionListPanel, createConditionPanel } from "./panels/ConditionPanel";
 import { createEdgePanel } from "./panels/EdgePanel";
 import { createFactionListPanel, createFactionPanel } from "./panels/FactionPanel";
-import { createImportControl } from "./panels/ImportDialog";
+import { createImportControl, type ImportControl } from "./panels/ImportDialog";
 import { createNodePanel, type ActorOption } from "./panels/NodePanel";
 import { createRelationshipTypeListPanel, createRelationshipTypePanel } from "./panels/RelationshipTypePanel";
 
 declare const foundry: any;
 declare const game: any;
 declare const ui: any;
+declare const Hooks: any;
+
+/** Через сколько минут полного бездействия редактор выходит из режима (решено в B15). */
+const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
 const EMPTY_GRAPH: GraphData = ensureDefaultRelationshipTypes({
   nodes: [],
@@ -85,22 +103,50 @@ export class GraphApp extends ApplicationV2 {
   #overlays: Overlays | null = null;
   #decor: NodeDecorLayer | null = null;
   #edgeLabels: EdgeLabelsHandle | null = null;
-  /** Открытая боковая панель редактирования (NodePanel/EdgePanel) — максимум одна. */
+  /** Открытая боковая панель (узел, связь, списки) — максимум одна. */
   #panel: HTMLElement | null = null;
+  /** Как заново открыть текущую панель после перерисовки чужим изменением (только списки). */
+  #reopenPanel: (() => void) | null = null;
+  /** Последняя открытая карточка информации — чтобы обновить её после чужого изменения. */
+  #lastInfo: { target: GraphTarget; client: Point } | null = null;
   #cyHost: HTMLElement | null = null;
   /** Актуальный полный граф (с синхронизированными актёрами) — источник для персиста позиций/scale. */
   #currentData: GraphData | null = null;
+
+  /** Режим редактирования (B15): этот клиент держит блокировку. */
+  #editing = false;
+  #idleTimer: IdleTimer | null = null;
+  #editButton: HTMLButtonElement | null = null;
+  #importControl: ImportControl | null = null;
+  /** Зарегистрированные хуки Foundry — снимаются в close(). */
+  #hooks: Array<[string, number]> = [];
 
   async _renderHTML(): Promise<HTMLElement> {
     const wrapper = document.createElement("div");
     // position:relative — контекстное меню/карточка информации позиционируются внутри wrapper.
     wrapper.style.cssText = "position:relative;width:100%;height:100%;display:flex;flex-direction:column;";
 
-    const toolbar = createImportControl({
-      onImported: (data) => {
-        void this.#importAndDisplay(data);
-      },
+    const toolbar = document.createElement("div");
+    toolbar.className = "frg-toolbar";
+
+    const editButton = document.createElement("button");
+    editButton.type = "button";
+    editButton.addEventListener("click", () => {
+      void this.#toggleEditing();
     });
+    this.#editButton = editButton;
+    toolbar.append(editButton);
+
+    // Импорт — только GM (B18) и только в режиме редактирования.
+    if (this.#isGM) {
+      this.#importControl = createImportControl({
+        onImported: (data) => {
+          void this.#importAndDisplay(data);
+        },
+      });
+      toolbar.append(this.#importControl.element);
+    }
+    this.#updateToolbar();
 
     const cyHost = document.createElement("div");
     // position/overflow — для слоя декора узлов (node-decor.ts), он живёт внутри cyHost.
@@ -114,6 +160,7 @@ export class GraphApp extends ApplicationV2 {
   async _replaceHTML(result: HTMLElement, content: HTMLElement): Promise<void> {
     content.replaceChildren(result);
     this.#cyHost = (result as unknown as { _cyHost: HTMLElement })._cyHost;
+    this.#registerHooks();
 
     // Ждём кадр, чтобы элемент реально встроился в DOM окна до того, как
     // Cytoscape попытается измерить его размеры (см. находки S4).
@@ -138,9 +185,141 @@ export class GraphApp extends ApplicationV2 {
   // Уведомления/логирование warnings — ответственность ImportDialog (createImportControl),
   // здесь только персист + перерисовка уже распарсенных данных.
   async #importAndDisplay(data: GraphData): Promise<void> {
+    if (!this.#editing || !this.#isGM) return;
     await saveGraphData(data);
     this.#display(data);
   }
+
+  // ---------------------------------------------------------------------------------------
+  // Совместная работа (B15)
+
+  #registerHooks(): void {
+    if (this.#hooks.length > 0) return;
+    const on = (name: string, fn: (...args: any[]) => void) => this.#hooks.push([name, Hooks.on(name, fn)]);
+    on("updateJournalEntry", (entry: unknown, changes: any, _options: unknown, userId: string) =>
+      this.#onStorageUpdated(entry, changes, userId),
+    );
+    // держатель блокировки вышел из мира — кнопка у остальных снова доступна
+    on("userConnected", () => this.#updateToolbar());
+  }
+
+  #onStorageUpdated(entry: unknown, changes: any, userId: string): void {
+    if (!isStorageEntry(entry as { name?: string })) return;
+    const flags = changes?.flags?.[FLAG_SCOPE];
+    if (!flags) return;
+
+    if (LOCK_FLAG_KEY in flags) this.#onLockChanged();
+    // Свои сохранения уже на экране (#commit перерисовал), чужие — перечитываем.
+    if (GRAPH_FLAG_KEY in flags && userId !== game.user?.id) {
+      void this.#reloadFromStorage().catch((err: unknown) => {
+        console.error("fvtt-relationship-graph | live update failed", err);
+      });
+    }
+  }
+
+  /** Блокировка сменила владельца. Если мы редактировали, а держатель теперь другой — мы проиграли гонку. */
+  #onLockChanged(): void {
+    const editor = currentEditor();
+    if (this.#editing && editor !== game.user?.id) {
+      this.#setEditing(false);
+      ui.notifications?.warn(
+        editor ? `Граф уже редактирует ${userName(editor)} — вы в режиме просмотра.` : "Режим редактирования снят.",
+      );
+      if (this.#currentData) this.#display(this.#currentData, true);
+    }
+    this.#updateToolbar();
+  }
+
+  /** Чужое изменение графа: перерисовка без потери вида, выделения, карточки и открытого списка. */
+  async #reloadFromStorage(): Promise<void> {
+    const data = await loadGraphData();
+    if (!data || !this.#cy) return;
+
+    const selectedIds = this.#cy.$(":selected").map((el) => el.id());
+    const reopen = this.#reopenPanel;
+    const info = this.#overlays?.isInfoOpen() ? this.#lastInfo : null;
+
+    this.#display(data, true);
+
+    const cy = this.#cy as cytoscape.Core | null;
+    selectedIds.forEach((id) => cy?.getElementById(id).select());
+    reopen?.();
+    // карточка по удалённому элементу не откроется (describe* вернёт null)
+    if (info) this.#openInfo(info.target, info.client);
+  }
+
+  async #toggleEditing(): Promise<void> {
+    const userId: string | undefined = game.user?.id;
+    if (!userId) return;
+    if (this.#editing) {
+      await this.#stopEditing();
+      return;
+    }
+
+    let acquired = false;
+    try {
+      acquired = await acquireEditLock(userId);
+    } catch (err) {
+      console.error("fvtt-relationship-graph | edit lock failed", err);
+      ui.notifications?.error("Не удалось начать редактирование — см. консоль. Игрокам запись открывается, когда граф откроет GM.");
+      return;
+    }
+    if (!acquired) {
+      const editor = currentEditor();
+      ui.notifications?.warn(`Граф сейчас редактирует ${editor ? userName(editor) : "другой пользователь"}.`);
+      this.#updateToolbar();
+      return;
+    }
+
+    // Начинаем с самых свежих данных — вдруг что-то пришло, пока окно было в фоне.
+    const data = (await loadGraphData()) ?? this.#currentData ?? EMPTY_GRAPH;
+    this.#setEditing(true);
+    this.#display(data, true);
+  }
+
+  /** Выход из режима: кнопкой, по таймауту бездействия или при закрытии окна. */
+  async #stopEditing(notice?: string): Promise<void> {
+    if (!this.#editing) return;
+    this.#setEditing(false);
+    if (this.#currentData) this.#display(this.#currentData, true);
+    if (notice) ui.notifications?.info(notice);
+    const userId: string | undefined = game.user?.id;
+    if (userId) {
+      await releaseEditLock(userId).catch((err: unknown) => {
+        console.warn("fvtt-relationship-graph | edit lock release failed", err);
+      });
+    }
+  }
+
+  #setEditing(editing: boolean): void {
+    this.#editing = editing;
+    this.#idleTimer?.stop();
+    this.#idleTimer = null;
+    const root = this.#cyHost?.parentElement;
+    if (editing && root) {
+      this.#idleTimer = startIdleTimer(root, IDLE_TIMEOUT_MS, () => {
+        void this.#stopEditing("Редактирование графа завершено: 5 минут без действий.");
+      });
+    }
+    this.#updateToolbar();
+  }
+
+  #updateToolbar(): void {
+    const button = this.#editButton;
+    if (button) {
+      const editor = currentEditor();
+      const busy = !this.#editing && editor !== null && editor !== game.user?.id;
+      button.disabled = busy;
+      button.classList.toggle("frg-toolbar-active", this.#editing);
+      button.innerHTML = this.#editing
+        ? `<i class="fa-solid fa-check"></i> Завершить редактирование`
+        : `<i class="fa-solid fa-pen"></i> Редактировать`;
+      button.title = busy && editor ? `Сейчас редактирует: ${userName(editor)}` : "";
+    }
+    this.#importControl?.setEnabled(this.#editing);
+  }
+
+  // ---------------------------------------------------------------------------------------
 
   /** keepViewport — сохранить текущие zoom/pan (перерисовка после правки, а не первое открытие/импорт). */
   #display(data: GraphData, keepViewport = false): void {
@@ -176,8 +355,8 @@ export class GraphApp extends ApplicationV2 {
         this.#interaction?.startLinking(nodeId);
       },
       onLinkPicked: (sourceId, targetId) => this.#openNewEdgePanel(sourceId, targetId),
-    });
-    this.#cy = renderGraph(this.#cyHost, hydrated, { isGM: this.#isGM });
+    }, { editable: this.#editing });
+    this.#cy = renderGraph(this.#cyHost, hydrated, { isGM: this.#isGM, editable: this.#editing });
     if (viewport) this.#cy.viewport(viewport);
     this.#interaction.bind(this.#cy);
     this.#decor = createNodeDecorLayer(this.#cyHost, this.#cy, hydrated, { isGM: this.#isGM });
@@ -199,16 +378,21 @@ export class GraphApp extends ApplicationV2 {
 
   #openInfo(target: GraphTarget, client: Point): void {
     if (!this.#currentData || target.kind === "background") return;
-    if (target.kind === "edge") {
-      // У связи отдельной карточки нет — двойной клик сразу открывает панель.
+    if (target.kind === "edge" && this.#editing) {
+      // В режиме редактирования двойной клик по связи сразу открывает её панель.
       this.#openEdgePanel(target.id);
       return;
     }
+    const options = { isGM: this.#isGM };
     const card =
       target.kind === "node"
-        ? describeNode(this.#currentData, target.id, { isGM: this.#isGM })
-        : describeFaction(this.#currentData, target.id, { isGM: this.#isGM });
-    if (card) this.#overlays?.showInfo(client, card);
+        ? describeNode(this.#currentData, target.id, options)
+        : target.kind === "edge"
+          ? describeEdge(this.#currentData, target.id, options)
+          : describeFaction(this.#currentData, target.id, options);
+    if (!card) return;
+    this.#lastInfo = { target, client };
+    this.#overlays?.showInfo(client, card);
   }
 
   /** Имя узла для заголовков панелей; скрытый узел у игрока — «Неизвестный». */
@@ -220,16 +404,20 @@ export class GraphApp extends ApplicationV2 {
   #closePanel(): void {
     this.#panel?.remove();
     this.#panel = null;
+    this.#reopenPanel = null;
   }
 
-  #mountPanel(panel: HTMLElement): void {
+  /** reopen — как открыть панель заново после перерисовки чужим изменением (у списков). */
+  #mountPanel(panel: HTMLElement, reopen: (() => void) | null = null): void {
     this.#closePanel();
     this.#panel = panel;
+    this.#reopenPanel = reopen;
     this.#cyHost?.parentElement?.append(panel);
   }
 
-  /** Сохраняет изменённый граф и перерисовывает его, не сбрасывая zoom/pan. */
+  /** Сохраняет изменённый граф и перерисовывает его, не сбрасывая zoom/pan. Только в режиме редактирования. */
   async #commit(data: GraphData): Promise<void> {
+    if (!this.#editing) return;
     try {
       await saveGraphData(data);
     } catch (err) {
@@ -405,9 +593,9 @@ export class GraphApp extends ApplicationV2 {
         onCreate: () => this.#openFactionPanel(null),
         onClose: () => this.#closePanel(),
       },
-      { isGM },
+      { editable: this.#editing, canCreate: isGM },
     );
-    this.#mountPanel(panel);
+    this.#mountPanel(panel, () => this.#openFactionList());
   }
 
   /** factionId === null — создание новой фракции (только GM). */
@@ -476,9 +664,9 @@ export class GraphApp extends ApplicationV2 {
         onCreate: () => this.#openConditionPanel(null),
         onClose: () => this.#closePanel(),
       },
-      { isGM },
+      { editable: isGM && this.#editing },
     );
-    this.#mountPanel(panel);
+    this.#mountPanel(panel, () => this.#openConditionList());
   }
 
   /** conditionId === null — создание нового состояния. Встроенные сюда не попадают. Только GM. */
@@ -533,9 +721,9 @@ export class GraphApp extends ApplicationV2 {
         onCreate: () => this.#openRelationshipTypePanel(null),
         onClose: () => this.#closePanel(),
       },
-      { isGM },
+      { editable: isGM && this.#editing },
     );
-    this.#mountPanel(panel);
+    this.#mountPanel(panel, () => this.#openRelationshipTypeList());
   }
 
   /** typeId === null — создание нового типа связи. Только GM. */
@@ -584,17 +772,19 @@ export class GraphApp extends ApplicationV2 {
     await this.#commit(removeEdge(this.#currentData, edgeId));
   }
 
+  /** В режиме просмотра (B15) остаются только пункты, которые ничего не меняют. */
   #openContextMenu(target: GraphTarget, client: Point): void {
     const items: MenuItem[] = [];
+    const editing = this.#editing;
 
     if (target.kind === "node") {
       const nodeId = target.id;
       const node = this.#currentData?.nodes.find((n) => n.id === nodeId);
       // gmOnly-узел игрок не правит и не ресайзит (B14)
-      const editable = node !== undefined && canEditNode(node, this.#isGM);
+      const editable = editing && node !== undefined && canEditNode(node, this.#isGM);
       items.push({ label: "Информация", onSelect: () => this.#openInfo(target, client) });
       if (editable) items.push({ label: "Редактировать", onSelect: () => this.#openNodePanel(nodeId) });
-      items.push({ label: "Создать связь", onSelect: () => this.#interaction?.startLinking(nodeId) });
+      if (editing) items.push({ label: "Создать связь", onSelect: () => this.#interaction?.startLinking(nodeId) });
       // У скрытого узла игроку лист актёра не предлагаем — он выдал бы, кто это.
       const actorId = node && !isMasked(node, this.#isGM) ? node.actorId : null;
       const actor = actorId ? game.actors?.get(actorId) : null;
@@ -602,30 +792,36 @@ export class GraphApp extends ApplicationV2 {
       if (editable) items.push({ label: "Сбросить размер", onSelect: () => this.#interaction?.resetScale(nodeId) });
     } else if (target.kind === "edge") {
       const edgeId = target.id;
-      items.push({ label: "Редактировать связь", onSelect: () => this.#openEdgePanel(edgeId) });
-      items.push({
-        label: "Удалить связь",
-        onSelect: () => {
-          void this.#deleteEdge(edgeId);
-        },
-      });
+      if (editing) {
+        items.push({ label: "Редактировать связь", onSelect: () => this.#openEdgePanel(edgeId) });
+        items.push({
+          label: "Удалить связь",
+          onSelect: () => {
+            void this.#deleteEdge(edgeId);
+          },
+        });
+      } else {
+        items.push({ label: "Информация", onSelect: () => this.#openInfo(target, client) });
+      }
     } else if (target.kind === "faction") {
       const factionId = target.id;
       items.push({ label: "Информация", onSelect: () => this.#openInfo(target, client) });
       items.push({ label: "Выбрать область", onSelect: () => this.#interaction?.selectFaction(factionId) });
       // игроку форма фракции открывается с правкой только описания
-      items.push({ label: "Редактировать фракцию", onSelect: () => this.#openFactionPanel(factionId) });
+      if (editing) items.push({ label: "Редактировать фракцию", onSelect: () => this.#openFactionPanel(factionId) });
     }
 
     // У узла и связи своё меню — создание узла и общие списки там лишние.
     if (target.kind === "faction" || target.kind === "background") {
       const factionId = target.kind === "faction" ? target.id : null;
-      items.push({
-        label: "Добавить узел",
-        onSelect: () => {
-          void this.#createNode(client, factionId);
-        },
-      });
+      if (editing) {
+        items.push({
+          label: "Добавить узел",
+          onSelect: () => {
+            void this.#createNode(client, factionId);
+          },
+        });
+      }
       items.push({ label: "Фракции…", onSelect: () => this.#openFactionList() });
       items.push({ label: "Типы связей…", onSelect: () => this.#openRelationshipTypeList() });
       items.push({ label: "Состояния…", onSelect: () => this.#openConditionList() });
@@ -641,7 +837,7 @@ export class GraphApp extends ApplicationV2 {
 
   /** Мержит снэпшот x/y/scale от interaction.ts в текущий GraphData и сохраняет целиком. */
   async #persistNodeChanges(snapshots: NodeSnapshot[]): Promise<void> {
-    if (!this.#currentData) return;
+    if (!this.#currentData || !this.#editing) return;
 
     const byId = new Map(snapshots.map((s) => [s.id, s]));
     const nodes: GraphNode[] = this.#currentData.nodes.map((n) => {
@@ -654,6 +850,21 @@ export class GraphApp extends ApplicationV2 {
   }
 
   async close(options?: unknown): Promise<this> {
+    // Закрыл окно в режиме редактирования — вышел из режима (B15).
+    if (this.#editing) {
+      this.#setEditing(false);
+      const userId: string | undefined = game.user?.id;
+      if (userId) {
+        void releaseEditLock(userId).catch((err: unknown) => {
+          console.warn("fvtt-relationship-graph | edit lock release failed", err);
+        });
+      }
+    }
+    this.#hooks.forEach(([name, id]) => Hooks.off(name, id));
+    this.#hooks = [];
+    this.#editButton = null;
+    this.#importControl = null;
+    this.#lastInfo = null;
     this.#interaction?.teardown();
     this.#interaction = null;
     this.#overlays?.destroy();

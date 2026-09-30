@@ -29,6 +29,8 @@ export interface Overlays {
   /** client — clientX/clientY события мыши. Пустой список пунктов ничего не открывает. */
   showMenu(client: Point, items: MenuItem[]): void;
   showInfo(client: Point, card: InfoCard): void;
+  /** Открыта ли сейчас карточка информации (не меню). */
+  isInfoOpen(): boolean;
   close(): void;
   destroy(): void;
 }
@@ -122,6 +124,10 @@ export function createOverlays(host: HTMLElement): Overlays {
         panel.append(label, value);
       }
       open(panel, client);
+    },
+
+    isInfoOpen() {
+      return current?.classList.contains("frg-info") === true;
     },
 
     close,

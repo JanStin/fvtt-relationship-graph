@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeFaction, describeNode } from "../../src/core/describe";
+import { describeEdge, describeFaction, describeNode } from "../../src/core/describe";
 import type { GraphData, GraphEdge, GraphNode } from "../../src/core/model";
 
 function makeNode(overrides: Partial<GraphNode> & { id: string }): GraphNode {
@@ -148,6 +148,30 @@ describe("describeNode: флаги видимости", () => {
     expect(rowValue(player.rows, "Видимость")).toBeUndefined();
 
     expect(rowValue(describeNode(gmOnly, "a", { isGM: true })!.rows, "Видимость")).toBe("Правит только GM");
+  });
+});
+
+describe("describeEdge", () => {
+  it("подпись в заголовке, концы, направление и тип", () => {
+    const d = describeEdge(data, "e2", { isGM: false })!;
+    expect(d.title).toBe("Связь");
+    expect(rowValue(d.rows, "Кто с кем")).toBe("Карл → Алиса");
+    expect(rowValue(d.rows, "Тип")).toBe("враг");
+
+    expect(describeEdge(data, "e1", { isGM: false })!.title).toBe("командует");
+  });
+
+  it("gmOnly-связь игроку не описывается, GM — с пометкой", () => {
+    expect(describeEdge(data, "e3", { isGM: false })).toBeNull();
+    expect(rowValue(describeEdge(data, "e3", { isGM: true })!.rows, "Видимость")).toBe("Видна только GM");
+  });
+
+  it("скрытый конец у игрока — «Неизвестный»", () => {
+    expect(rowValue(describeEdge(withHidden, "e1", { isGM: false })!.rows, "Кто с кем")).toBe("Неизвестный → Боб");
+  });
+
+  it("неизвестная связь — null", () => {
+    expect(describeEdge(data, "nope", { isGM: true })).toBeNull();
   });
 });
 

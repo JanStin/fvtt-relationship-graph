@@ -37,13 +37,25 @@ export function createMockJournalEntry(name: string, id = name, ownershipDefault
   };
 }
 
+export interface MockUser {
+  id: string;
+  name: string;
+  active: boolean;
+  isGM: boolean;
+}
+
 export interface MockFoundryOptions {
   actors?: MockActor[];
   journalEntries?: MockJournalEntry[];
+  users?: MockUser[];
+  /** id текущего пользователя (game.user) — должен быть среди users. */
+  currentUserId?: string;
 }
 
 export interface MockFoundryHandles {
   game: {
+    user: MockUser | null;
+    users: { get: (id: string) => MockUser | null; contents: MockUser[] };
     actors: { get: (id: string) => MockActor | null };
     journal: {
       getName: (name: string) => MockJournalEntry | null;
@@ -75,7 +87,10 @@ export function installMockFoundry(options: MockFoundryOptions = {}): MockFoundr
   const notifications: MockFoundryHandles["notifications"] = [];
   const hookHandlers = new Map<string, Array<(...args: unknown[]) => void>>();
 
+  const users = options.users ?? [];
   const game: MockFoundryHandles["game"] = {
+    user: users.find((u) => u.id === options.currentUserId) ?? null,
+    users: { get: (id) => users.find((u) => u.id === id) ?? null, contents: users },
     actors: { get: (id) => actorsMap.get(id) ?? null },
     journal: {
       getName: (name) => journalEntries.find((j) => j.name === name) ?? null,

@@ -86,6 +86,26 @@ export function describeNode(data: GraphData, nodeId: string, options: DescribeO
   return { title: node.name, subtitle: NODE_TYPE_LABELS[node.type], rows };
 }
 
+/**
+ * Карточка связи — в режиме просмотра (B15), где панель связи не открывается.
+ * null — связи нет или она gmOnly, а смотрит игрок.
+ */
+export function describeEdge(data: GraphData, edgeId: string, options: DescribeOptions): Description | null {
+  const edge = data.edges.find((e) => e.id === edgeId);
+  if (!edge || (edge.gmOnly && !options.isGM)) return null;
+
+  const nameOf = (id: string) => {
+    const node = data.nodes.find((n) => n.id === id);
+    return node ? displayName(node, options.isGM) : "?";
+  };
+  const rows: DescriptionRow[] = [];
+  rows.push({ label: "Кто с кем", value: `${nameOf(edge.source)} ${edge.directional ? "→" : "—"} ${nameOf(edge.target)}` });
+  pushIfPresent(rows, "Тип", data.relationshipTypes.find((rt) => rt.id === edge.relationshipTypeId)?.label ?? "");
+  if (edge.gmOnly) rows.push({ label: "Видимость", value: "Видна только GM" });
+
+  return { title: edge.label || "Связь", subtitle: edge.label ? "Связь" : undefined, rows };
+}
+
 /** null — фракции с таким id нет. */
 export function describeFaction(data: GraphData, factionId: string, options: DescribeOptions): Description | null {
   const faction = data.factions.find((f) => f.id === factionId);

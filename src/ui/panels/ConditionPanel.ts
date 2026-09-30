@@ -26,8 +26,8 @@ export function createConditionListPanel(
   /** Сколько узлов имеют это состояние. */
   usageCount: (conditionId: string) => number,
   callbacks: ConditionListCallbacks,
-  /** Игрок видит список только для чтения: без правки и создания (B14). */
-  options: { isGM: boolean },
+  /** false — список только для чтения: у игрока (B14) и в режиме просмотра (B15). */
+  options: { editable: boolean },
 ): HTMLElement {
   const element = document.createElement("div");
   element.className = "frg-panel";
@@ -37,7 +37,7 @@ export function createConditionListPanel(
 
   for (const condition of conditions) {
     // у игрока строка — просто текст, без клика
-    const row = document.createElement(options.isGM ? "button" : "div");
+    const row = document.createElement(options.editable ? "button" : "div");
     row.className = "frg-faction-row";
     const name = document.createElement("span");
     name.className = "frg-faction-name";
@@ -60,7 +60,7 @@ export function createConditionListPanel(
   }
 
   element.append(panelHeader("Состояния", callbacks.onClose), body);
-  if (options.isGM) {
+  if (options.editable) {
     const footer = document.createElement("div");
     footer.className = "frg-panel-footer";
     const create = document.createElement("button");

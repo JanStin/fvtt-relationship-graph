@@ -11,9 +11,11 @@
  * контролов, которую сложно проверить не отходя от живого Foundry.
  */
 
+import { pickCleaner, releaseEditLock } from "./edit-lock";
 import { MODULE_ID, registerSettings } from "./settings";
 
 declare const Hooks: any;
+declare const game: any;
 declare const ui: any;
 declare const foundry: any;
 
@@ -25,7 +27,23 @@ Hooks.once("init", () => {
 Hooks.once("ready", () => {
   console.log(`${MODULE_ID} | ready`);
   ui.notifications?.info("Relationship Graph loaded");
+  // Блокировка редактирования на нас осталась от прошлого сеанса (перезагрузка страницы
+  // посреди редактирования) — окна графа сейчас точно нет, снимаем.
+  if (game.user) void releaseEditLock(game.user.id).catch(logLockError);
 });
+
+// Редактор вышел из мира, не отжав «Редактировать» (закрыл вкладку, обрыв связи): флаг
+// блокировки снимает один из оставшихся в сети (edit-lock.ts, pickCleaner).
+Hooks.on("userConnected", (user: { id: string }, connected: boolean) => {
+  if (connected || !game.user) return;
+  const active = (game.users?.contents ?? []).filter((u: { active: boolean }) => u.active);
+  if (pickCleaner(active) !== game.user.id) return;
+  void releaseEditLock(user.id).catch(logLockError);
+});
+
+function logLockError(err: unknown): void {
+  console.warn(`${MODULE_ID} | edit lock cleanup failed`, err);
+}
 
 // GraphApp.ts тянет за собой cytoscape+fcose (~860 KB) — ленивый импорт, чтобы это
 // не грузилось для каждого пользователя при старте мира, только по клику на кнопку.

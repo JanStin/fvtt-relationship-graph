@@ -24,12 +24,19 @@ export interface FactionPanelOptions {
   isGM: boolean;
 }
 
+export interface FactionListOptions {
+  /** false — режим просмотра (B15): строки не открывают форму, создавать нельзя. */
+  editable: boolean;
+  /** Кнопка «Создать фракцию» (только GM, и только когда editable). */
+  canCreate: boolean;
+}
+
 export function createFactionListPanel(
   factions: readonly Faction[],
   /** Сколько узлов состоит во фракции (в любой роли). */
   memberCount: (factionId: string) => number,
   callbacks: FactionListCallbacks,
-  options: FactionPanelOptions,
+  options: FactionListOptions,
 ): HTMLElement {
   const element = document.createElement("div");
   element.className = "frg-panel";
@@ -39,8 +46,9 @@ export function createFactionListPanel(
 
   if (factions.length === 0) body.append(hint("Фракций пока нет."));
   for (const faction of factions) {
-    const row = document.createElement("button");
-    row.type = "button";
+    // в режиме просмотра строка — просто текст, без клика
+    const row = document.createElement(options.editable ? "button" : "div");
+    if (row instanceof HTMLButtonElement) row.type = "button";
     row.className = "frg-faction-row";
     const swatch = document.createElement("span");
     swatch.className = "frg-faction-swatch";
@@ -53,12 +61,12 @@ export function createFactionListPanel(
     count.textContent = String(memberCount(faction.id));
     count.title = "Узлов во фракции";
     row.append(swatch, name, count);
-    row.addEventListener("click", () => callbacks.onEdit(faction.id));
+    if (options.editable) row.addEventListener("click", () => callbacks.onEdit(faction.id));
     body.append(row);
   }
 
   element.append(panelHeader("Фракции", callbacks.onClose), body);
-  if (options.isGM) {
+  if (options.editable && options.canCreate) {
     const footer = document.createElement("div");
     footer.className = "frg-panel-footer";
     const create = document.createElement("button");

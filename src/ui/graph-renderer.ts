@@ -47,6 +47,8 @@ const GM_ONLY_DASH = [6, 3];
 export const FACTION_SELECTED_CLASS = "faction-selected";
 
 export interface RenderOptions {
+  /** false — режим просмотра (B15): узлы не перетаскиваются вовсе. */
+  editable: boolean;
   /**
    * GM видит gmOnly-связи (пунктиром), игрокам они не рисуются вовсе; hidden-узел игроку
    * рисуется картинкой-заглушкой — architecture.md §13. gmOnly-узлы игрок не двигает (B14).
@@ -250,6 +252,7 @@ export function renderGraph(container: HTMLElement, data: GraphData, options: Re
   return cytoscape({
     container,
     boxSelectionEnabled: true, // Shift+ЛКМ-drag — rubber-band, нативное поведение Cytoscape, см. §6
+    autoungrabify: !options.editable,
     elements: buildElements(data, options),
     style: STYLE,
     layout,

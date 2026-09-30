@@ -16,7 +16,8 @@ declare const JournalEntry: {
   create(data: { name: string; pages?: unknown[]; ownership?: { default: number } }): Promise<MockableJournalEntry>;
 };
 
-interface MockableJournalEntry {
+export interface MockableJournalEntry {
+  name?: string;
   getFlag(scope: string, key: string): unknown;
   setFlag(scope: string, key: string, value: unknown): Promise<unknown>;
   ownership?: { default?: number };
@@ -27,10 +28,22 @@ interface MockableJournalEntry {
 const OWNERSHIP_OWNER = 3;
 
 const JOURNAL_NAME = "Relationship Graph Data";
-const FLAG_SCOPE = "fvtt-relationship-graph";
-const FLAG_KEY = "graphData";
+/** Scope флагов модуля на журнале-хранилище (граф, блокировка редактирования). */
+export const FLAG_SCOPE = "fvtt-relationship-graph";
+export const GRAPH_FLAG_KEY = "graphData";
+const FLAG_KEY = GRAPH_FLAG_KEY;
 
-async function getOrCreateStorageEntry(): Promise<MockableJournalEntry> {
+/** Журнал-хранилище, если он уже создан. */
+export function getStorageEntry(): MockableJournalEntry | null {
+  return game.journal.getName(JOURNAL_NAME);
+}
+
+/** Это журнал-хранилище графа (для фильтрации хуков updateJournalEntry). */
+export function isStorageEntry(entry: { name?: string } | null | undefined): boolean {
+  return entry?.name === JOURNAL_NAME;
+}
+
+export async function getOrCreateStorageEntry(): Promise<MockableJournalEntry> {
   const existing = game.journal.getName(JOURNAL_NAME);
   if (existing) return existing;
   // Владельцы — все: игроки тоже сохраняют граф (создают и правят связи).

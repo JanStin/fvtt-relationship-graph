@@ -74,6 +74,15 @@ export interface InteractionCallbacks {
   onLinkPicked(sourceId: string, targetId: string): void;
 }
 
+export interface InteractionOptions {
+  /**
+   * false — режим просмотра (B15): без resize, создания связей и перетаскивания (последнее
+   * отключает graph-renderer.ts через autoungrabify). Выделение, панорамирование, меню и
+   * карточки работают.
+   */
+  editable: boolean;
+}
+
 export interface InteractionHandle {
   /** Вызвать сразу после создания cytoscape(...) на том же container. */
   bind(cy: cytoscape.Core): void;
@@ -142,7 +151,12 @@ function runSeparation(cy: cytoscape.Core, anchored: cytoscape.NodeCollection): 
  * Раньше выполнялось только первое — поэтому Alt+wheel ресайзил узел и одновременно зумил
  * всю сцену.
  */
-export function setupInteraction(container: HTMLElement, callbacks: InteractionCallbacks): InteractionHandle {
+export function setupInteraction(
+  container: HTMLElement,
+  callbacks: InteractionCallbacks,
+  options: InteractionOptions,
+): InteractionHandle {
+  const { editable } = options;
   let cy: cytoscape.Core | null = null;
   let hoveredNodeId: string | null = null;
   let pointerInside = false;
@@ -236,7 +250,7 @@ export function setupInteraction(container: HTMLElement, callbacks: InteractionC
 
   // Alt+wheel = resize, а не зум. Вид не должен зумиться, даже если ресайзить нечего.
   const onWheel = (e: WheelEvent) => {
-    if (!e.altKey) return;
+    if (!e.altKey || !editable) return; // в просмотре Alt+колесо — обычный зум
     e.preventDefault();
     e.stopImmediatePropagation();
     if (!cy) return;
@@ -282,7 +296,7 @@ export function setupInteraction(container: HTMLElement, callbacks: InteractionC
   const onMouseDown = (e: MouseEvent) => {
     // S+ЛКМ по узлу — быстрое создание связи. Забираем клик у Cytoscape, чтобы узел не
     // выделялся и не начинал перетаскиваться.
-    if (sKeyDown && e.button === LEFT_BUTTON && !e.ctrlKey && !e.altKey && hoveredNodeId !== null) {
+    if (editable && sKeyDown && e.button === LEFT_BUTTON && !e.ctrlKey && !e.altKey && hoveredNodeId !== null) {
       e.preventDefault();
       e.stopImmediatePropagation();
       if (linkSourceId !== null) {
@@ -425,7 +439,7 @@ export function setupInteraction(container: HTMLElement, callbacks: InteractionC
     },
     resetScale(nodeId: string): void {
       const node = regularNode(nodeId);
-      if (cy && node) resizeGroup(resolveGroup(cy, node), node, 1.0);
+      if (cy && node && editable) resizeGroup(resolveGroup(cy, node), node, 1.0);
     },
     selectFaction(factionId: string): void {
       selectFactionElement(factionElementId(factionId), false);
@@ -438,7 +452,7 @@ export function setupInteraction(container: HTMLElement, callbacks: InteractionC
     },
     startLinking(sourceId: string): void {
       const source = regularNode(sourceId);
-      if (!source) return;
+      if (!source || !editable) return;
       endLinking();
       linkSourceId = sourceId;
       source.addClass(LINK_SOURCE_CLASS);

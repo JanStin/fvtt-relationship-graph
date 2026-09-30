@@ -1,6 +1,6 @@
 /**
  * Не отдельное ApplicationV2-окно, а лёгкий контрол (кнопка + скрытый file input),
- * который GraphApp вставляет в свой тулбар. Полноценный диалог с превью/выбором —
+ * который GraphApp вставляет в свой тулбар (только у GM). Полноценный диалог с превью/выбором —
  * можно добавить позже, если понадобится; сейчас достаточно "выбрал файл — импортировалось".
  */
 
@@ -13,10 +13,15 @@ export interface ImportControlCallbacks {
   onImported(data: GraphData, warnings: string[]): void;
 }
 
-export function createImportControl(callbacks: ImportControlCallbacks): HTMLElement {
-  const wrapper = document.createElement("div");
-  wrapper.style.cssText =
-    "flex:0 0 auto;display:flex;gap:8px;align-items:center;padding:6px 10px;background:#0f172a;";
+export interface ImportControl {
+  element: HTMLElement;
+  /** Импорт — только в режиме редактирования (B15). */
+  setEnabled(enabled: boolean): void;
+}
+
+export function createImportControl(callbacks: ImportControlCallbacks): ImportControl {
+  const wrapper = document.createElement("span");
+  wrapper.className = "frg-toolbar-group";
 
   const button = document.createElement("button");
   button.type = "button";
@@ -38,7 +43,13 @@ export function createImportControl(callbacks: ImportControlCallbacks): HTMLElem
   });
 
   wrapper.append(button, input);
-  return wrapper;
+  return {
+    element: wrapper,
+    setEnabled(enabled) {
+      button.disabled = !enabled;
+      button.title = enabled ? "" : "Импорт доступен в режиме редактирования";
+    },
+  };
 }
 
 async function handleFile(file: File, callbacks: ImportControlCallbacks): Promise<void> {

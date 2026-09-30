@@ -200,6 +200,33 @@
   --frg-badge: calc(var(--frg-size) * 0.28);
 }
 
+/* Верхняя панель окна графа (GraphApp). */
+.frg-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 10px;
+  background: #0f172a;
+}
+
+.frg-toolbar button {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.frg-toolbar-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Кнопка «Редактировать», пока этот пользователь — редактор (B15). */
+.frg-toolbar .frg-toolbar-active {
+  background: #facc15;
+  color: #0f172a;
+}
+
 /* Градиентная окольцовка скрытого узла (hidden): кольцо снаружи рамки узла. */
 .frg-node-ring {
   --frg-ring: calc(var(--frg-size) * 0.08);

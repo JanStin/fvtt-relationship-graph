@@ -21,10 +21,10 @@ export function createRelationshipTypeListPanel(
   /** Сколько связей имеют этот тип. */
   usageCount: (typeId: string) => number,
   callbacks: RelationshipTypeListCallbacks,
-  /** Игрок видит список только для чтения: без правки и создания (B14). */
-  options: { isGM: boolean },
+  /** false — список только для чтения: у игрока (B14) и в режиме просмотра (B15). */
+  options: { editable: boolean },
 ): HTMLElement {
-  const { isGM } = options;
+  const { editable } = options;
   const element = document.createElement("div");
   element.className = "frg-panel";
 
@@ -34,7 +34,7 @@ export function createRelationshipTypeListPanel(
   if (types.length === 0) body.append(hint("Типов связей пока нет."));
   for (const type of types) {
     // у игрока строка — просто текст, без клика
-    const row = document.createElement(isGM ? "button" : "div");
+    const row = document.createElement(editable ? "button" : "div");
     if (row instanceof HTMLButtonElement) row.type = "button";
     row.className = "frg-faction-row";
     const swatch = document.createElement("span");
@@ -48,12 +48,12 @@ export function createRelationshipTypeListPanel(
     count.textContent = String(usageCount(type.id));
     count.title = "Связей этого типа";
     row.append(swatch, name, count);
-    if (isGM) row.addEventListener("click", () => callbacks.onEdit(type.id));
+    if (editable) row.addEventListener("click", () => callbacks.onEdit(type.id));
     body.append(row);
   }
 
   element.append(panelHeader("Типы связей", callbacks.onClose), body);
-  if (isGM) {
+  if (editable) {
     const footer = document.createElement("div");
     footer.className = "frg-panel-footer";
     const create = document.createElement("button");
