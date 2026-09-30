@@ -3,6 +3,9 @@
  * (GraphNode.x/y) уважаются как есть (layout: preset); fcose запускается только когда
  * позиций ещё нет вообще.
  * Без drag/resize/rubber-band — та интерактивность добавляется в interaction.ts (UI-задачи).
+ * Области фракций "прозрачны" для мыши (events: no + selectable/grabbable: false): клик по
+ * области ведёт себя как клик по пустому месту (панорамирование), а попадание в область
+ * interaction.ts определяет сам через core/hit-test.ts.
  * Стили/layout взяты из проверенных spikes/spike-layout.html и spikes/spike-resize.html.
  */
 
@@ -17,14 +20,28 @@ function ensureFcoseRegistered(): void {
   fcoseRegistered = true;
 }
 
-const BASE_SIZE = 60; // px, scale=1.0
+export const BASE_SIZE = 60; // px, scale=1.0 — используется и в interaction.ts для resize
+
+const FACTION_ID_PREFIX = "faction-";
+/** id compound-узла Cytoscape для фракции (чтобы не пересекаться с id обычных узлов). */
+export function factionElementId(factionId: string): string {
+  return `${FACTION_ID_PREFIX}${factionId}`;
+}
+/** Обратное к factionElementId. */
+export function factionIdFromElement(elementId: string): string {
+  return elementId.slice(FACTION_ID_PREFIX.length);
+}
+/** Класс подсветки выбранной области — ставится в interaction.ts. */
+export const FACTION_SELECTED_CLASS = "faction-selected";
 
 function buildElements(data: GraphData): cytoscape.ElementDefinition[] {
   const elements: unknown[] = [];
 
   data.factions.forEach((faction) => {
     elements.push({
-      data: { id: `faction-${faction.id}`, label: faction.name, isFaction: true, factionColor: faction.color },
+      data: { id: factionElementId(faction.id), label: faction.name, isFaction: true, factionColor: faction.color },
+      selectable: false,
+      grabbable: false,
     });
   });
 
@@ -34,7 +51,7 @@ function buildElements(data: GraphData): cytoscape.ElementDefinition[] {
       data: {
         id: node.id,
         label: node.name,
-        parent: node.primaryFactionId ? `faction-${node.primaryFactionId}` : undefined,
+        parent: node.primaryFactionId ? factionElementId(node.primaryFactionId) : undefined,
         scale: node.scale,
         size,
       },
@@ -79,6 +96,15 @@ const STYLE = [
       "font-size": 11,
       color: "#ccc",
       padding: "20px",
+      events: "no",
+    },
+  },
+  {
+    selector: `node.${FACTION_SELECTED_CLASS}`,
+    style: {
+      "background-opacity": 0.3,
+      "border-width": 4,
+      "border-opacity": 1,
     },
   },
   {
@@ -96,6 +122,13 @@ const STYLE = [
       color: "#e2e8f0",
       "text-wrap": "wrap",
       "text-max-width": "data(size)",
+    },
+  },
+  {
+    selector: "node[!isFaction]:selected",
+    style: {
+      "border-width": 4,
+      "border-color": "#facc15",
     },
   },
   {
@@ -147,6 +180,7 @@ export function renderGraph(container: HTMLElement, data: GraphData): cytoscape.
 
   return cytoscape({
     container,
+    boxSelectionEnabled: true, // Shift+ЛКМ-drag — rubber-band, нативное поведение Cytoscape, см. §6
     elements: buildElements(data),
     style: STYLE,
     layout,

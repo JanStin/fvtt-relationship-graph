@@ -57,10 +57,26 @@
 
 - [x] `src/ui/GraphApp.ts` — ApplicationV2, по образцу проверенного `spikes/spike-foundry-app.ts`, но с реальными данными (storage → actors sync → renderGraph).
 - [x] `src/ui/graph-renderer.ts` — Cytoscape+fcose init, compound-фракции, базовые стили узлов/рёбер (cvет ребра по relationshipType, стрелка по directional). **Пока без drag/resize/rubber-band** — это следующий пункт.
-- [ ] `src/ui/interaction.ts` — drag, resize, rubber-band, context menu. Использует уже готовые `core/layout.ts` (separation) и `core/selection.ts` (groupScale/groupMove) — их осталось подключить к реальным Cytoscape-событиям.
+- [x] `src/ui/interaction.ts` — Alt+wheel resize (одиночный и групповой, через `core/selection.groupScale`), drag группы (`computeGroupMoveDeltas`/`applyGroupMove`), пост-сепарация после resize/dragfree (`core/layout.separateOverlaps`), Esc снимает выделение. Rubber-band + shift-click — нативно (просто `boxSelectionEnabled: true` в graph-renderer.ts). После каждого commit — снэпшот позиций/scale уходит в `GraphApp` → `storage.saveGraphData()`.
+  - **Баги, найдены пользователем при ручной проверке — исправления написаны, но НЕ подтверждены:**
+    - [x] Alt+wheel ресайзил не только узел, но и всю сцену целиком. Прежний фикс (вызывать `setupInteraction()` до `cytoscape(...)`) был неполным: наш обработчик звал `stopPropagation()`, а он не останавливает другие листенеры **того же** элемента — Cytoscape висит на том же контейнере и всё равно зумила. Теперь `stopImmediatePropagation()` (порядок регистрации тоже по-прежнему важен).
+    - **Управление** (код написан, юнит-тесты/сборка проходят; в реальном Foundry **не проверено**). Уточнено у пользователя: в исходном списке ЛКМ и ПКМ были перепутаны — основная кнопка левая, меню на правой. Полное описание — `docs/controls.md`.
+    - [x] wheel — масштабирование вида (нативно Cytoscape)
+    - [x] Нажатие на wheel — перемещение по виду
+    - [x] Alt+wheel — ресайз выбранных узлов (без выделения — узла под курсором)
+    - [x] Shift+ЛКМ — выделение нескольких узлов (клик — добавить, drag — рамка)
+      - [x] Баг: попытка перемещения нескольких узлов вызывает сильное смещение. Причина: Cytoscape сама двигает все выделенные узлы и шлёт `grab`/`drag` каждому из них, а наш код на каждое такое событие ещё раз переставлял группу (с дельтами относительно другого узла). Свой групповой сдвиг из `interaction.ts` убран, сохранение/сепарация — один раз по `dragfreeon`. `computeGroupMoveDeltas`/`applyGroupMove` в `core/selection.ts` остались, но в UI больше не используются. Не проверено в Foundry.
+    - [x] ЛКМ — выделение узла и его перемещение. Клик вне узла — перемещение по виду, даже если клик пришёлся по области (области сделаны «прозрачными» для мыши: `events: no`, попадание в область считает `core/hit-test.ts`)
+    - [x] ПКМ — контекстное меню (`src/ui/overlays.ts`; пункты: информация, лист актёра, сброс размера, выбор области, показать весь граф, снять выделение)
+    - [x] Ctrl+ЛКМ — перемещение по виду независимо от того, куда нажато
+    - [x] Alt+ЛКМ — выбор области (выделяются все узлы фракции, область подсвечивается)
+    - [x] Двойной клик ЛКМ — карточка информации об узле/области (`core/describe.ts` + `overlays.ts`, только чтение)
+    - Esc теперь слушается на `document` (пока курсор над графом): Cytoscape на mousedown делает blur, фокус на контейнере не держался.
+- [x] `src/core/hit-test.ts` + `tests/core/hit-test.test.ts` (6 тестов), `src/core/describe.ts` + `tests/core/describe.test.ts` (7 тестов).
 - [ ] `src/ui/panels/NodePanel.ts`.
 - [ ] `src/ui/panels/EdgePanel.ts`.
 - [x] `src/ui/panels/ImportDialog.ts` — не отдельное окно, а кнопка+file input в тулбаре `GraphApp`: читает файл → `parseFangJson()` → `saveGraphData()` → перерисовка. Уведомления об успехе/warnings через `ui.notifications`.
+- [x] Написать readme для описания кнопок и клавиш — `docs/controls.md`.
 
 Подтверждено вручную в реальном Foundry: кнопка внизу вкладки Actors открывает `GraphApp` без ошибок (граф изначально пуст, пока не импортирован fang.json).
 
