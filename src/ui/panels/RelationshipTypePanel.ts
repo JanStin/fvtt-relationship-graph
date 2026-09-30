@@ -1,6 +1,6 @@
 /**
  * Панели справочника типов связей: список и форма одного типа. Правит только GM, игрок видит
- * список только для чтения (B14).
+ * список только для чтения.
  * Устроены как панели фракций (FactionPanel.ts): только DOM, логика — core/relationship-types.ts.
  */
 
@@ -21,7 +21,7 @@ export function createRelationshipTypeListPanel(
   /** Сколько связей имеют этот тип. */
   usageCount: (typeId: string) => number,
   callbacks: RelationshipTypeListCallbacks,
-  /** false — список только для чтения: у игрока (B14) и в режиме просмотра (B15). */
+  /** false — список только для чтения: у игрока и в режиме просмотра. */
   options: { editable: boolean },
 ): HTMLElement {
   const { editable } = options;

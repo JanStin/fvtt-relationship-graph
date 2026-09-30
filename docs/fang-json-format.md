@@ -1,6 +1,7 @@
 # FANG JSON format
 
-Источник: `fang.json` (экспорт из FANG). Пример реального мира лежит в корне.
+Формат файла экспорта модуля FANG — его понимает кнопка «Импорт». Парсер — `src/import/fang.ts`,
+пример — урезанная фикстура `tests/fixtures/fang.json`.
 
 ## Структура
 - `nodes[]` — персонажи (актёры и плейсхолдеры)
@@ -26,7 +27,7 @@
 `factionId`, `factionIds`, `role`, `lore`, `playerNotes`, `conditions`,
 `hidden`, `gmOnly`, `isCenter`.
 
-Остальные — сохраняем как есть, но не используем.
+Остальные при импорте не переносятся.
 
 ## Поля фракций
 `id`, `name`, `color`, `description`. `playerVisible` не переносим — у нас фракции видны всем.

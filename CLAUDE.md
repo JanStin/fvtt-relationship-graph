@@ -1,81 +1,64 @@
 # Project: Foundry VTT Relationship Graph Module
 
+Файл локальный (в `.gitignore`) — инструкции для Claude Code, в публичный репозиторий не входит.
+
 ## Goal
-Создать модуль для Foundry VTT, который отображает связи между актёрами в виде графа.
-Аналог: https://github.com/Niclasp1501/Foundry-Actor-Nexus-Graph--FANG-
+Модуль для Foundry VTT 13, который отображает связи между актёрами в виде графа.
+Аналог: https://github.com/Niclasp1501/Foundry-Actor-Nexus-Graph--FANG- (код и ресурсы FANG не
+используем — у FANG проприетарная лицензия; поддерживаем только импорт его файлов экспорта).
+Репозиторий: https://github.com/JanStin/fvtt-relationship-graph (ветка `master`).
 
 ## Current state
-- Установлен Claude Code.
-- Создан `module.json`.
-- Экспортирован граф из FANG в файл `fang.json` (лежит в корне).
-- Пока нет кода модуля.
+- Версия 1.0.0 — первый публичный релиз, всё из исходных требований реализовано.
+  Что сделано — `CHANGELOG.md`, планы — `docs/tasks.md` (локализация `lang/` и др.).
+- Интерфейс только на русском, строки зашиты в код (вынос в `lang/` — задача L1).
 
-## Requirements
-1. Повторять функционал модуля для Foundry VTT Foundry-Actor-Nexus-Graph--FANG, который отображает связи между персонажами в виде графа.
-2. Добавлять изображение без привязки к актёру.
-3. Менять размер токенов: по одному и сразу несколько.
-4. Выделять несколько токенов для перемещения.
-5. Фракции отображать не линиями, а фоновым цветом.
-6. Поддержка импорта JSON из FANG (`fang.json`), чтобы перенести существующие данные.
-7. Размер узлов: каждый узел имеет масштаб (scale).
-   - Изменение размера одного узла.
-   - Изменение размера группы выделенных узлов (сохраняя относительные пропорции).
-   - В FANG-экспорте поля размера нет — при импорте ставим дефолт 1.0.
-8. Узлы не должны накладываться друг на друга.
-   - При автоматической раскладке.
-   - При ручном перетаскивании.
-   - При изменении размера узла.
-
+## Requirements (исходные, выполнены)
+1. Функционал FANG: граф связей между персонажами.
+2. Изображение без привязки к актёру.
+3. Размер узлов (scale): по одному и группой с сохранением пропорций.
+4. Выделение нескольких узлов для перемещения.
+5. Фракции — фоновым цветом, не линиями.
+6. Импорт JSON из FANG (`scale` в FANG нет — при импорте 1.0).
+7. Узлы не накладываются: при раскладке, перетаскивании, изменении размера.
 
 ## Tech stack
-- Foundry VTT 13
-- TypeScript
-- Vite (если нужен сборщик)
-- PIXI.js (для графа)
-- Handlebars (для шаблонов)
+- Foundry VTT 13 (`ApplicationV2`), TypeScript, Vite (library build → `scripts/`)
+- Cytoscape.js + cytoscape-fcose (граф), патч `patches/cytoscape+3.34.3.patch` (patch-package)
+- Без Handlebars: панели собираются из DOM-кода (`src/ui/panels/form.ts`)
 
-## Project structure (обновлённая)
-- `module.json`
-- `scripts/` — собранный JS (артефакт сборки)
-- `src/` — исходники TypeScript
-- `tests/` — тесты
-- `tests/mocks/` — моки Foundry API
-- `styles/`
-- `templates/`
-- `lang/`
-- `docs/` — документация
-- `fang.json` — пример экспорта из FANG
+## Project structure
+- `module.json` — манифест (url/manifest/download на GitHub)
+- `src/core/` — чистая логика без Foundry/DOM; `src/import/` — FANG и свой формат;
+  `src/foundry/` — интеграция (хуки, хранилище, блокировка); `src/ui/` — окно, рендер, панели
+- `scripts/` — собранный JS (артефакт сборки, в git не хранится)
+- `styles/module.css`, `assets/placeholder-npc.png` (своя картинка, не из FANG)
+- `tests/` — Vitest; `tests/mocks/foundry.ts` — моки Foundry API; `tests/fixtures/fang.json` —
+  урезанный экспорт FANG с выдуманными именами
+- `docs/` — архитектура, управление, форматы файлов, планы
+- `.github/workflows/` — CI (push/PR) и Release (тег `v*` → `module.zip` + `module.json`)
 
-## Testing
-- Vitest для юнит-тестов (совместим с Vite, работает с TypeScript из коробки).
-- @vitest/ui для интерактивного просмотра тестов.
-- jsdom для тестов, где нужен DOM.
-- Тесты лежат в `tests/` или рядом с файлами как `*.test.ts`.
-- Мокаем Foundry API (`game`, `canvas`, `ui`, `Hooks`, `Actor`, `Token` и т.д.) через `tests/mocks/foundry.ts`.
-- Цель покрытия: парсер `fang.json`, логика графа (узлы/связи), импорт/экспорт, операции с токенами.
-
-## Testing commands
-- `npm run test` — запустить все тесты.
-- `npm run test:watch` — watch-режим.
-- `npm run test:ui` — UI-режим Vitest.
-- `npm run test:coverage` — покрытие.
-
-## Important files
-- `fang.json` — пример экспорта из старого модуля. Нужен для анализа формата и импорта.
-
-## Docs
-- docs/architecture.md — как устроено
-- docs/open-questions.md — открытые вопросы
-- docs/tasks.md — список задач
-- docs/fang-json-format.md — формат импорта
-- spikes/README.md — результаты спайков
-
-## Rules for Claude
-- Сначала анализировать `fang.json`, не менять его.
-- Не удалять существующие файлы без подтверждения.
-- Предлагать изменения пошагово.
-- Писать комментарии на русском или английском (выбрать).
-- Использовать официальное API Foundry VTT.
+Подробная карта модулей — `docs/architecture.md` §8.
 
 ## Commands
-- Пока нет. Будут добавлены позже.
+- `npm run build` — сборка в `scripts/`; `npm run dev` — watch.
+- `npm run test` / `test:watch` / `test:ui` / `test:coverage` — тесты.
+- `npm run typecheck` — проверка типов.
+- Релиз: поднять версию в `module.json`, `package.json`, `CHANGELOG.md` → тег `vX.Y.Z` → push тега.
+
+## Docs
+- `docs/architecture.md` — как устроено, риски
+- `docs/controls.md` — управление, права игроков
+- `docs/fang-json-format.md`, `docs/graph-json-format.md` — форматы импорта/экспорта
+- `docs/tasks.md` — планы на следующие версии
+- `docs/open-questions.md` — открытые вопросы (сейчас нет)
+- `CHANGELOG.md` — история версий
+
+## Rules for Claude
+- Не удалять существующие файлы без подтверждения.
+- Предлагать изменения пошагово.
+- Комментарии в коде — на русском.
+- Использовать официальное API Foundry VTT.
+- Реальные экспорты миров (`fang.json`, `relationship-graph-*.json`) в репозиторий не коммитить —
+  они в `.gitignore`.
+- Новые возможности — записывать в `CHANGELOG.md` (раздел Unreleased), планы — в `docs/tasks.md`.

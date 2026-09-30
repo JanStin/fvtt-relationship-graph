@@ -1,8 +1,19 @@
 {
   "name": "fvtt-relationship-graph",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Foundry VTT module: relationship graph between actors (FANG alternative)",
   "private": true,
+  "license": "MIT",
+  "author": "MiniMalMod_RedFox",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JanStin/fvtt-relationship-graph.git"
+  },
+  "bugs": "https://github.com/JanStin/fvtt-relationship-graph/issues",
+  "homepage": "https://github.com/JanStin/fvtt-relationship-graph#readme",
+  "engines": {
+    "node": ">=20"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite build --watch",
@@ -27,8 +38,6 @@
   },
   "dependencies": {
     "cytoscape": "^3.34.3",
-    "cytoscape-cola": "^2.5.1",
-    "cytoscape-cose-bilkent": "^4.1.0",
     "cytoscape-fcose": "^2.2.0"
   }
 }

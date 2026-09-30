@@ -1,0 +1,50 @@
+name: Release
+
+# Релиз по тегу вида v1.2.3: проверки, сборка, module.zip и module.json в GitHub Release.
+# Foundry ставит модуль по manifest-ссылке .../releases/latest/download/module.json,
+# а в нём download указывает на module.zip именно этого тега.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test
+      - run: npm run build
+
+      - name: Версия и ссылка на архив в module.json
+        env:
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          VERSION="${TAG#v}"
+          jq --arg version "$VERSION" \
+             --arg download "https://github.com/$REPO/releases/download/$TAG/module.zip" \
+             '.version = $version | .download = $download' module.json > module.tmp.json
+          mv module.tmp.json module.json
+
+      # Карты исходников (.map) в архив не кладём — это только для разработки.
+      - name: Архив модуля
+        run: zip -r module.zip module.json scripts styles assets LICENSE THIRD-PARTY-NOTICES.md README.md CHANGELOG.md -x "*.map"
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            module.zip
+            module.json
+          generate_release_notes: true

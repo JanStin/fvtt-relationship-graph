@@ -4,6 +4,14 @@ node_modules/
 # Build output
 scripts/
 dist/
+*.zip
+
+# Local data: exports of real worlds (FANG and our own format)
+/fang.json
+/relationship-graph-*.json
+
+# Claude Code instructions — local only
+.claude/
 
 # Test coverage
 coverage/

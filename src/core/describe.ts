@@ -87,7 +87,7 @@ export function describeNode(data: GraphData, nodeId: string, options: DescribeO
 }
 
 /**
- * Карточка связи — в режиме просмотра (B15), где панель связи не открывается.
+ * Карточка связи — в режиме просмотра, где панель связи не открывается.
  * null — связи нет или она gmOnly, а смотрит игрок.
  */
 export function describeEdge(data: GraphData, edgeId: string, options: DescribeOptions): Description | null {

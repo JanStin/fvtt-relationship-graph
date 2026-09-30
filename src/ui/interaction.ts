@@ -1,5 +1,5 @@
 /**
- * Подключает уже проверенную (в spikes/spike-resize.html, S3) логику resize/drag/separation
+ * Подключает уже проверенную (спайк S3) логику resize/drag/separation
  * к реальным событиям Cytoscape. core/layout.ts и core/selection.ts ничего не знают про
  * Cytoscape — вся стыковка с DOM/событиями здесь.
  *
@@ -83,7 +83,7 @@ export interface InteractionCallbacks {
 
 export interface InteractionOptions {
   /**
-   * false — режим просмотра (B15): без resize, создания связей и перетаскивания (последнее
+   * false — режим просмотра: без resize, создания связей и перетаскивания (последнее
    * отключает graph-renderer.ts через autoungrabify). Выделение, панорамирование, меню и
    * карточки работают.
    */

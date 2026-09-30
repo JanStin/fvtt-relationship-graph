@@ -5,14 +5,17 @@
 | Вопрос | Решение |
 |--------|---------|
 | Графовая библиотека | **Cytoscape.js + fcose layout** — подтверждено спайками S1, S3, S4 |
-| Модель данных | Отдельные типы `GraphNode`, `GraphEdge`, `Faction`; поле `scale: number` на узле |
+| Модель данных | Отдельные типы `GraphNode`, `GraphEdge`, `Faction`, `RelationshipType`, `ConditionDef`; поле `scale: number` на узле |
 | Хранение позиций | Свободные координаты `x, y` на каждом узле |
-| Фракции | Compound nodes в Cytoscape (узлы-родители с фоновым цветом) |
-| Коллизии | fcose встроенный `nodeRepulsion` + сепарация после ручного дрэга |
-| Resize | Колесо мыши + shift-клик для группы; после resize — пересчёт минимальных расстояний |
-| Multi-select | Cytoscape rubber-band + shift-click; drag группы с фиксированными относительными позициями |
-| Импорт FANG | Чистая функция `parseFangJson()` в `src/import/fang.ts` |
-| Хранение данных | `JournalEntry` (без лимита размера) |
+| Фракции | Compound nodes в Cytoscape (узлы-родители с фоновым цветом); дополнительные фракции — ромбики на узле |
+| Коллизии | Проход сепарации (`core/layout.ts`) после раскладки, перетаскивания и изменения размера |
+| Resize | `Alt` + колесо: один узел или группа выделенных с сохранением пропорций |
+| Multi-select | Нативно в Cytoscape: rubber-band, `Shift`+клик, групповой drag |
+| Импорт | FANG (`src/import/fang.ts`) и собственный формат (`src/import/native.ts`), формат распознаётся сам |
+| Хранение данных | Флаг на `JournalEntry` «Relationship Graph Data» (без лимита размера) |
+| Права | GM / игрок, флаги узла `hidden` / `gmOnly` (`core/permissions.ts`, `core/visibility.ts`) |
+| Совместная работа | Режим просмотра по умолчанию, один редактор (блокировка), живое обновление у остальных |
+| Отмена | История снимков на 30 шагов в пределах сеанса редактирования (`core/history.ts`) |
 | Foundry-интеграция | `ApplicationV2` (Foundry v13 API) как оболочка |
 
 ---
@@ -21,23 +24,20 @@
 
 ### Выбор: **Cytoscape.js + fcose** — подтверждён спайками S1–S4
 
-Рассматривались три кандидата (сравнение ниже). Cytoscape.js выбран по совокупности архитектурных
-плюсов ещё до реализации, а затем подтверждён на практике:
+Рассматривались три кандидата: Cytoscape.js, D3-force, PIXI.js. Cytoscape.js выбран по
+совокупности архитектурных плюсов ещё до реализации, а затем подтверждён на практике:
 - fcose + compound nodes (фракции) + узлы с разным `scale` — PASS в браузере, фракции
-  кластеризуются, наложений нет (docs/architecture.md §10).
+  кластеризуются, наложений нет (§10).
 - resize одного узла и группы — compound bounds фракции обновляются автоматически, сепарация
-  убирает наложения (spikes/spike-resize.html).
-- библиотека реально монтируется и работает внутри `ApplicationV2` в живом Foundry —
-  после того как нашли и запатчили единственную обнаруженную несовместимость
-  (R7: Foundry замораживает `Array.prototype.equals`, см. §11).
+  убирает наложения (S3).
+- библиотека монтируется и работает внутри `ApplicationV2` в живом Foundry — после того как
+  нашли и запатчили единственную обнаруженную несовместимость (R7: Foundry замораживает
+  `Array.prototype.equals`, см. §11).
 
-D3-force и PIXI.js остаются нереализованными альтернативами: пересматривать выбор нет смысла,
-так как все три исходных риска (наложения/кластеризация по фракциям, resize с сохранением
-пропорций, интеграция внутрь Foundry) закрыты для Cytoscape.js конкретными спайками, а не только
-рассуждениями.
-
-**Ограничение**: узел в нескольких фракциях (`factionIds.length > 1`) не может иметь двух compound-родителей.
-Решение: primary faction = `factionIds[0]` определяет compound-родителя. Дополнительные фракции отображаются как ромб цвета фракции поверх иконки узла. Полный список — в панели деталей (двойной клик по узлу).
+**Ограничение**: узел в нескольких фракциях (`factionIds.length > 1`) не может иметь двух
+compound-родителей. Решение: основная фракция (`primaryFactionId`, она же `factionIds[0]`) —
+compound-родитель, дополнительные отображаются ромбиками цвета фракции на узле. Полный список —
+в карточке информации (двойной клик по узлу).
 
 ---
 
@@ -54,7 +54,7 @@ interface GraphNode {
   actorId: string | null;   // null если актёр не найден в game.actors; сохраняем name/img
   name: string;
   originalName: string;
-  img: string;
+  img: string;              // '' — картинка по умолчанию подставляется при отрисовке
   x: number;
   y: number;
   scale: number;            // 1.0 по умолчанию; отсутствует в FANG
@@ -65,18 +65,18 @@ interface GraphNode {
   playerNotes: string;
   gmNotes: string;          // заметки GM — не видны игрокам
   conditions: string[];     // id состояний из справочника
-  hidden: boolean;
-  gmOnly: boolean;
+  hidden: boolean;          // игрокам — «неизвестный»; всегда включает gmOnly
+  gmOnly: boolean;          // узел правит только GM
 }
 
 interface GraphEdge {
-  id: string;               // генерируем: `${source}-${target}-${index}`
+  id: string;
   source: string;           // id узла
   target: string;           // id узла
   label: string;
   directional: boolean;
   relationshipTypeId: string; // '' если не задан
-  gmOnly: boolean;
+  gmOnly: boolean;          // игрокам не показывается
 }
 
 interface Faction {
@@ -93,6 +93,12 @@ interface RelationshipType {
   dash: string;             // '' | '8,5' | '4,4' etc.
 }
 
+interface ConditionDef {
+  id: string;
+  label: string;
+  icon: string;             // класс Font Awesome
+}
+
 interface GraphData {
   nodes: GraphNode[];
   edges: GraphEdge[];
@@ -100,136 +106,96 @@ interface GraphData {
   relationshipTypes: RelationshipType[];
   conditions: ConditionDef[]; // свои состояния; встроенные — в core/conditions.ts
 }
-
-interface ConditionDef {
-  id: string;
-  label: string;
-  icon: string;             // класс Font Awesome
-}
 ```
 
-**Почему `scale`, а не `radius`**: scale — относительный множитель, не зависит от базового размера иконки.
-Это проще при изменении группы: умножаем все `scale` на одинаковый коэффициент, пропорции сохраняются.
+**Почему `scale`, а не `radius`**: scale — относительный множитель, не зависит от базового размера
+иконки. Это проще при изменении группы: умножаем все `scale` на одинаковый коэффициент,
+пропорции сохраняются.
 
 **Хранение позиций**: свободные координаты `x, y` на узле, не привязка к compound.
-Compound node в Cytoscape хранит собственную позицию/размер как bounding box дочерних — это автоматически.
+Compound node в Cytoscape хранит собственную позицию/размер как bounding box дочерних — это
+автоматически.
 
-**Связь с Foundry**: `actorId` — это ID актёра в `game.actors`.
-Узел типа `actor` имеет `actorId !== null`. При открытии графа синхронизируем `img` и `name` из реального актёра.
-Если актёр не найден в `game.actors` — обнуляем `actorId`, но сохраняем все данные узла (`name`, `img`, `role` и т.д.) без изменений.
+**Связь с Foundry**: `actorId` — это ID актёра в `game.actors`. Узел типа `actor` имеет
+`actorId !== null`. При открытии графа синхронизируем `img` и `name` из реального актёра
+(`foundry/actors.ts`). Если актёр не найден — обнуляем `actorId`, но сохраняем все данные узла.
+
+**Нормализация при загрузке**: сохранённый граф и импорт проходят `ensureConditionDefs`
+(неизвестные состояния — в справочник), `ensureDefaultRelationshipTypes` (тип «Романтическая»),
+`ensureNodeFlags` (`hidden` ⇒ `gmOnly`).
 
 ---
 
 ## 3. Layout и группировка
 
-### Компоновка фракций
-
 Каждая фракция становится **compound node** в Cytoscape:
 - id: `faction-${faction.id}`
 - стиль: `background-color: faction.color`, `background-opacity: 0.15`, `border-color: faction.color`
-- метка: название фракции (внизу или сверху)
+- метка: название фракции внизу; `padding: 30px` — запас под подписи узлов.
 
-Узел с `primaryFactionId` получает `parent: 'faction-<id>'` в Cytoscape.
-Узлы без фракции — на корневом уровне.
+Узел с `primaryFactionId` получает `parent: 'faction-<id>'`. Узлы без фракции — на корневом
+уровне. Фракция без узлов на графе не рисуется (пустой compound в Cytoscape — обычный узел в
+точке (0, 0)); до неё можно добраться через список фракций.
 
-**Почему не convex hull**: convex hull нужно перерисовывать при каждом движении (overlay SVG/Canvas).
+Области фракций «прозрачны» для мыши (`events: no`): клик по области ведёт себя как клик по
+пустому месту, а попадание в область считает `core/hit-test.ts`.
+
+**Почему не convex hull**: convex hull нужно перерисовывать при каждом движении (overlay).
 Compound node в Cytoscape обновляется автоматически и участвует в layout.
 
-**Пересечение подложек**: fcose раздвигает compound nodes (`compoundPadding`, `tileFractals`).
-Дополнительно: если фракция имеет `padding: 30px`, то между фракциями всегда есть зазор.
-
-**Смена фракции у узла**: обновляем `parent` через `node.move({ parent: newParentId })`.
-Cytoscape плавно пересчитывает bounds compound node. Анимированный переход — через `node.animate({ position })` после layout.
+**Раскладка**: если у узлов уже есть сохранённые координаты — `preset` (без пересчёта); fcose
+запускается только для графа без позиций (например, первый импорт).
 
 ---
 
 ## 4. Предотвращение наложения
 
-**При автоматическом layout**:
-fcose имеет `nodeRepulsion: 4500` (по умолчанию), `nodeSeparation: 75`, `nestingFactor: 0.1`.
-Для узлов с `scale > 1` передаём `nodeOverlap: 10` и учитываем реальный радиус: `baseRadius * scale`.
+fcose не учитывает реальные размеры узлов (§10, F2), поэтому наложения убирает отдельный проход
+сепарации `separateOverlaps` (`core/layout.ts`) — итеративное раздвигание кругов с учётом `scale`.
 
-**При ручном перетаскивании**:
-Слушаем `cy.on('dragfree', ...)`. После отпускания узла запускаем локальную сепарацию:
-1. Проверяем overlap текущего узла со всеми соседями (r1 + r2 > dist).
-2. Если есть — отодвигаем затронутые узлы по вектору от центра.
-3. Только ближайшие соседи (~O(k), не O(n²)).
+Проход запускается:
+- после перетаскивания (`dragfreeon`): перетащенная группа закреплена, раздвигаются соседи;
+- после изменения размера (Alt+колесо, «Сбросить размер»): закреплена изменённая группа;
+- после правки или создания узла в панели (`settle`).
 
-**При изменении размера**:
-После изменения `scale` запускаем ту же локальную сепарацию для затронутого узла.
-Если изменяется группа выделенных — сепарация после применения всех изменений.
-
-См. также раздел [10. Результаты spike S1](#10-результаты-spike-s1) — там описано, что именно проверено по факту (fcose не учитывает размеры узлов, отдельный post-layout pass закрывает это).
+Узлы, которые пользователь не может трогать (у игрока — `gmOnly`), тоже закреплены: сепарация
+их не сдвигает.
 
 ---
 
 ## 5. Изменение размера узлов
 
-**Один узел**:
-- `Alt + колесо мыши` над узлом → изменяем `scale` с шагом 0.1 (min 0.3, max 5.0).
-- Альтернатива: правый клик → контекстное меню → слайдер размера.
-- Колесо удобнее для быстрой подстройки в процессе работы.
-- `Ctrl` не используем — это стандартный зум браузера.
+- `Alt` + колесо над узлом → `scale` с шагом 0.1 (min 0.3, max 5.0). `Ctrl` не используем — это
+  зум браузера.
+- Если есть выделение — меняется вся группа: коэффициент = `newScale / oldScale` узла под
+  курсором (`core/selection.groupScale`), пропорции сохраняются, каждый результат клампится.
+- «Сбросить размер» в контекстном меню и поле «Размер» в панели узла.
 
-**Группа выделенных**:
-- `Alt + колесо мыши` над любым выделенным узлом → множим все `scale` на коэффициент.
-- Коэффициент = `newScale / oldScale` первого узла, применяем ко всем.
-- Относительные пропорции сохраняются: `nodeB.scale *= coefficient`.
-
-**После изменения размера**:
-1. Обновляем Cytoscape `node.style({ width, height })` = `BASE_SIZE * scale`.
-2. Запускаем локальную сепарацию.
-3. Обновляем compound node bounds (Cytoscape делает это автоматически).
+После изменения: `node.style({ width, height }) = BASE_SIZE * scale`, сепарация, сохранение.
+HTML-декор узла (имя, роль, значки) масштабируется вместе с ним.
 
 ---
 
 ## 6. Выделение и перемещение нескольких узлов
 
-**Выделение**:
-- Click: одиночный узел.
-- Shift+click: добавление к выделению.
-- Rubber-band (drag по пустому месту): выделение прямоугольником. Cytoscape нативно.
-- `Esc`: снятие выделения.
+- Click — одиночный узел; `Shift`+click — добавить к выделению; `Shift`+drag — рамка;
+  `Alt`+click по области — все узлы фракции; `Esc` — снять выделение.
+- Групповой drag делает сама Cytoscape: при захвате выделенного узла она двигает все выделенные.
+  Своей логики перемещения нет — ранняя попытка двигать группу вручную на событиях `drag`
+  конфликтовала со встроенной и давала сильное смещение.
+- После отпускания — сепарация от невыделенных узлов (группа закреплена).
 
-**Drag группы**:
-- При начале drag одного из выделенных узлов — фиксируем относительные позиции всех выделенных.
-- Drag двигает все выделенные, сохраняя `delta_x[i] = node[i].x - draggedNode.x`.
-- Реализация: `cy.on('drag', ...)` → `selectedNodes.forEach(n => n.position(basePos + delta[n.id]))`.
-- После отпускания — сепарация от невыделенных узлов (не между собой, чтобы не разрушить группу).
-
-**Конфликт с Foundry**:
-Граф открывается в `ApplicationV2` поверх сцены, в отдельном `div`.
-Событийная модель Foundry (токены на сцене) и Cytoscape (узлы в graphApp) не пересекаются — разные DOM-поддеревья.
-Пока модальный граф открыт, клики по сцене Foundry заблокированы.
+Граф открывается в `ApplicationV2`, в отдельном DOM-поддереве — события сцены Foundry и
+Cytoscape не пересекаются. Полная схема управления — `docs/controls.md`.
 
 ---
 
-## 7. Импорт FANG JSON
+## 7. Импорт и экспорт
 
-### Парсер: `src/import/fang.ts`
+### FANG: `src/import/fang.ts`
 
-Чистые функции, нет зависимостей от Foundry/DOM — полностью тестируемо в Vitest.
+Чистые функции без зависимостей от Foundry/DOM — полностью тестируется в Vitest.
 
-```typescript
-// src/import/fang.ts
-
-export function parseFangJson(raw: unknown): ParseResult {
-  // валидация верхнего уровня
-  // nodes → GraphNode[] с добавлением scale: 1.0
-  // links → GraphEdge[] с генерацией id, проверкой source/target
-  // factions → Faction[]
-  // relationshipTypes → RelationshipType[]
-  // zones — игнорируем
-  // битые ссылки в links → в warnings[], не бросаем ошибку
-}
-
-interface ParseResult {
-  data: GraphData;
-  warnings: string[];  // битые ссылки, неизвестные поля
-}
-```
-
-**Маппинг полей**:
 | FANG поле | Наше поле | Примечание |
 |-----------|-----------|------------|
 | `id` | `id` | |
@@ -237,20 +203,19 @@ interface ParseResult {
 | `isPlaceholder: true` + `actorId: null` | `type: 'placeholder'` | |
 | `isPlaceholder: false` + `actorId` | `type: 'actor'` | |
 | — | `scale` | дефолт 1.0 |
-| `factionId` | `primaryFactionId` | deprecated field, используем factionIds[0] |
 | `factionIds[0]` | `primaryFactionId` | |
-| `vx`, `vy` | — | сбрасываем, не переносим |
-| `zoneId` | — | игнорируем |
-| `zones[]` | — | игнорируем |
-| `showFactionLines` | — | игнорируем (у нас фон вместо линий) |
+| `img` = заглушка FANG | `img: ''` | свою заглушку подставляет рендер |
+| `vx`, `vy`, `zoneId`, `zones[]`, `showFactionLines` | — | игнорируем |
 
-**Обнаружение "псевдо-placeholder"**: в FANG есть узлы с `isPlaceholder: false` и id начинающимся на `ph-`,
-но с реальным `actorId`. Это просто alias — маппим их как `type: 'actor'`.
+Узлы с `isPlaceholder: false` и id на `ph-` — alias с реальным `actorId`, маппим как `actor`.
+Битые ссылки не бросают ошибку — попадают в `warnings[]`. Полное описание формата —
+[docs/fang-json-format.md](./fang-json-format.md).
 
-**Nodes с `actorId` != `id`** (например `ph-cJE1vbnje3TjgBhO` с `actorId: RFAt0Lri14I8tRTR`):
-Это «именованные» узлы с привязкой к актёру. Сохраняем оба id, `type: 'actor'`.
+### Собственный формат: `src/import/native.ts`
 
-Полное описание формата входного файла — в [docs/fang-json-format.md](./fang-json-format.md).
+`{ format: "fvtt-relationship-graph", version, exportedAt, data: GraphData }` — экспорт без
+потерь. `parseGraphFile` различает форматы по маркеру `format`. Описание —
+[docs/graph-json-format.md](./graph-json-format.md).
 
 ---
 
@@ -258,76 +223,72 @@ interface ParseResult {
 
 ```
 src/
-├── core/
-│   ├── model.ts          # типы GraphNode, GraphEdge, Faction, GraphData
-│   ├── graph-state.ts    # мутации состояния: addNode, removeEdge, moveFaction...
-│   ├── layout.ts         # параметры fcose, локальная сепарация (pure functions)
-│   └── selection.ts      # логика выделения, groupScale, groupMove
+├── main.ts                 # точка входа Vite → foundry/index.ts
+├── core/                   # чистая логика, без Foundry и DOM
+│   ├── model.ts            # типы данных
+│   ├── graph-state.ts      # immutable-мутации: узлы, связи, фракции, групповое удаление
+│   ├── edit.ts             # применение значений форм, заготовки узла/связи
+│   ├── conditions.ts       # справочник состояний (встроенные + свои)
+│   ├── relationship-types.ts # справочник типов связей, стили линий
+│   ├── layout.ts           # сепарация наложений
+│   ├── selection.ts        # групповой scale
+│   ├── hit-test.ts         # попадание в область фракции, координаты
+│   ├── decor.ts            # что рисовать на узле (имя, роль, значки)
+│   ├── label-layout.ts     # раздвигание подписей связей
+│   ├── describe.ts         # карточки информации (узел, связь, фракция)
+│   ├── visibility.ts       # флаги hidden/gmOnly, маскировка «неизвестного»
+│   ├── permissions.ts      # что можно игроку
+│   ├── history.ts          # отмена/повтор
+│   └── plural.ts           # русское согласование чисел
 │
 ├── import/
-│   └── fang.ts           # parseFangJson() → ParseResult (no Foundry deps)
+│   ├── fang.ts             # parseFangJson()
+│   ├── native.ts           # свой формат: экспорт, импорт, распознавание
+│   └── json-helpers.ts     # мягкое чтение полей JSON
 │
 ├── foundry/
-│   ├── index.ts          # Hooks.on('init'), регистрация модуля и точки входа
-│   ├── settings.ts       # game.settings.register (настройки UI, не GraphData)
-│   ├── actors.ts         # Actor.get(), синхронизация img/name с актёрами
-│   └── storage.ts        # save/load GraphData через JournalEntry
+│   ├── index.ts            # хуки init/ready/userConnected, кнопка во вкладке Actors
+│   ├── settings.ts         # MODULE_ID, точка расширения для game.settings
+│   ├── actors.ts           # синхронизация img/name с актёрами
+│   ├── storage.ts          # save/load GraphData во флаге JournalEntry
+│   └── edit-lock.ts        # блокировка редактирования (один редактор)
 │
 └── ui/
-    ├── GraphApp.ts        # class GraphApp extends ApplicationV2
-    ├── graph-renderer.ts  # инициализация Cytoscape, стили, event wiring
-    ├── interaction.ts     # drag, resize (scale), rubber-band, context menu
-    └── panels/
-        ├── NodePanel.ts   # боковая панель редактирования узла
-        ├── EdgePanel.ts   # панель редактирования связи
-        └── ImportDialog.ts # диалог импорта FANG JSON
+    ├── GraphApp.ts         # ApplicationV2: верхняя панель, меню, панели, режимы, история
+    ├── graph-renderer.ts   # инициализация Cytoscape, стили
+    ├── interaction.ts      # мышь и клавиатура
+    ├── node-decor.ts       # HTML-слой: имя, роль, значки, окольцовка скрытых
+    ├── edge-labels.ts      # размещение подписей связей
+    ├── overlays.ts         # контекстное меню, карточка информации
+    ├── idle-timer.ts       # таймаут бездействия редактора
+    └── panels/             # боковые панели: узел, связь, фракции, типы связей,
+                            # состояния, импорт/экспорт; form.ts — общие элементы форм
 
-tests/
-├── mocks/
-│   └── foundry.ts        # моки game, Hooks, Actor
-├── import/
-│   └── fang.test.ts      # тесты парсера FANG
-├── core/
-│   ├── layout.test.ts    # тесты сепарации, коллизий
-│   └── selection.test.ts # тесты groupScale, groupMove
-└── fixtures/
-    └── fang.json         # копия тестовых данных
+tests/                      # Vitest: core/, import/, foundry/ (с моками), ui/idle-timer
+├── mocks/foundry.ts        # моки game, Hooks, ui, JournalEntry
+└── fixtures/fang.json      # урезанный экспорт FANG
 ```
 
 ### Точка входа для пользователя
 
-Пользователь открывает граф через кнопку внизу вкладки Actors в сайдбаре Foundry.
-Кнопка добавляется через `Hooks.on('renderActorDirectory', ...)` в `src/foundry/index.ts` —
-хук отдаёт `HTMLElement` корня directory-приложения, кнопка вставляется в `.directory-footer`.
-Клик по кнопке открывает (повторный клик — закрывает) `GraphApp`.
+Кнопка внизу вкладки Actors в сайдбаре Foundry (`Hooks.on('renderActorDirectory', ...)`,
+вставка в `.directory-footer`). Клик открывает (повторный — закрывает) `GraphApp`. `GraphApp`
+грузится лениво (`import()`): Cytoscape + fcose весят ~900 KB, незачем тянуть их при каждом
+старте мира.
 
-Изначально кнопка была в Scene Controls (`Hooks.on('getSceneControlButtons', ...)`), но в
-реальном Foundry она не открывала окно и не давала ошибок в консоли — вероятно, структура
-`controls.tokens.tools` в рантайме v13 не совпадала с ожидаемой (в доках и на форумах
-встречаются расхождения между v13/v14). Перенесено на `renderActorDirectory` по прямому
-запросу — заодно это более надёжный hook: `html` там всегда конкретный `HTMLElement`
-рендернутого directory-приложения, без вложенной структуры контролов, которую сложно
-проверить не отходя от живого Foundry.
+Изначально кнопка была в Scene Controls (`getSceneControlButtons`), но в реальном Foundry v13
+окно не открывалось без ошибок в консоли; `renderActorDirectory` надёжнее — `html` там всегда
+конкретный `HTMLElement`.
 
 ### Почему такое разделение
 
-**`core/` не зависит от Foundry**:
-- Логику сепарации узлов, вычисление scale для группы, маппинг данных можно
-  тестировать в чистом Vitest без jsdom и без моков Foundry.
-- Если Foundry API изменится в v14 — правим только `foundry/`, не трогаем `core/`.
+- **`core/` не зависит от Foundry** — логику можно тестировать в чистом Vitest; при изменении
+  Foundry API правится только `foundry/`.
+- **`import/` отдельно от `core/`** — только он знает о чужих форматах.
+- **`ui/` зависит от `core/` и `foundry/`** — только wiring событий, без бизнес-логики.
 
-**`import/` отдельно от `core/`**:
-- Парсер FANG — единственный код, знающий о чужом формате.
-- Изолирован: в тестах подаём raw JSON, проверяем ParseResult.
-- При добавлении импорта из другого источника — добавляем `src/import/other.ts`.
-
-**`ui/` зависит от `core/` и `foundry/`**:
-- `GraphApp` получает данные через `storage.ts`, рендерит через `graph-renderer.ts`.
-- UI не содержит бизнес-логики — только wiring событий.
-
-**Что тестируется без Foundry**: `core/*`, `import/*` — чистые функции.
-**Что тестируется с моками**: `foundry/actors.ts`, `foundry/storage.ts`.
-**Что не покрывается юнит-тестами**: `ui/` (рендер Cytoscape) — e2e или ручное тестирование.
+**Тестируется без Foundry**: `core/*`, `import/*`. **С моками**: `foundry/*`.
+**Не покрывается юнит-тестами**: рендер Cytoscape в `ui/` — проверяется вручную в Foundry.
 
 ---
 
@@ -336,172 +297,131 @@ tests/
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                    Foundry VTT Runtime                  │
-│  game.actors  game.settings  Hooks  ApplicationV2  etc. │
+│  game.actors  game.users  Hooks  ApplicationV2  etc.    │
 └────────────────────────┬────────────────────────────────┘
                          │
 ┌────────────────────────▼────────────────────────────────┐
 │                   src/foundry/                          │
 │   index.ts  settings.ts  actors.ts  storage.ts          │
-│   (интеграция с Foundry API, сохранение/загрузка)       │
+│   edit-lock.ts                                          │
 └──────┬─────────────────────────────────────┬────────────┘
        │                                     │
 ┌──────▼──────────┐                 ┌────────▼────────────┐
 │   src/import/   │                 │      src/ui/        │
 │   fang.ts       │                 │  GraphApp           │
-│   (парсер FANG) │                 │  graph-renderer.ts  │
+│   native.ts     │                 │  graph-renderer.ts  │
 └──────┬──────────┘                 │  interaction.ts     │
-       │                            │  panels/            │
+       │                            │  panels/  ...       │
        │        ┌───────────────────┤                     │
        │        │                   └─────────────────────┘
        ▼        ▼
 ┌──────────────────────────────────────────────────────────┐
-│                      src/core/                          │
-│   model.ts  graph-state.ts  layout.ts  selection.ts     │
-│   (чистая логика, нет зависимостей от Foundry/DOM)      │
+│                      src/core/                           │
+│   model  graph-state  edit  layout  selection  history   │
+│   visibility  permissions  describe  decor  ...          │
+│   (чистая логика, нет зависимостей от Foundry/DOM)       │
 └──────────────────────────────────────────────────────────┘
-       ▲
-┌──────┴──────────────────────────────────────────────────┐
-│                      tests/                             │
-│   import/fang.test.ts  core/*.test.ts                   │
-│   (Vitest, без jsdom для core/import)                   │
-└─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## 9. Тестирование layout: только в браузере
 
-Cytoscape.js — браузерная библиотека: расчёт размеров узлов (`outerWidth()`/`outerHeight()`)
-опирается на применённые CSS-стили. В headless-окружении (Node.js/Vitest без реального рендера)
-стили не применяются, и все узлы получают вырожденный размер 1×1px — это ломает layout-алгоритмы,
-завязанные на реальный размер узлов (подробности — в разделе 10).
+Cytoscape.js — браузерная библиотека: расчёт размеров узлов опирается на применённые CSS-стили.
+В headless-окружении (Node.js/Vitest) стили не применяются, и все узлы получают вырожденный
+размер 1×1px — это ломает layout-алгоритмы (§10, F1).
 
-Поэтому layout (fcose, compound nodes, сепарация с учётом `scale`) нельзя проверить юнит-тестами.
-Единственный способ — открыть спайк в настоящем браузере через `spikes/` (см. [spikes/README.md](../spikes/README.md)),
-например:
-
-```
-npx serve -p 8080
-# затем открыть http://localhost:8080/spikes/spike-layout.html
-```
-
-Юнит-тестами (Vitest) покрываются только чистые вычисления без рендера: `core/*`, `import/*`.
+Поэтому layout (fcose, compound nodes, сепарация с учётом `scale`) проверяется только вручную
+в Foundry. Юнит-тестами покрываются чистые вычисления без рендера: `core/*`, `import/*`
+(в том числе сама сепарация на кругах).
 
 ---
 
 ## 10. Результаты spike S1
 
-### Что проверяли
-
 S1 проверял: fcose + compound nodes (фракции как parent-узлы) + узлы с разным `scale` (0.5–3.0).
-Тестировались: fcose, cose-bilkent, cola — с compound nodes и без.
-Файлы: `spikes/spike-layout.html`, `spikes/spike-layout-check.mjs`.
+Тестировались fcose, cose-bilkent, cola — с compound nodes и без.
 
-### Находки
+**F1: Compound nodes → crash в Node.js headless.** `cose-base.shiftToLastRow` падает на любом
+compound node: в headless-режиме все узлы 1×1px, алгоритм tiling получает вырожденный случай.
+Затронуты fcose и cose-bilkent (общая `cose-base`); `cola` с compound nodes уходит в OOM.
 
-**F1: Compound nodes → crash в Node.js headless**
-`cose-base.shiftToLastRow` падает с `TypeError: Cannot read properties of undefined (reading 'length')`
-при любом compound node (воспроизводится на 1 фракции + 2 дочерних узла).
-Причина: в headless-режиме Cytoscape не вычисляет CSS-стили, все узлы = 1×1px,
-алгоритм tiling получает вырожденный случай.
-Затронуты: **fcose** и **cose-bilkent** (оба используют одну и ту же `cose-base`).
-`cola` с compound nodes падает в OOM (бесконечный цикл).
+**F2: Layouts не учитывают размер узлов.** Ни fcose, ни cose-bilkent не включают `width`/`height`
+в расчёт сил отталкивания. Повышение `nodeRepulsion` не устраняет наложения крупных узлов.
 
-**F2: Layouts не учитывают размер узлов**
-Ни fcose, ни cose-bilkent не включают `width`/`height` в расчёт сил отталкивания —
-они работают чисто топологически. Повышение `nodeRepulsion` не устраняет оверлапы крупных узлов.
+**F3: Post-layout separation pass решает задачу.** Итеративное раздвигание (push-apart) даёт
+0 наложений, работает headlessly и не зависит от layout-движка. Покрывает initial layout, drag,
+resize.
 
-**F3: Post-layout separation pass решает задачу**
-Flat layout (без compound) + итеративный алгоритм раздвигания (push-apart) даёт 0 оверлапов.
-Работает headlessly и не зависит от layout-движка. Покрывает случаи: initial layout, drag, resize.
+**F4: Compound nodes в браузере работают корректно.** Layout не падает, fcose кластеризует
+узлы по фракциям, 0 наложений на всём диапазоне `scale`.
 
-**F4: Compound nodes в браузере — проверено, работают корректно**
-Ручная проверка `spikes/spike-layout.html` в браузере: layout не падает, fcose кластеризует
-узлы по фракциям, статус PASS (0 наложений) на всём диапазоне `scale` (0.5–3.0).
-В браузере CSS-стили применяются, `outerWidth()`/`outerHeight()` возвращают реальные размеры —
-вырожденный случай из F1 (headless) здесь не воспроизводится.
-
-**Решение**: используем compound nodes для layout (Вариант B). Раньше это было открытым
-вопросом Q1 — закрыт по результатам ручной проверки в браузере.
+**Решение**: compound nodes для фракций + отдельный проход сепарации.
 
 ---
 
 ## 11. Известные риски и ограничения
 
-**R1: Compound nodes + multi-faction**
-Узел не может иметь двух parent в Cytoscape. В тестовых данных большинство узлов в одной фракции,
-но требование хранить `factionIds[]` существует. При импорте берём `factionIds[0]` как primary,
-остальные отображаем как бейдж. Это осознанное ограничение, не баг.
+**R1: Compound nodes + multi-faction.** Узел не может иметь двух parent в Cytoscape: основная
+фракция — область, остальные — ромбики. Осознанное ограничение, не баг.
 
-**R2: ~~fcose и кастомные scale~~ — закрыт по результатам S1**
-Проверено: fcose не учитывает реальные размеры узлов при расчёте сил отталкивания.
-Overlap prevention обеспечивается через post-layout separation pass. См. раздел 10.
+**R2: Безопасность данных.** Граф хранится во флаге журнала, открытого игрокам на запись
+(`ownership.default = OWNER`), чтобы игроки могли сохранять правки. Следствия:
+- скрытые узлы, заметки GM и связи «только GM» маскируются только при отрисовке — через консоль
+  браузера игрок может прочитать полный граф;
+- права игрока и блокировка редактирования соблюдаются интерфейсом модуля; запись в журнал через
+  консоль они не запрещают.
 
-**R3: Bundle size**
-Cytoscape.js (core) + fcose extension суммарно ~400 KB после gzip ~120 KB.
-Для Foundry это нормально (сам PIXI.js в Foundry Core весит несколько MB).
+Закрыть это можно только отдельным хранилищем для GM-данных и записью через GM по сокету.
 
-**R4: ApplicationV2 API**
-Foundry v13 переходит на `ApplicationV2` — нужно убедиться, что API стабилизировалось.
-FANG использует старый `Application` API. Если `ApplicationV2` имеет проблемы — fallback на `Application`.
+**R3: Bundle size.** Cytoscape.js + fcose ~900 KB без gzip; грузятся лениво, только при
+открытии графа.
 
-**R5: Drag группы и Cytoscape**
-Cytoscape нативно не поддерживает drag нескольких узлов с сохранением относительных позиций.
-Нужно написать кастомный обработчик. Сложность: не входит в конфликт со встроенным drag отдельного узла.
-**Spike**: реализовать multi-drag для 5-10 узлов, проверить производительность и артефакты.
+**R4: Layout не тестируется headlessly** (§9) — только вручную в Foundry.
 
-**R6: ~~Compound nodes не проверены в реальном браузере~~ — закрыт**
-Headless-тесты с compound nodes падают (F1), но ручная проверка в браузере (F4) подтвердила
-корректную работу: кластеризация по фракциям, 0 наложений. Compound nodes остаются в layout
-(Вариант B). Ограничение по-прежнему в силе: не тестируется headlessly, только вручную через
-`spikes/`.
+**R5: Миграции данных.** Версии схемы в хранилище нет: сохранённый граф приводится к текущей
+модели `ensure*`-функциями при загрузке. У файла экспорта версия есть (`version`).
 
-**R7: ~~Cytoscape крашит внутри Foundry~~ — закрыт патчем**
-Обнаружено при S4: Foundry VTT замораживает `Array.prototype.equals` (`writable: false,
-configurable: false`, часть ядра Foundry). Cytoscape расширяет `Collection.prototype`
-(наследник `Array.prototype`) через `Object.assign`-подобную функцию `extend()` и среди прочего
-пытается задать алиас `equals` — обычное присваивание уважает цепочку прототипов и падает на
-non-writable унаследованном свойстве (`TypeError: Cannot assign to read only property 'equals'`).
-Это ломало не только спайк, а вообще любое использование Cytoscape внутри страницы Foundry.
+**R7: ~~Cytoscape крашит внутри Foundry~~ — закрыт патчем.**
+Foundry VTT замораживает `Array.prototype.equals` (`writable: false, configurable: false`).
+Cytoscape расширяет `Collection.prototype` (наследник `Array.prototype`) через функцию `extend()`
+и среди прочего задаёт алиас `equals` — обычное присваивание уважает цепочку прототипов и падает
+на non-writable унаследованном свойстве (`TypeError: Cannot assign to read only property 'equals'`).
 
-Исправлено патчем через `patch-package` (`patches/cytoscape+3.34.3.patch`): функция `extend()` в
-`node_modules/cytoscape/dist/cytoscape.esm.mjs` переписана на `Object.defineProperty` вместо
-прямого присваивания — так всегда создаётся собственное свойство, минуя ограничение прототипа.
-`postinstall: patch-package` в `package.json` переустанавливает патч после `npm install`.
-Патч точечный (одна функция), но привязан к конкретной версии cytoscape — при апдейте версии
-патч нужно будет перегенерировать (`npx patch-package cytoscape`) и проверить, что применяется.
+Исправлено патчем через `patch-package` (`patches/cytoscape+3.34.3.patch`): `extend()` в
+`node_modules/cytoscape/dist/cytoscape.esm.mjs` переписана на `Object.defineProperty`.
+`postinstall: patch-package` переустанавливает патч после `npm install`. Патч привязан к версии
+cytoscape — при обновлении его нужно перегенерировать (`npx patch-package cytoscape`).
 
 ---
 
 ## 12. Что не делаем
 
-- **Zones и квесты**: убраны из скоупа (FANG-узлы `zones[]` игнорируются при импорте).
+- **Zones и квесты**: убраны из скоупа (FANG `zones[]` игнорируются при импорте).
 - **Экспорт в FANG-формат**: только экспорт в собственный формат модуля.
 - **Несколько графов в одной кампании**: один граф на кампанию.
-- **Real-time sync между клиентами**: отложено, не в MVP — см. docs/tasks.md.
 
 ---
 
 ## 13. Дополнительные принятые решения
 
-1. **Zones**: игнорируем при импорте, зоны в новом модуле не нужны.
+1. **Множественные фракции**: основная фракция — фоновый compound node, дополнительные — ромбики
+   цвета фракции (не больше трёх значков, при большем числе — «+»).
 
-2. **Множественные фракции**: primary faction (`factionIds[0]`) — фоновый compound node.
-   Дополнительные фракции — ромб цвета фракции поверх иконки узла.
-   Полный список фракций — в панели деталей (двойной клик по узлу).
+2. **Сохранение**: `JournalEntry` «Relationship Graph Data», граф — во флаге.
 
-3. **Сохранение**: `JournalEntry` с самого начала, без лимита по размеру.
+3. **Права и видимость** (`core/permissions.ts`, `core/visibility.ts`):
+   - игрок с обычными узлами и связями может то же, что GM; `gmOnly`-узлы, флаги видимости,
+     заметки GM, привязка к актёру и справочники (кроме описания фракции) — только GM;
+   - `hidden`-узел игроку виден как «неизвестный» (заглушка, без имени и сведений), у GM — как есть,
+     с градиентной окольцовкой; `hidden` всегда включает `gmOnly`;
+   - связь `gmOnly` игроку не показывается.
 
-4. **Player view**: игроки и GM видят один и тот же граф.
-   Разница только в доступе: у GM есть поле `gmNotes` на каждом узле и отдельный тип связи
-   `gmOnly: true`, который не отображается у игроков (рисуется пунктирной линией, видна только GM).
-   Отдельного «режима игрока» нет.
-   Флаги узла (`core/visibility.ts`): `hidden` — игрокам узел рисуется как «неизвестный» (заглушка
-   вместо картинки, без имени и сведений), у GM — как есть; `gmOnly` — узел правит только GM.
-   `hidden` всегда включает `gmOnly`. Маскировка делается при отрисовке (`isMasked`), в сохранённых
-   данных узел полный — это не защита от чтения данных через консоль.
+4. **Совместная работа**: граф открывается в режиме просмотра, редактор один — блокировка
+   `editLock` на журнале-хранилище (`foundry/edit-lock.ts`). Держатель не в сети — блокировка
+   свободна. Сохранения редактора доходят до остальных хуком `updateJournalEntry`, их граф
+   перерисовывается с сохранением вида. Выход из режима: кнопкой, закрытием окна, выходом из мира,
+   5 минутами бездействия.
 
-5. **Совместная работа** (B15): граф открывается в режиме просмотра, редактор один —
-   блокировка `editLock` на журнале-хранилище (`foundry/edit-lock.ts`). Сохранения редактора
-   доходят до остальных хуком `updateJournalEntry`, их граф перерисовывается с сохранением вида.
-   Правило «последний сохранивший побеждает» больше не нужно.
+5. **Отмена/повтор**: стек снимков `GraphData` на 30 шагов (`core/history.ts`), только в пределах
+   сеанса редактирования; отмена сохраняется и рассылается как обычное изменение.

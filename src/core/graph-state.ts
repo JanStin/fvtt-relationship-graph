@@ -53,7 +53,7 @@ export function removeEdge(data: GraphData, edgeId: string): GraphData {
 }
 
 /**
- * Удаляет несколько узлов и связей одним шагом (Delete по выделению, B16): у узлов каскадно
+ * Удаляет несколько узлов и связей одним шагом (Delete по выделению): у узлов каскадно
  * уходят и их связи. Неизвестные id молча пропускаются.
  */
 export function removeElements(

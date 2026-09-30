@@ -20,13 +20,10 @@ declare const ui: any;
 declare const foundry: any;
 
 Hooks.once("init", () => {
-  console.log(`${MODULE_ID} | init`);
   registerSettings();
 });
 
 Hooks.once("ready", () => {
-  console.log(`${MODULE_ID} | ready`);
-  ui.notifications?.info("Relationship Graph loaded");
   // Блокировка редактирования на нас осталась от прошлого сеанса (перезагрузка страницы
   // посреди редактирования) — окна графа сейчас точно нет, снимаем.
   if (game.user) void releaseEditLock(game.user.id).catch(logLockError);

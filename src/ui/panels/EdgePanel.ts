@@ -18,7 +18,7 @@ export interface EdgePanelCallbacks {
 export interface EdgePanelOptions {
   /** true — связь ещё не создана: появится только после сохранения, кнопки удаления нет. */
   isNew?: boolean;
-  /** Игрок не видит флажок «Видна только GM» (удалять связи может, B14). */
+  /** Игрок не видит флажок «Видна только GM» (удалять связи может). */
   isGM: boolean;
 }
 

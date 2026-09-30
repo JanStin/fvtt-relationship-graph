@@ -6,7 +6,7 @@
  * Области фракций "прозрачны" для мыши (events: no + selectable/grabbable: false): клик по
  * области ведёт себя как клик по пустому месту (панорамирование), а попадание в область
  * interaction.ts определяет сам через core/hit-test.ts.
- * Стили/layout взяты из проверенных spikes/spike-layout.html и spikes/spike-resize.html.
+ * Стили/layout проверены спайками S1/S3 (docs/architecture.md §10).
  */
 
 import cytoscape from "cytoscape";
@@ -47,11 +47,11 @@ const GM_ONLY_DASH = [6, 3];
 export const FACTION_SELECTED_CLASS = "faction-selected";
 
 export interface RenderOptions {
-  /** false — режим просмотра (B15): узлы не перетаскиваются вовсе. */
+  /** false — режим просмотра: узлы не перетаскиваются вовсе. */
   editable: boolean;
   /**
    * GM видит gmOnly-связи (пунктиром), игрокам они не рисуются вовсе; hidden-узел игроку
-   * рисуется картинкой-заглушкой — architecture.md §13. gmOnly-узлы игрок не двигает (B14).
+   * рисуется картинкой-заглушкой — architecture.md §13. gmOnly-узлы игрок не двигает.
    */
   isGM: boolean;
 }
@@ -73,7 +73,7 @@ function buildElements(data: GraphData, options: RenderOptions): cytoscape.Eleme
 
   data.nodes.forEach((node) => {
     const size = BASE_SIZE * node.scale;
-    // Узел, который пользователь не может трогать (у игрока — gmOnly, B14): не перетаскивается,
+    // Узел, который пользователь не может трогать (у игрока — gmOnly): не перетаскивается,
     // в том числе в группе выделенных; interaction.ts по флагу pinned не ресайзит его и не
     // сдвигает сепарацией.
     const pinned = !canEditNode(node, options.isGM);
@@ -85,8 +85,8 @@ function buildElements(data: GraphData, options: RenderOptions): cytoscape.Eleme
         scale: node.scale,
         size,
         pinned,
-        // Заглушка — только при пустом пути; битую ссылку не подменяем (tasks.md, B1).
-        // Скрытый узел игроку всегда рисуется заглушкой (B13).
+        // Заглушка — только при пустом пути; битую ссылку не подменяем.
+        // Скрытый узел игроку всегда рисуется заглушкой.
         img: (isMasked(node, options.isGM) ? "" : node.img) || DEFAULT_NODE_IMG,
       },
       position: { x: node.x, y: node.y },

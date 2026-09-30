@@ -1,11 +1,10 @@
 /**
- * ApplicationV2-оболочка для графа. Структурно повторяет проверенный
- * spikes/spike-foundry-app.ts (S4), но грузит реальные данные вместо фикстуры:
+ * ApplicationV2-оболочка для графа (подход проверен спайком S4, docs/architecture.md). Поток данных:
  * storage.loadGraphData() -> actors.syncNodesWithActors() -> graph-renderer.renderGraph()
  * -> interaction.setupInteraction() (мышь/клавиши, см. interaction.ts и docs/controls.md).
  * Контекстное меню и карточку информации (overlays.ts) наполняет этот класс.
  *
- * Совместная работа (tasks.md, B15): граф открывается в режиме просмотра. Кнопка
+ * Совместная работа: граф открывается в режиме просмотра. Кнопка
  * «Редактировать» берёт блокировку (foundry/edit-lock.ts) — редактор один на всех. Каждое его
  * сохранение приходит остальным хуком updateJournalEntry, и их граф перерисовывается с
  * сохранением вида, выделения, карточки и открытого списка.
@@ -80,7 +79,7 @@ declare const game: any;
 declare const ui: any;
 declare const Hooks: any;
 
-/** Через сколько минут полного бездействия редактор выходит из режима (решено в B15). */
+/** Через сколько минут полного бездействия редактор выходит из режима. */
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
 const EMPTY_GRAPH: GraphData = ensureDefaultRelationshipTypes({
@@ -123,14 +122,14 @@ export class GraphApp extends ApplicationV2 {
   /** Актуальный полный граф (с синхронизированными актёрами) — источник для персиста позиций/scale. */
   #currentData: GraphData | null = null;
 
-  /** Режим редактирования (B15): этот клиент держит блокировку. */
+  /** Режим редактирования: этот клиент держит блокировку. */
   #editing = false;
   #idleTimer: IdleTimer | null = null;
   #editButton: HTMLButtonElement | null = null;
   #undoButton: HTMLButtonElement | null = null;
   #redoButton: HTMLButtonElement | null = null;
   #importControl: ImportControl | null = null;
-  /** История отмены/повтора (B17) — только на время сеанса редактирования. */
+  /** История отмены/повтора — только на время сеанса редактирования. */
   #history = new GraphHistory();
   /** Следующее сохранение позиций — часть предыдущего шага истории (см. #settle). */
   #mergeNextStep = false;
@@ -165,12 +164,12 @@ export class GraphApp extends ApplicationV2 {
       return element;
     };
 
-    // Отмена/повтор (B17) — доступны в режиме редактирования, когда есть что отменять/повторять.
+    // Отмена/повтор — доступны в режиме редактирования, когда есть что отменять/повторять.
     this.#undoButton = button("fa-rotate-left", "Отменить (Ctrl+Z)", () => void this.#undo());
     this.#redoButton = button("fa-rotate-right", "Повторить (Ctrl+Y)", () => void this.#redo());
     toolbar.append(group(this.#undoButton, this.#redoButton));
 
-    // Справочники (B20) — всем и в любом режиме; что в них можно менять, решают сами списки.
+    // Справочники — всем и в любом режиме; что в них можно менять, решают сами списки.
     toolbar.append(
       group(
         button("fa-flag", "Фракции", () => this.#openFactionList()),
@@ -179,7 +178,7 @@ export class GraphApp extends ApplicationV2 {
       ),
     );
 
-    // Импорт и экспорт — только GM (B18), справа. Импорт — только в режиме редактирования.
+    // Импорт и экспорт — только GM, справа. Импорт — только в режиме редактирования.
     if (this.#isGM) {
       this.#importControl = createImportControl({
         onImported: (data) => {
@@ -230,13 +229,13 @@ export class GraphApp extends ApplicationV2 {
   // здесь только персист + перерисовка уже распарсенных данных.
   async #importAndDisplay(data: GraphData): Promise<void> {
     if (!this.#editing || !this.#isGM) return;
-    // шаг истории, как любая правка: импорт отменяется Ctrl+Z (B17)
+    // шаг истории, как любая правка: импорт отменяется Ctrl+Z
     await this.#commit(data);
     this.#cy?.fit(undefined, 30);
   }
 
   /**
-   * Экспорт в собственный формат (B18): граф целиком, со скрытыми данными — кнопка есть
+   * Экспорт в собственный формат: граф целиком, со скрытыми данными — кнопка есть
    * только у GM. Работает и в режиме просмотра.
    */
   #exportToFile(): void {
@@ -247,7 +246,7 @@ export class GraphApp extends ApplicationV2 {
   }
 
   // ---------------------------------------------------------------------------------------
-  // Отмена/повтор (B17) и удаление по Delete (B16)
+  // Отмена/повтор и удаление по Delete
 
   async #undo(): Promise<void> {
     if (!this.#editing || !this.#currentData) return;
@@ -293,7 +292,7 @@ export class GraphApp extends ApplicationV2 {
   }
 
   // ---------------------------------------------------------------------------------------
-  // Совместная работа (B15)
+  // Совместная работа
 
   #registerHooks(): void {
     if (this.#hooks.length > 0) return;
@@ -395,7 +394,7 @@ export class GraphApp extends ApplicationV2 {
 
   #setEditing(editing: boolean): void {
     this.#editing = editing;
-    // История — на один сеанс редактирования (B17)
+    // История — на один сеанс редактирования
     this.#history.clear();
     this.#idleTimer?.stop();
     this.#idleTimer = null;
@@ -482,7 +481,7 @@ export class GraphApp extends ApplicationV2 {
   }
 
   /**
-   * Что можно игроку — core/permissions.ts (B14): обычные узлы и связи он правит, создаёт и
+   * Что можно игроку — core/permissions.ts: обычные узлы и связи он правит, создаёт и
    * удаляет наравне с GM; gmOnly-узлы, флаги видимости, заметки GM, привязка к актёру и
    * справочники (кроме описания фракции) — только GM. Для этого журнал-хранилище открыт
    * игрокам на запись (foundry/storage.ts).
@@ -532,7 +531,7 @@ export class GraphApp extends ApplicationV2 {
 
   /**
    * Сохраняет изменённый граф и перерисовывает его, не сбрасывая zoom/pan. Только в режиме
-   * редактирования. Каждый commit — шаг истории (B17), кроме самих отмены/повтора (record: false).
+   * редактирования. Каждый commit — шаг истории, кроме самих отмены/повтора (record: false).
    */
   async #commit(data: GraphData, { record = true } = {}): Promise<void> {
     if (!this.#editing) return;
@@ -696,7 +695,7 @@ export class GraphApp extends ApplicationV2 {
 
   /**
    * Список всех фракций — единственный путь к фракции без узлов: её на графе нет. Игрок видит
-   * список и правит описание (B14). Дополнительные фракции скрытых узлов игроку в счёт не идут.
+   * список и правит описание. Дополнительные фракции скрытых узлов игроку в счёт не идут.
    */
   #openFactionList(): void {
     const data = this.#currentData;
@@ -769,7 +768,7 @@ export class GraphApp extends ApplicationV2 {
   }
 
   /**
-   * Справочник состояний: встроенные + свои. Правит только GM, игрок видит список (B14).
+   * Справочник состояний: встроенные + свои. Правит только GM, игрок видит список.
    * Состояния скрытых узлов игроку в счёт не идут — их значков он не видит.
    */
   #openConditionList(): void {
@@ -893,7 +892,7 @@ export class GraphApp extends ApplicationV2 {
     await this.#commit(removeEdge(this.#currentData, edgeId));
   }
 
-  /** В режиме просмотра (B15) остаются только пункты, которые ничего не меняют. */
+  /** В режиме просмотра остаются только пункты, которые ничего не меняют. */
   #openContextMenu(target: GraphTarget, client: Point): void {
     const items: MenuItem[] = [];
     const editing = this.#editing;
@@ -901,7 +900,7 @@ export class GraphApp extends ApplicationV2 {
     if (target.kind === "node") {
       const nodeId = target.id;
       const node = this.#currentData?.nodes.find((n) => n.id === nodeId);
-      // gmOnly-узел игрок не правит и не ресайзит (B14)
+      // gmOnly-узел игрок не правит и не ресайзит
       const editable = editing && node !== undefined && canEditNode(node, this.#isGM);
       items.push({ label: "Информация", onSelect: () => this.#openInfo(target, client) });
       if (editable) items.push({ label: "Редактировать", onSelect: () => this.#openNodePanel(nodeId) });
@@ -983,7 +982,7 @@ export class GraphApp extends ApplicationV2 {
   }
 
   async close(options?: unknown): Promise<this> {
-    // Закрыл окно в режиме редактирования — вышел из режима (B15).
+    // Закрыл окно в режиме редактирования — вышел из режима.
     if (this.#editing) {
       this.#setEditing(false);
       const userId: string | undefined = game.user?.id;

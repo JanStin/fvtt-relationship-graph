@@ -2,7 +2,7 @@
  * Чистая логика раздвигания перекрывающихся узлов (post-layout separation pass).
  * Не зависит от Cytoscape — работает с обычными кругами (id/x/y/radius), см. docs/architecture.md §4/§10.
  *
- * Найдено в spike S1 (spikes/spike-layout-check.mjs): ни fcose, ни cose-bilkent не учитывают
+ * Найдено в спайке S1: ни fcose, ни cose-bilkent не учитывают
  * реальный размер узлов при расчёте сил отталкивания, поэтому наложения крупных узлов
  * устраняет только отдельный проход после layout — не сам layout-движок.
  */
@@ -84,9 +84,9 @@ function pushDirection(dx: number, dy: number, fallbackSeed: number): { ux: numb
  * Итеративно раздвигает пересекающиеся круги. Не мутирует вход — возвращает новые позиции.
  * Поведение (проверено спайками):
  *  - оба круга подвижны → каждый уходит на половину глубины пересечения (симметрично,
- *    как в spikes/spike-layout-check.mjs — постобработка после автоматического layout);
+ *    как в спайке S1 — постобработка после автоматического layout);
  *  - один закреплён (anchoredIds) → вся коррекция уходит на подвижный
- *    (как в spikes/spike-resize.html — после ручного drag/resize).
+ *    (как в спайке S3 — после ручного drag/resize).
  */
 export function separateOverlaps(
   circles: readonly PositionedCircle[],

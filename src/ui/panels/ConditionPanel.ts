@@ -1,6 +1,6 @@
 /**
  * Панели справочника состояний: список и форма одного состояния. Правит только GM, игрок
- * видит список только для чтения (B14).
+ * видит список только для чтения.
  * Устроены как панели фракций (FactionPanel.ts): только DOM, логика — core/conditions.ts.
  * Встроенные состояния показаны в списке, но не редактируются.
  */
@@ -26,7 +26,7 @@ export function createConditionListPanel(
   /** Сколько узлов имеют это состояние. */
   usageCount: (conditionId: string) => number,
   callbacks: ConditionListCallbacks,
-  /** false — список только для чтения: у игрока (B14) и в режиме просмотра (B15). */
+  /** false — список только для чтения: у игрока и в режиме просмотра. */
   options: { editable: boolean },
 ): HTMLElement {
   const element = document.createElement("div");

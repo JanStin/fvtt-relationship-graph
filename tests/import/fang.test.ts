@@ -1,7 +1,5 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { FANG_PLACEHOLDER_IMG, parseFangJson } from "../../src/import/fang";
+import { parseFangJson } from "../../src/import/fang";
 import fixture from "../fixtures/fang.json";
 
 describe("parseFangJson", () => {
@@ -23,7 +21,7 @@ describe("parseFangJson", () => {
     expect(node).toMatchObject({
       type: "actor",
       actorId: "m7jLJG6ULwiqR6m8",
-      name: "Артадель",
+      name: "Эльдрин",
       scale: 1.0,
       primaryFactionId: "8WANCvHmci3zgz7T",
       factionIds: ["8WANCvHmci3zgz7T"],
@@ -37,7 +35,7 @@ describe("parseFangJson", () => {
     expect(node).toMatchObject({
       type: "placeholder",
       actorId: null,
-      name: "Кора",
+      name: "Мира",
       role: "Жрица",
     });
   });
@@ -52,18 +50,10 @@ describe("parseFangJson", () => {
   it("обычный путь к изображению не трогается", () => {
     const { data } = parseFangJson(fixture);
 
-    expect(data.nodes.find((n) => n.id === "m7jLJG6ULwiqR6m8")?.img).toBe("tokenizer/pc-images/artadel_.Token.webp");
+    expect(data.nodes.find((n) => n.id === "m7jLJG6ULwiqR6m8")?.img).toBe("tokenizer/pc-images/eldrin.Token.webp");
     // похожий, но не совпадающий с заглушкой путь — тоже как есть
     const custom = parseFangJson({ nodes: [{ id: "n1", img: "worlds/my/placeholder-npc.svg" }] });
     expect(custom.data.nodes[0].img).toBe("worlds/my/placeholder-npc.svg");
-  });
-
-  it("в реальном fang.json не остаётся ни одной заглушки FANG", () => {
-    const raw = JSON.parse(readFileSync(resolve(__dirname, "../../fang.json"), "utf-8"));
-    const { data } = parseFangJson(raw);
-
-    expect(data.nodes.some((n) => n.img === FANG_PLACEHOLDER_IMG)).toBe(false);
-    expect(data.nodes.filter((n) => n.img === "")).toHaveLength(33);
   });
 
   it("маппит псевдо-placeholder (id начинается с ph-, но isPlaceholder: false) как actor", () => {
@@ -126,9 +116,9 @@ describe("parseFangJson", () => {
 
     expect(faction).toEqual({
       id: "8WANCvHmci3zgz7T",
-      name: "Зентарим",
+      name: "Серые Плащи",
       color: "#000000",
-      description: "Черная Сеть",
+      description: "Тайная гильдия",
     });
   });
 
@@ -213,18 +203,5 @@ describe("parseFangJson", () => {
   it("бросает ошибку, если nodes отсутствует или не массив", () => {
     expect(() => parseFangJson({})).toThrow();
     expect(() => parseFangJson({ nodes: "oops" })).toThrow();
-  });
-
-  it("парсит реальный fang.json из корня проекта без исключений", () => {
-    const realFixturePath = resolve(__dirname, "../../fang.json");
-    const raw = JSON.parse(readFileSync(realFixturePath, "utf-8"));
-
-    const { data, warnings } = parseFangJson(raw);
-
-    expect(data.nodes.length).toBe(raw.nodes.length);
-    expect(data.edges.length).toBeGreaterThan(0);
-    expect(data.edges.length).toBeLessThanOrEqual(raw.links.length);
-    expect(data.factions.length).toBe(raw.factions.length);
-    expect(Array.isArray(warnings)).toBe(true);
   });
 });

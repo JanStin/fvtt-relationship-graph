@@ -1,21 +1,29 @@
 {
     "id": "fvtt-relationship-graph",
     "title": "Relationship Graph",
-    "version": "0.0.1",
+    "description": "Граф связей между актёрами: узлы с актёрами и без, фракции фоновыми областями, состояния и типы связей, скрытые от игроков узлы, совместная работа с одним редактором, отмена действий. Импорт из FANG, экспорт и импорт своего формата. Интерфейс на русском.",
+    "version": "1.0.0",
     "compatibility": {
         "minimum": "13",
         "verified": "13"
     },
+    "authors": [
+        {
+            "name": "MiniMalMod_RedFox",
+            "url": "https://github.com/JanStin"
+        }
+    ],
     "esmodules": [
         "scripts/module.js"
     ],
     "styles": [
         "styles/module.css"
     ],
-    "description": "Отображает связи между актёрами в виде графа. Импорт данных из FANG.",
-    "authors": [
-        {
-            "name": "MiniMalMod_RedFox"
-        }
-    ]
+    "license": "MIT",
+    "url": "https://github.com/JanStin/fvtt-relationship-graph",
+    "manifest": "https://github.com/JanStin/fvtt-relationship-graph/releases/latest/download/module.json",
+    "download": "https://github.com/JanStin/fvtt-relationship-graph/releases/download/v1.0.0/module.zip",
+    "readme": "https://github.com/JanStin/fvtt-relationship-graph#readme",
+    "changelog": "https://github.com/JanStin/fvtt-relationship-graph/blob/master/CHANGELOG.md",
+    "bugs": "https://github.com/JanStin/fvtt-relationship-graph/issues"
 }
