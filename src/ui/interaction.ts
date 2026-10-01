@@ -33,7 +33,8 @@
  */
 
 import type cytoscape from "cytoscape";
-import { clientToModel, findRegionAt, type Point, type Region } from "../core/hit-test";
+import { findBlobAt } from "../core/blob";
+import { clientToModel, type Point } from "../core/hit-test";
 import { separateOverlaps, type PositionedCircle } from "../core/layout";
 import { groupScale, SCALE_MAX, SCALE_MIN } from "../core/selection";
 import {
@@ -43,6 +44,7 @@ import {
   factionIdFromElement,
   LINK_SOURCE_CLASS,
 } from "./graph-renderer";
+import { factionBlobGroups } from "./faction-blobs";
 
 const SCALE_STEP = 0.1;
 const SEPARATION_GAP = 8;
@@ -220,16 +222,15 @@ export function setupInteraction(
     callbacks.onNodesChanged(snapshotNodes(cy));
   }
 
-  /** Область под точкой (координаты окна) — области не ловят события мыши, ищем по bounding box. */
+  /**
+   * Область под точкой (координаты окна) — области не ловят события мыши, ищем сами по той
+   * же форме, что рисует faction-blobs.ts.
+   */
   function factionElementAt(client: Point): string | null {
     if (!cy) return null;
     const rect = container.getBoundingClientRect();
     const point = clientToModel(client.x, client.y, { left: rect.left, top: rect.top, pan: cy.pan(), zoom: cy.zoom() });
-    const regions: Region[] = cy.nodes("[?isFaction]").map((n) => {
-      const bb = n.boundingBox({ includeLabels: false, includeOverlays: false });
-      return { id: n.id(), x1: bb.x1, y1: bb.y1, x2: bb.x2, y2: bb.y2 };
-    });
-    return findRegionAt(regions, point);
+    return findBlobAt(factionBlobGroups(cy), point);
   }
 
   function selectFactionElement(elementId: string, additive: boolean): void {

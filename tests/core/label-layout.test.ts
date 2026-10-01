@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { estimateLabelSize, layoutEdgeLabels, type LabelEdge } from "../../src/core/label-layout";
+import { edgeLabelFontSize, estimateLabelSize, layoutEdgeLabels, type LabelEdge } from "../../src/core/label-layout";
 
 function edge(id: string, from: [number, number], to: [number, number], overrides: Partial<LabelEdge> = {}): LabelEdge {
   return {
@@ -88,5 +88,21 @@ describe("layoutEdgeLabels", () => {
   it("совпадающие узлы не ломают расчёт", () => {
     const offsets = layoutEdgeLabels([edge("a", [5, 5], [5, 5])]);
     expect(offsets.get("a")).toBe(0);
+  });
+});
+
+describe("edgeLabelFontSize", () => {
+  it("у узлов scale 1.0 — базовый размер", () => {
+    expect(edgeLabelFontSize(1, 1)).toBe(8);
+  });
+
+  it("растёт по среднему scale концов", () => {
+    expect(edgeLabelFontSize(2, 1)).toBe(12);
+    expect(edgeLabelFontSize(2, 2)).toBe(16);
+  });
+
+  it("ограничен снизу и сверху", () => {
+    expect(edgeLabelFontSize(0.3, 0.3)).toBe(6);
+    expect(edgeLabelFontSize(5, 5)).toBe(24);
   });
 });

@@ -6,9 +6,20 @@
  * Свой формат проходит те же нормализации, что и загрузка из хранилища.
  */
 
+import { BACKGROUND_IMAGE_MODES, defaultBackground, setBackground } from "../core/background";
 import { ensureConditionDefs, isBuiltinCondition } from "../core/conditions";
 import { normalizeFactions } from "../core/edit";
-import type { ConditionDef, Faction, GraphData, GraphEdge, GraphNode, NodeType, RelationshipType } from "../core/model";
+import type {
+  BackgroundImageMode,
+  ConditionDef,
+  Faction,
+  GraphBackground,
+  GraphData,
+  GraphEdge,
+  GraphNode,
+  NodeType,
+  RelationshipType,
+} from "../core/model";
 import { ensureDefaultRelationshipTypes } from "../core/relationship-types";
 import { SCALE_MAX, SCALE_MIN } from "../core/selection";
 import { ensureNodeFlags } from "../core/visibility";
@@ -94,6 +105,22 @@ function parseNode(item: Record<string, unknown>, factions: Faction[], warnings:
   };
 }
 
+/** Фон графа; нет или не объект — стандартный (null). */
+function parseBackground(raw: unknown): GraphBackground | null {
+  if (!isRecord(raw)) return null;
+  const defaults = defaultBackground();
+  const mode = raw.imageMode as BackgroundImageMode;
+  return {
+    color: str(raw.color),
+    image: str(raw.image),
+    imageMode: BACKGROUND_IMAGE_MODES.includes(mode) ? mode : defaults.imageMode,
+    imageX: num(raw.imageX),
+    imageY: num(raw.imageY),
+    imageWidth: Math.max(0, num(raw.imageWidth)),
+    imageOpacity: Math.min(1, Math.max(0, num(raw.imageOpacity, defaults.imageOpacity))),
+  };
+}
+
 /** Свой формат (уже распознанный по маркеру). Бросает, если файл повреждён или новее, чем поддерживается. */
 export function parseGraphFileJson(raw: unknown): ParseResult {
   if (!isGraphFile(raw) || !isRecord(raw)) {
@@ -168,11 +195,10 @@ export function parseGraphFileJson(raw: unknown): ParseResult {
     });
   }
 
-  return {
-    // те же нормализации, что и при загрузке из хранилища (foundry/storage.ts)
-    data: ensureNodeFlags(
-      ensureDefaultRelationshipTypes(ensureConditionDefs({ nodes, edges, factions, relationshipTypes, conditions })),
-    ),
-    warnings,
-  };
+  // те же нормализации, что и при загрузке из хранилища (foundry/storage.ts)
+  const normalized = ensureNodeFlags(
+    ensureDefaultRelationshipTypes(ensureConditionDefs({ nodes, edges, factions, relationshipTypes, conditions })),
+  );
+  const background = parseBackground(data.background);
+  return { data: background ? setBackground(normalized, background) : normalized, warnings };
 }

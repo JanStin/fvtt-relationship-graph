@@ -5,7 +5,9 @@
  * Без drag/resize/rubber-band — та интерактивность добавляется в interaction.ts (UI-задачи).
  * Области фракций "прозрачны" для мыши (events: no + selectable/grabbable: false): клик по
  * области ведёт себя как клик по пустому месту (панорамирование), а попадание в область
- * interaction.ts определяет сам через core/hit-test.ts.
+ * interaction.ts определяет сам по форме области (core/blob.ts).
+ * Сами области Cytoscape не рисует: compound-узлы фракций невидимы, заливку органической
+ * формой и название рисует faction-blobs.ts.
  * Стили/layout проверены спайками S1/S3 (docs/architecture.md §10).
  */
 
@@ -13,10 +15,11 @@ import cytoscape from "cytoscape";
 import fcose from "cytoscape-fcose";
 import type { GraphData } from "../core/model";
 import { canEditNode } from "../core/permissions";
+import { edgeLabelFontSize } from "../core/label-layout";
 import { parseDash } from "../core/relationship-types";
 import { isMasked } from "../core/visibility";
+import { ZOOM_MAX, ZOOM_MIN } from "../core/zoom";
 import { MODULE_ID } from "../foundry/settings";
-import { EDGE_LABEL_FONT_SIZE } from "./edge-labels";
 
 let fcoseRegistered = false;
 function ensureFcoseRegistered(): void {
@@ -43,7 +46,7 @@ export function factionIdFromElement(elementId: string): string {
 export const LINK_SOURCE_CLASS = "link-source";
 /** Пунктир gmOnly-связи, у типа которой линия сплошная. */
 const GM_ONLY_DASH = [6, 3];
-/** Класс подсветки выбранной области — ставится в interaction.ts. */
+/** Класс выбранной области — ставится в interaction.ts, подсвечивает faction-blobs.ts. */
 export const FACTION_SELECTED_CLASS = "faction-selected";
 
 export interface RenderOptions {
@@ -94,6 +97,7 @@ function buildElements(data: GraphData, options: RenderOptions): cytoscape.Eleme
   });
 
   const relationshipTypeById = new Map(data.relationshipTypes.map((rt) => [rt.id, rt]));
+  const scaleById = new Map(data.nodes.map((n) => [n.id, n.scale]));
   data.edges.forEach((edge) => {
     if (edge.gmOnly && !options.isGM) return;
     const relType = relationshipTypeById.get(edge.relationshipTypeId);
@@ -108,6 +112,8 @@ function buildElements(data: GraphData, options: RenderOptions): cytoscape.Eleme
         label: edge.label,
         // место подписи на связи; настоящее значение сразу после рендера ставит edge-labels.ts
         labelOffset: 0,
+        // шрифт подписи растёт с узлами; после resize его обновляет edge-labels.ts
+        labelFontSize: edgeLabelFontSize(scaleById.get(edge.source) ?? 1, scaleById.get(edge.target) ?? 1),
         arrow: edge.directional ? "triangle" : "none",
         edgeColor: relType?.color ?? "#64748b",
         lineStyle: dashPattern ? "dashed" : "solid",
@@ -125,30 +131,16 @@ function buildElements(data: GraphData, options: RenderOptions): cytoscape.Eleme
 // приводим тип на использовании.
 const STYLE = [
   {
+    // Невидимый compound: нужен раскладке fcose и для рамки графа («Показать весь граф»).
+    // Заливку, название и подсветку выбранной области рисует faction-blobs.ts.
     selector: "node[?isFaction]",
     style: {
-      shape: "round-rectangle",
-      "background-color": "data(factionColor)",
-      "background-opacity": 0.15,
-      "border-width": 2,
-      "border-color": "data(factionColor)",
-      "border-opacity": 0.8,
-      label: "data(label)",
-      "text-valign": "bottom",
-      "text-halign": "center",
-      "font-size": 11,
-      color: "#ccc",
-      // запас под HTML-подписи узлов: compound bbox про них не знает
-      padding: "30px",
+      "background-opacity": 0,
+      "border-width": 0,
+      // запас под заливку области (faction-blobs.ts) — она шире узлов; иначе «Показать весь
+      // граф» обрезал бы её края. Compound bbox про неё не знает.
+      padding: "90px",
       events: "no",
-    },
-  },
-  {
-    selector: `node.${FACTION_SELECTED_CLASS}`,
-    style: {
-      "background-opacity": 0.3,
-      "border-width": 4,
-      "border-opacity": 1,
     },
   },
   {
@@ -185,7 +177,7 @@ const STYLE = [
       // подписи соседних связей не накладывались (edge-labels.ts).
       "source-label": "data(label)",
       "source-text-offset": "data(labelOffset)",
-      "font-size": EDGE_LABEL_FONT_SIZE,
+      "font-size": "data(labelFontSize)",
       color: "#f8fafc",
       // тёмная подложка — текст читается поверх линии любого цвета
       "text-background-color": "#0f172a",
@@ -253,6 +245,9 @@ export function renderGraph(container: HTMLElement, data: GraphData, options: Re
     container,
     boxSelectionEnabled: true, // Shift+ЛКМ-drag — rubber-band, нативное поведение Cytoscape, см. §6
     autoungrabify: !options.editable,
+    // те же пределы у колеса и у ползунка масштаба (zoom-control.ts)
+    minZoom: ZOOM_MIN,
+    maxZoom: ZOOM_MAX,
     elements: buildElements(data, options),
     style: STYLE,
     layout,

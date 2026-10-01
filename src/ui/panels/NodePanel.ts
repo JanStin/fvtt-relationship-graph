@@ -7,9 +7,7 @@ import { conditionIconClass } from "../../core/conditions";
 import { primaryAfterUncheck, type NodeEditValues } from "../../core/edit";
 import type { ConditionDef, Faction, GraphNode, NodeType } from "../../core/model";
 import { SCALE_MAX, SCALE_MIN } from "../../core/selection";
-import { checkbox, createPanelShell, field, hint, select, textArea, textInput } from "./form";
-
-declare const foundry: any;
+import { browseImage, checkbox, createPanelShell, field, hint, select, textArea, textInput } from "./form";
 
 const NO_ACTOR = ""; // значение <option> «не выбран»; id актёров пустыми не бывают
 
@@ -33,18 +31,6 @@ export interface NodePanelCallbacks {
   onSave(values: NodeEditValues): void;
   onDelete(): void;
   onClose(): void;
-}
-
-/** Штатный FilePicker Foundry для выбора изображения; путь попадает в input. */
-function browseImage(input: HTMLInputElement): void {
-  const FilePicker = foundry.applications.apps.FilePicker.implementation;
-  new FilePicker({
-    type: "image",
-    current: input.value,
-    callback: (path: string) => {
-      input.value = path;
-    },
-  }).browse();
 }
 
 interface FactionPicker {

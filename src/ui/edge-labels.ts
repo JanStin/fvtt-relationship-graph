@@ -2,13 +2,12 @@
  * Держит подписи связей без наложений: после каждого движения или ресайза узлов
  * пересчитывает, где на связи стоит подпись (core/label-layout.ts), и кладёт результат
  * в data.labelOffset — стиль связи рисует подпись на этом расстоянии от узла-источника
- * (source-label + source-text-offset, см. graph-renderer.ts).
+ * (source-label + source-text-offset, см. graph-renderer.ts). Там же — размер шрифта подписи
+ * (data.labelFontSize): он растёт вместе с узлами-концами (core/label-layout.edgeLabelFontSize).
  */
 
 import type cytoscape from "cytoscape";
-import { estimateLabelSize, layoutEdgeLabels, type LabelEdge } from "../core/label-layout";
-
-export const EDGE_LABEL_FONT_SIZE = 8;
+import { edgeLabelFontSize, estimateLabelSize, layoutEdgeLabels, type LabelEdge } from "../core/label-layout";
 
 export interface EdgeLabelsHandle {
   destroy(): void;
@@ -20,8 +19,11 @@ function endpoint(node: cytoscape.NodeSingular): LabelEdge["source"] {
 }
 
 function relayout(cy: cytoscape.Core): void {
+  const fontSizes = new Map<string, number>();
   const edges: LabelEdge[] = cy.edges().map((edge) => {
-    const size = estimateLabelSize((edge.data("label") as string | undefined) ?? "", EDGE_LABEL_FONT_SIZE);
+    const fontSize = edgeLabelFontSize(edge.source().data("scale") as number, edge.target().data("scale") as number);
+    fontSizes.set(edge.id(), fontSize);
+    const size = estimateLabelSize((edge.data("label") as string | undefined) ?? "", fontSize);
     return {
       id: edge.id(),
       source: endpoint(edge.source()),
@@ -36,6 +38,8 @@ function relayout(cy: cytoscape.Core): void {
     offsets.forEach((offset, id) => {
       const edge = cy.getElementById(id);
       if (edge.data("labelOffset") !== offset) edge.data("labelOffset", offset);
+      const fontSize = fontSizes.get(id);
+      if (fontSize !== undefined && edge.data("labelFontSize") !== fontSize) edge.data("labelFontSize", fontSize);
     });
   });
 }

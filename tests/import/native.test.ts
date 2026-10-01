@@ -93,6 +93,26 @@ describe("экспорт → импорт", () => {
     expect(warnings).toEqual([]);
   });
 
+  it("сохраняет фон графа", () => {
+    const withBackground: GraphData = {
+      ...graph,
+      background: {
+        color: "#202020",
+        image: "maps/city.webp",
+        imageMode: "tile",
+        imageX: -100,
+        imageY: 50,
+        imageWidth: 256,
+        imageOpacity: 0.5,
+      },
+    };
+    expect(parseGraphFileJson(roundTrip(withBackground)).data).toEqual(withBackground);
+  });
+
+  it("сброшенный фон (null) остаётся стандартным", () => {
+    expect(parseGraphFileJson(roundTrip({ ...graph, background: null })).data.background ?? null).toBeNull();
+  });
+
   it("parseGraphFile распознаёт свой формат", () => {
     const result = parseGraphFile(roundTrip(graph));
     expect(result.format).toBe("native");
@@ -165,5 +185,28 @@ describe("импорт своего формата: нормализация и 
 
   it("чужой файл без nodes — ошибка парсера FANG", () => {
     expect(() => parseGraphFile({ hello: "world" })).toThrow(/nodes/);
+  });
+});
+
+describe("импорт своего формата: фон", () => {
+  const file = (background: unknown) => ({ format: GRAPH_FILE_FORMAT, version: 1, exportedAt: "", data: { nodes: [], background } });
+
+  it("неизвестный режим и неверные числа заменяются значениями по умолчанию", () => {
+    const { data } = parseGraphFileJson(
+      file({ color: "#111111", image: "a.png", imageMode: "weird", imageX: "x", imageWidth: -5, imageOpacity: 7 }),
+    );
+    expect(data.background).toEqual({
+      color: "#111111",
+      image: "a.png",
+      imageMode: "single",
+      imageX: 0,
+      imageY: 0,
+      imageWidth: 0,
+      imageOpacity: 1,
+    });
+  });
+
+  it("фон без цвета и картинки — стандартный", () => {
+    expect(parseGraphFileJson(file({ imageMode: "tile" })).data.background).toBeNull();
   });
 });

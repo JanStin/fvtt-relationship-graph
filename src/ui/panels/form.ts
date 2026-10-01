@@ -3,6 +3,8 @@
  * Панель — обычный <form> в wrapper окна графа (см. GraphApp), без отдельного ApplicationV2.
  */
 
+declare const foundry: any;
+
 export interface PanelActions {
   /** Submit формы (кнопка "Сохранить" или Enter в однострочном поле). */
   onSave(): void;
@@ -156,4 +158,17 @@ export function colorField(current: string): { element: HTMLElement; value(): st
   element.className = "frg-field-row";
   element.append(text, picker);
   return { element, value: () => text.value };
+}
+
+/** Штатный FilePicker Foundry для выбора изображения; путь попадает в input (с событием input). */
+export function browseImage(input: HTMLInputElement): void {
+  const FilePicker = foundry.applications.apps.FilePicker.implementation;
+  new FilePicker({
+    type: "image",
+    current: input.value,
+    callback: (path: string) => {
+      input.value = path;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    },
+  }).browse();
 }

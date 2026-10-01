@@ -38,6 +38,22 @@ function intersects(a: Box, b: Box, gap: number): boolean {
   return a.x1 < b.x2 + gap && b.x1 < a.x2 + gap && a.y1 < b.y2 + gap && b.y1 < a.y2 + gap;
 }
 
+/** Шрифт подписи связи между узлами scale = 1.0. */
+export const EDGE_LABEL_BASE_FONT_SIZE = 8;
+const EDGE_LABEL_MIN_FONT_SIZE = 6;
+const EDGE_LABEL_MAX_FONT_SIZE = 24;
+
+/**
+ * Шрифт подписи связи растёт вместе с узлами: базовый размер × средний scale концов,
+ * в пределах 6–24 px (у самых мелких узлов подпись остаётся читаемой, у крупных — не огромной).
+ */
+export function edgeLabelFontSize(sourceScale: number, targetScale: number): number {
+  const size = (EDGE_LABEL_BASE_FONT_SIZE * (sourceScale + targetScale)) / 2;
+  const clamped = Math.min(EDGE_LABEL_MAX_FONT_SIZE, Math.max(EDGE_LABEL_MIN_FONT_SIZE, size));
+  // десятые доли — чтобы не дёргать стиль Cytoscape из-за погрешностей float
+  return Math.round(clamped * 10) / 10;
+}
+
 /** Оценка размера подписи по тексту: точная ширина зависит от шрифта, здесь — с запасом. */
 export function estimateLabelSize(text: string, fontSize: number): { width: number; height: number } {
   if (text.trim() === "") return { width: 0, height: 0 };

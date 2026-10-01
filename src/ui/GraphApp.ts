@@ -23,6 +23,13 @@ import {
   saveGraphData,
 } from "../foundry/storage";
 import {
+  backgroundFromEdit,
+  coverVisibleArea,
+  DEFAULT_BACKGROUND_COLOR,
+  setBackground,
+  type BackgroundEditValues,
+} from "../core/background";
+import {
   allConditions,
   createCondition,
   removeCondition,
@@ -60,12 +67,16 @@ import {
   visibleEdgeCount,
 } from "../core/permissions";
 import { displayName, isMasked } from "../core/visibility";
+import { createBackgroundLayer, type BackgroundLayer } from "./background-layer";
 import { setupEdgeLabels, type EdgeLabelsHandle } from "./edge-labels";
+import { createFactionBlobLayer, type FactionBlobLayer } from "./faction-blobs";
 import { renderGraph } from "./graph-renderer";
 import { setupInteraction, type GraphTarget, type InteractionHandle, type NodeSnapshot } from "./interaction";
 import { startIdleTimer, type IdleTimer } from "./idle-timer";
 import { createNodeDecorLayer, type NodeDecorLayer } from "./node-decor";
 import { createOverlays, type MenuItem, type Overlays } from "./overlays";
+import { createZoomControl, type ZoomControl } from "./zoom-control";
+import { createBackgroundPanel } from "./panels/BackgroundPanel";
 import { createConditionListPanel, createConditionPanel } from "./panels/ConditionPanel";
 import { createEdgePanel } from "./panels/EdgePanel";
 import { createFactionListPanel, createFactionPanel } from "./panels/FactionPanel";
@@ -112,6 +123,9 @@ export class GraphApp extends ApplicationV2 {
   #overlays: Overlays | null = null;
   #decor: NodeDecorLayer | null = null;
   #edgeLabels: EdgeLabelsHandle | null = null;
+  #zoomControl: ZoomControl | null = null;
+  #background: BackgroundLayer | null = null;
+  #factionBlobs: FactionBlobLayer | null = null;
   /** Открытая боковая панель (узел, связь, списки) — максимум одна. */
   #panel: HTMLElement | null = null;
   /** Как заново открыть текущую панель после перерисовки чужим изменением (только списки). */
@@ -128,6 +142,7 @@ export class GraphApp extends ApplicationV2 {
   #editButton: HTMLButtonElement | null = null;
   #undoButton: HTMLButtonElement | null = null;
   #redoButton: HTMLButtonElement | null = null;
+  #backgroundButton: HTMLButtonElement | null = null;
   #importControl: ImportControl | null = null;
   /** История отмены/повтора — только на время сеанса редактирования. */
   #history = new GraphHistory();
@@ -178,6 +193,12 @@ export class GraphApp extends ApplicationV2 {
       ),
     );
 
+    // Фон графа — только GM и только в режиме редактирования; видят его все.
+    if (this.#isGM) {
+      this.#backgroundButton = button("fa-image", "Фон графа", () => this.#openBackgroundPanel());
+      toolbar.append(group(this.#backgroundButton));
+    }
+
     // Импорт и экспорт — только GM, справа. Импорт — только в режиме редактирования.
     if (this.#isGM) {
       this.#importControl = createImportControl({
@@ -193,9 +214,13 @@ export class GraphApp extends ApplicationV2 {
 
     const cyHost = document.createElement("div");
     // position/overflow — для слоя декора узлов (node-decor.ts), он живёт внутри cyHost.
-    cyHost.style.cssText = "position:relative;overflow:hidden;flex:1 1 auto;min-height:0;background:#16213e;";
+    cyHost.style.cssText = `position:relative;overflow:hidden;flex:1 1 auto;min-height:0;background:${DEFAULT_BACKGROUND_COLOR};`;
 
-    wrapper.append(toolbar, cyHost);
+    // ползунок масштаба — в wrapper поверх правого нижнего угла графа (см. zoom-control.ts)
+    this.#zoomControl?.destroy();
+    this.#zoomControl = createZoomControl();
+
+    wrapper.append(toolbar, cyHost, this.#zoomControl.element);
     (wrapper as unknown as { _cyHost: HTMLElement })._cyHost = cyHost;
     return wrapper;
   }
@@ -422,6 +447,10 @@ export class GraphApp extends ApplicationV2 {
     if (this.#undoButton) this.#undoButton.disabled = !this.#editing || !this.#history.canUndo;
     if (this.#redoButton) this.#redoButton.disabled = !this.#editing || !this.#history.canRedo;
     this.#importControl?.setEnabled(this.#editing);
+    if (this.#backgroundButton) {
+      this.#backgroundButton.disabled = !this.#editing;
+      this.#backgroundButton.title = this.#editing ? "Фон графа" : "Фон графа — доступен в режиме редактирования";
+    }
   }
 
   // ---------------------------------------------------------------------------------------
@@ -440,6 +469,8 @@ export class GraphApp extends ApplicationV2 {
     this.#overlays?.destroy();
     this.#decor?.destroy();
     this.#edgeLabels?.destroy();
+    this.#background?.destroy();
+    this.#factionBlobs?.destroy();
     this.#resizeObserver?.disconnect();
     this.#cy?.destroy(); // снимает и собственные DOM-листенеры (включая wheel) старого cytoscape
 
@@ -473,8 +504,13 @@ export class GraphApp extends ApplicationV2 {
     this.#cy = renderGraph(this.#cyHost, hydrated, { isGM: this.#isGM, editable: this.#editing });
     if (viewport) this.#cy.viewport(viewport);
     this.#interaction.bind(this.#cy);
+    this.#zoomControl?.attach(this.#cy);
     this.#decor = createNodeDecorLayer(this.#cyHost, this.#cy, hydrated, { isGM: this.#isGM });
     this.#edgeLabels = setupEdgeLabels(this.#cy);
+    // Оба слоя встают в начало контейнера — под канвас Cytoscape (см. background-layer.ts).
+    // Фон создаётся последним, чтобы оказаться первым в DOM — под областями фракций.
+    this.#factionBlobs = createFactionBlobLayer(this.#cyHost, this.#cy);
+    this.#background = createBackgroundLayer(this.#cyHost, this.#cy, hydrated.background);
 
     this.#resizeObserver = new ResizeObserver(() => this.#cy?.resize());
     this.#resizeObserver.observe(this.#cyHost);
@@ -827,6 +863,47 @@ export class GraphApp extends ApplicationV2 {
     this.#openConditionList();
   }
 
+  /** Фон графа: только GM в режиме редактирования (кнопка на верхней панели). */
+  #openBackgroundPanel(): void {
+    const data = this.#currentData;
+    if (!data || !this.#isGM || !this.#editing) return;
+
+    const panel = createBackgroundPanel(data.background ?? null, {
+      onSave: (values) => {
+        void this.#saveBackground(values);
+      },
+      onReset: () => {
+        if (this.#currentData) void this.#commit(setBackground(this.#currentData, null));
+      },
+      onClose: () => this.#closePanel(),
+      fitToView: (image) => this.#fitBackgroundToView(image),
+    });
+    this.#mountPanel(panel);
+  }
+
+  async #saveBackground(values: BackgroundEditValues): Promise<void> {
+    if (!this.#currentData || !this.#isGM) return;
+    await this.#commit(setBackground(this.#currentData, backgroundFromEdit(values)));
+  }
+
+  /** Положение картинки, при котором она закрывает видимую часть графа. null — картинка не загрузилась. */
+  async #fitBackgroundToView(image: string): Promise<{ imageX: number; imageY: number; imageWidth: number } | null> {
+    const cy = this.#cy;
+    if (!cy) return null;
+    const natural = await new Promise<{ width: number; height: number } | null>((resolve) => {
+      const probe = new Image();
+      probe.addEventListener("load", () => resolve({ width: probe.naturalWidth, height: probe.naturalHeight }));
+      probe.addEventListener("error", () => resolve(null));
+      probe.src = image;
+    });
+    if (!natural) {
+      ui.notifications?.warn("Не удалось загрузить картинку фона.");
+      return null;
+    }
+    const extent = cy.extent();
+    return coverVisibleArea({ x: extent.x1, y: extent.y1, width: extent.w, height: extent.h }, natural);
+  }
+
   /** Справочник типов связей. Правит только GM, игрок видит список; gmOnly-связи игроку в счёт не идут. */
   #openRelationshipTypeList(): void {
     const data = this.#currentData;
@@ -997,6 +1074,7 @@ export class GraphApp extends ApplicationV2 {
     this.#editButton = null;
     this.#undoButton = null;
     this.#redoButton = null;
+    this.#backgroundButton = null;
     this.#importControl = null;
     this.#history.clear();
     this.#lastInfo = null;
@@ -1008,6 +1086,12 @@ export class GraphApp extends ApplicationV2 {
     this.#decor = null;
     this.#edgeLabels?.destroy();
     this.#edgeLabels = null;
+    this.#background?.destroy();
+    this.#background = null;
+    this.#factionBlobs?.destroy();
+    this.#factionBlobs = null;
+    this.#zoomControl?.destroy();
+    this.#zoomControl = null;
     this.#closePanel();
     this.#resizeObserver?.disconnect();
     this.#resizeObserver = null;

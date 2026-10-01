@@ -52,10 +52,30 @@ export interface ConditionDef {
   icon: string; // класс Font Awesome: "fa-skull" или набор классов
 }
 
+/** Как показывать картинку фона: плиткой (текстура) или одним изображением (как карта). */
+export type BackgroundImageMode = "tile" | "single";
+
+/**
+ * Фон графа (задаёт GM, видят все). Картинка лежит в координатах графа: двигается и
+ * масштабируется вместе с узлами. Логика — core/background.ts, отрисовка — ui/background-layer.ts.
+ */
+export interface GraphBackground {
+  color: string; // hex; '' — стандартный цвет
+  image: string; // путь к картинке; '' — без картинки
+  imageMode: BackgroundImageMode;
+  imageX: number; // single — левый верхний угол картинки; tile — точка привязки плиток
+  imageY: number;
+  imageWidth: number; // ширина картинки (плитки) в единицах графа; 0 — натуральная ширина
+  imageOpacity: number; // 0..1
+}
+
 export interface GraphData {
   nodes: GraphNode[];
   edges: GraphEdge[];
   factions: Faction[];
   relationshipTypes: RelationshipType[];
   conditions: ConditionDef[]; // свои состояния; встроенные сюда не входят
+  // нет или null — стандартный фон. Сброс хранится как null, а не удалением ключа: setFlag
+  // сливает объекты, и удалённый ключ остался бы в хранилище со старым значением.
+  background?: GraphBackground | null;
 }
