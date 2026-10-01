@@ -71,8 +71,15 @@ describe("buildNodeDecor", () => {
       role: "",
       factions: { shown: [], more: false },
       conditions: { shown: [], more: false },
-      hidden: false,
+      ring: false,
     });
+  });
+
+  it("узел «Правит только GM»: окольцовка у всех, остальное как обычно", () => {
+    const node = makeNode({ id: "a", name: "Алиса", gmOnly: true });
+
+    expect(buildNodeDecor(makeData(node), node, PLAYER)).toMatchObject({ name: "Алиса", ring: true });
+    expect(buildNodeDecor(makeData(node), node, GM)).toMatchObject({ name: "Алиса", ring: true });
   });
 
   it("скрытый узел: игроку — без имени, роли и значков, GM — как есть; окольцовка у обоих", () => {
@@ -92,13 +99,13 @@ describe("buildNodeDecor", () => {
       role: "",
       factions: { shown: [], more: false },
       conditions: { shown: [], more: false },
-      hidden: true,
+      ring: true,
     });
     expect(buildNodeDecor(makeData(node), node, GM)).toMatchObject({
       name: "Алиса",
       role: "Шпион",
       factions: { shown: ["#f2"], more: false },
-      hidden: true,
+      ring: true,
     });
   });
 

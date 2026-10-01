@@ -1,6 +1,6 @@
 /**
  * HTML-слой поверх канваса Cytoscape: имя и роль под узлом, ромбики дополнительных фракций
- * (слева сверху), иконки состояний (справа сверху) и окольцовка скрытого узла. Подход проверен
+ * (слева сверху), иконки состояний (справа сверху) и окольцовка узла «Правит только GM». Подход проверен
  * спайком: подпись Cytoscape одностилевая, бейджей у неё нет.
  *
  * Один контейнер повторяет pan/zoom графа через CSS transform, а элементы узлов стоят в
@@ -39,7 +39,7 @@ function plus(): HTMLElement {
 
 function buildElement(decor: NodeDecor): HTMLElement {
   const root = el("frg-node-decor");
-  if (decor.hidden) root.append(el("frg-node-ring"));
+  if (decor.ring) root.append(el("frg-node-ring"));
 
   const factions = el("frg-badges frg-badges-factions");
   decor.factions.shown.forEach((color) => {

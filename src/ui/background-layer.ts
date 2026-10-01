@@ -1,7 +1,7 @@
 /**
  * Фон графа под канвасом Cytoscape: цвет контейнера и картинка в координатах графа —
- * одним изображением (как карта) или плитками (текстура). Картинка двигается и масштабируется
- * вместе с узлами. Геометрия — core/background.ts.
+ * одним изображением (как карта) или плитками (текстура), которые двигаются и масштабируются
+ * вместе с узлами; либо неподвижная картинка на весь экран. Геометрия — core/background.ts.
  *
  * Слой вставляется в начало контейнера: позиционированные элементы рисуются в порядке DOM,
  * и всё, что стоит раньше контейнера канвасов Cytoscape (position: relative; z-index: 0),
@@ -35,7 +35,14 @@ export function createBackgroundLayer(
   let destroyed = false;
   let detach: (() => void) | null = null;
 
-  if (background?.image) {
+  if (background?.image && background.imageMode === "screen") {
+    // на весь экран — обычный CSS-фон слоя: ни загрузки, ни подписки на pan/zoom не нужно
+    layer.style.opacity = String(background.imageOpacity);
+    layer.style.backgroundImage = cssUrl(background.image);
+    layer.style.backgroundSize = "cover";
+    layer.style.backgroundPosition = "center";
+    layer.style.backgroundRepeat = "no-repeat";
+  } else if (background?.image) {
     layer.style.opacity = String(background.imageOpacity);
     const probe = new Image();
     probe.addEventListener("load", () => {

@@ -55,6 +55,10 @@ describe("backgroundFromEdit", () => {
     expect(background.imageOpacity).toBe(0.05);
   });
 
+  it("режим «на весь экран» сохраняется", () => {
+    expect(backgroundFromEdit(values({ image: "a.png", imageMode: "screen" })).imageMode).toBe("screen");
+  });
+
   it("неположительная ширина — натуральный размер (0)", () => {
     expect(backgroundFromEdit(values({ imageWidth: "-50" })).imageWidth).toBe(0);
   });

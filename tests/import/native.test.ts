@@ -206,6 +206,11 @@ describe("импорт своего формата: фон", () => {
     });
   });
 
+  it("режим «на весь экран» читается", () => {
+    const { data } = parseGraphFileJson(file({ image: "bg.webp", imageMode: "screen" }));
+    expect(data.background?.imageMode).toBe("screen");
+  });
+
   it("фон без цвета и картинки — стандартный", () => {
     expect(parseGraphFileJson(file({ imageMode: "tile" })).data.background).toBeNull();
   });

@@ -29,8 +29,11 @@ export interface NodeDecor {
   /** Цвета дополнительных (не основной) фракций. */
   factions: BadgeList<string>;
   conditions: BadgeList<ConditionBadge>;
-  /** Градиентная окольцовка скрытого узла: у игрока — «неизвестный», у GM — пометка «скрыт». */
-  hidden: boolean;
+  /**
+   * Градиентная окольцовка узла «Правит только GM» (gmOnly, в том числе скрытого — hidden всегда
+   * включает gmOnly). Видна всем: игрок сразу видит, какие узлы он не правит.
+   */
+  ring: boolean;
 }
 
 export interface DecorOptions {
@@ -46,7 +49,8 @@ export function limitBadges<T>(items: T[], max = MAX_BADGES): BadgeList<T> {
 /** Основная фракция ромбиком не помечается — она показана областью. Неизвестные фракции пропускаются. */
 export function buildNodeDecor(data: GraphData, node: GraphNode, options: DecorOptions): NodeDecor {
   if (isMasked(node, options.isGM)) {
-    return { name: "", role: "", factions: limitBadges([]), conditions: limitBadges([]), hidden: true };
+    // скрытый узел всегда gmOnly — кольцо есть
+    return { name: "", role: "", factions: limitBadges([]), conditions: limitBadges([]), ring: true };
   }
 
   const colorById = new Map(data.factions.map((f) => [f.id, f.color]));
@@ -64,6 +68,6 @@ export function buildNodeDecor(data: GraphData, node: GraphNode, options: DecorO
     conditions: limitBadges(
       node.conditions.map((id) => ({ id, icon: conditionIconClass(iconById.get(id) ?? DEFAULT_CONDITION_ICON) })),
     ),
-    hidden: node.hidden,
+    ring: node.gmOnly || node.hidden,
   };
 }

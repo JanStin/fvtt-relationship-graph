@@ -9,8 +9,16 @@
  * центра минус радиус», отрицательное внутри. Круги объединяются гладким минимумом
  * (polynomial smooth min, Inigo Quilez): вблизи стыка он опускается ниже обычного min, и между
  * кругами вырастает плавная перемычка. Мягкая граница — плавный порог по тому же SDF.
+ *
+ * Пустое место внутри фигуры из узлов (кольцо, квадрат, любой многоугольник) заливается:
+ * узлы фракции разбиваются на треугольники Делоне, отрезки не длиннее порога (alphaEdgeLimit)
+ * считаются «стенами», и заливаются треугольники, до которых нельзя добраться снаружи, не
+ * пересекая стену. Так замкнутая фигура со сторонами ≤ порога заливается целиком, какой бы
+ * длинной ни была её диагональ. Узлы других фракций внутри фигуры не мешают — в триангуляцию
+ * попадают только узлы этой фракции. Полная форма — blobShape / shapeSdf.
  */
 
+import { delaunay } from "./delaunay";
 import type { Point } from "./hit-test";
 
 export interface BlobCircle {
@@ -31,6 +39,12 @@ export interface BlobGroup {
  * сливаются, когда он не больше k / 2 (см. blobIslands).
  */
 export const BLOB_SMOOTHING_FACTOR = 1;
+/**
+ * Порог «стены» относительно радиусов кругов: отрезок между узлами с кругами радиусов ra и rb
+ * замыкает фигуру, если он не длиннее ALPHA_EDGE_FACTOR × (ra + rb) / 2.
+ * У узлов обычного размера (круг ≈ 118) это ≈ 470 — около восьми размеров узла.
+ */
+export const ALPHA_EDGE_FACTOR = 4;
 /** Ширина мягкой границы (в единицах графа): заливка гаснет на ±BLOB_SOFTNESS от контура. */
 export const BLOB_SOFTNESS = 10;
 
@@ -80,9 +94,14 @@ export function blobCoverage(sdf: number, softness = BLOB_SOFTNESS): number {
 /**
  * Разбивает круги на «острова» — группы, которые сливаются в одну форму. Два круга
  * сливаются, когда зазор между ними не больше smoothing / 2: в середине зазора гладкий
- * минимум как раз опускается до нуля. Возвращает индексы кругов по островам.
+ * минимум как раз опускается до нуля; links — дополнительно связанные пары (стороны
+ * залитых треугольников, см. shapeIslands). Возвращает индексы кругов по островам.
  */
-export function blobIslands(circles: readonly BlobCircle[], smoothing = blobSmoothing(circles)): number[][] {
+export function blobIslands(
+  circles: readonly BlobCircle[],
+  smoothing = blobSmoothing(circles),
+  links: ReadonlyArray<readonly [number, number]> = [],
+): number[][] {
   const parent = circles.map((_, i) => i);
   const find = (i: number): number => {
     while (parent[i] !== i) {
@@ -99,6 +118,7 @@ export function blobIslands(circles: readonly BlobCircle[], smoothing = blobSmoo
       if (gap <= smoothing / 2) parent[find(i)] = find(j);
     }
   }
+  for (const [i, j] of links) parent[find(i)] = find(j);
   const islands = new Map<number, number[]>();
   circles.forEach((_, i) => {
     const root = find(i);
@@ -134,15 +154,130 @@ export function islandLabelAnchor(circles: readonly BlobCircle[]): Point {
   return { x: (bounds.x1 + bounds.x2) / 2, y: bounds.y2 };
 }
 
+/** Наибольшая длина отрезка между двумя кругами, который ещё замыкает фигуру («стена»). */
+export function alphaEdgeLimit(a: BlobCircle, b: BlobCircle): number {
+  return (ALPHA_EDGE_FACTOR * (a.radius + b.radius)) / 2;
+}
+
+/** Залитый треугольник: индексы кругов-вершин и рамка (для быстрого отсева точек). */
+export interface ShapeTriangle {
+  vertices: readonly [number, number, number];
+  bounds: Bounds;
+}
+
+/** Полная форма области: круги узлов, сила сглаживания и залитые треугольники между ними. */
+export interface BlobShape {
+  circles: readonly BlobCircle[];
+  smoothing: number;
+  triangles: readonly ShapeTriangle[];
+}
+
+export function blobShape(circles: readonly BlobCircle[]): BlobShape {
+  const all = delaunay(circles);
+
+  // рёбра триангуляции → треугольники по обе стороны (у ребра оболочки — один)
+  const edgeKey = (i: number, j: number) => (i < j ? `${i}-${j}` : `${j}-${i}`);
+  const edgesOf = ([i, j, k]: readonly number[]) => [edgeKey(i, j), edgeKey(j, k), edgeKey(k, i)];
+  const sides = new Map<string, number[]>();
+  all.forEach((triangle, index) => {
+    for (const key of edgesOf(triangle)) {
+      const list = sides.get(key);
+      if (list) list.push(index);
+      else sides.set(key, [index]);
+    }
+  });
+  const isWall = (key: string) => {
+    const [i, j] = key.split("-").map(Number);
+    const a = circles[i];
+    const b = circles[j];
+    return Math.hypot(a.x - b.x, a.y - b.y) <= alphaEdgeLimit(a, b);
+  };
+
+  // снаружи — через рёбра оболочки, которые не стены; дальше — через общие рёбра-не-стены
+  const outside = new Uint8Array(all.length);
+  const queue: number[] = [];
+  const reach = (index: number) => {
+    if (outside[index]) return;
+    outside[index] = 1;
+    queue.push(index);
+  };
+  sides.forEach((list, key) => {
+    if (list.length === 1 && !isWall(key)) reach(list[0]);
+  });
+  for (let head = 0; head < queue.length; head++) {
+    for (const key of edgesOf(all[queue[head]])) {
+      if (!isWall(key)) sides.get(key)?.forEach(reach);
+    }
+  }
+
+  const triangles = all
+    .filter((_, index) => !outside[index])
+    .map((vertices) => ({ vertices, bounds: blobBounds(vertices.map((i) => ({ ...circles[i], radius: 0 }))) }));
+  return { circles, smoothing: blobSmoothing(circles), triangles };
+}
+
+/** Знаковое расстояние до треугольника abc (Inigo Quilez, sdTriangle): < 0 внутри. */
+export function triangleSdf(p: Point, a: Point, b: Point, c: Point): number {
+  const e0x = b.x - a.x, e0y = b.y - a.y;
+  const e1x = c.x - b.x, e1y = c.y - b.y;
+  const e2x = a.x - c.x, e2y = a.y - c.y;
+  const v0x = p.x - a.x, v0y = p.y - a.y;
+  const v1x = p.x - b.x, v1y = p.y - b.y;
+  const v2x = p.x - c.x, v2y = p.y - c.y;
+  const clamp01 = (t: number) => Math.min(1, Math.max(0, t));
+  const t0 = clamp01((v0x * e0x + v0y * e0y) / (e0x * e0x + e0y * e0y));
+  const t1 = clamp01((v1x * e1x + v1y * e1y) / (e1x * e1x + e1y * e1y));
+  const t2 = clamp01((v2x * e2x + v2y * e2y) / (e2x * e2x + e2y * e2y));
+  const q0 = (v0x - e0x * t0) ** 2 + (v0y - e0y * t0) ** 2;
+  const q1 = (v1x - e1x * t1) ** 2 + (v1y - e1y * t1) ** 2;
+  const q2 = (v2x - e2x * t2) ** 2 + (v2y - e2y * t2) ** 2;
+  // знак: точка по одну сторону от всех рёбер — внутри (учитывая обход вершин)
+  const s = Math.sign(e0x * e2y - e0y * e2x);
+  const c0 = s * (v0x * e0y - v0y * e0x);
+  const c1 = s * (v1x * e1y - v1y * e1x);
+  const c2 = s * (v2x * e2y - v2y * e2x);
+  const distanceSquared = Math.min(q0, q1, q2);
+  const inside = Math.min(c0, c1, c2) > 0;
+  return inside ? -Math.sqrt(distanceSquared) : Math.sqrt(distanceSquared);
+}
+
+/** SDF полной формы: круги и залитые треугольники, объединённые гладким минимумом. */
+export function shapeSdf(point: Point, shape: BlobShape, softness = BLOB_SOFTNESS): number {
+  let distance = blobSdf(point, shape.circles, shape.smoothing);
+  const k = shape.smoothing;
+  // Треугольник дальше margin от точки не меняет ни форму, ни её мягкий край: если он дальше
+  // distance + k — гладкий минимум равен distance; иначе distance и сам ≥ 2·softness, а
+  // результат не меньше margin − 1.25k = 2·softness — заливка там всё равно нулевая.
+  const margin = 1.25 * k + 2 * softness;
+  for (const triangle of shape.triangles) {
+    const b = triangle.bounds;
+    if (point.x < b.x1 - margin || point.x > b.x2 + margin || point.y < b.y1 - margin || point.y > b.y2 + margin) {
+      continue;
+    }
+    const [i, j, l] = triangle.vertices;
+    const d = triangleSdf(point, shape.circles[i], shape.circles[j], shape.circles[l]);
+    distance = smoothMin(distance, d, k);
+  }
+  return distance;
+}
+
+/** Острова полной формы: слившиеся круги плюс узлы, связанные залитыми треугольниками. */
+export function shapeIslands(shape: BlobShape): number[][] {
+  const links: Array<[number, number]> = [];
+  for (const { vertices: [i, j, k] } of shape.triangles) links.push([i, j], [j, k]);
+  return blobIslands(shape.circles, shape.smoothing, links);
+}
+
 /**
- * Область под точкой или null. Попадание — внутри контура (SDF ≤ 0). Если точка внутри
- * нескольких областей — выбирается та, в которую она погружена глубже.
+ * Область под точкой или null. Попадание — внутри контура полной формы (SDF ≤ 0), в том
+ * числе в залитом пространстве между узлами. Если точка внутри нескольких областей —
+ * выбирается та, в которую она погружена глубже.
  */
 export function findBlobAt(groups: readonly BlobGroup[], point: Point): string | null {
   let best: string | null = null;
   let bestDistance = 0;
   for (const group of groups) {
-    const distance = blobSdf(point, group.circles, blobSmoothing(group.circles));
+    const distance = shapeSdf(point, blobShape(group.circles));
     if (distance <= bestDistance) {
       best = group.id;
       bestDistance = distance;

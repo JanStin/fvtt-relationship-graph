@@ -44,6 +44,8 @@ export function factionIdFromElement(elementId: string): string {
 }
 /** Класс узла-источника, пока выбирается второй узел новой связи — ставится в interaction.ts. */
 export const LINK_SOURCE_CLASS = "link-source";
+/** Рамка узла без фракции (и линия связи без типа). */
+const NEUTRAL_COLOR = "#64748b";
 /** Пунктир gmOnly-связи, у типа которой линия сплошная. */
 const GM_ONLY_DASH = [6, 3];
 /** Класс выбранной области — ставится в interaction.ts, подсвечивает faction-blobs.ts. */
@@ -74,6 +76,7 @@ function buildElements(data: GraphData, options: RenderOptions): cytoscape.Eleme
     });
   });
 
+  const factionColorById = new Map(data.factions.map((f) => [f.id, f.color]));
   data.nodes.forEach((node) => {
     const size = BASE_SIZE * node.scale;
     // Узел, который пользователь не может трогать (у игрока — gmOnly): не перетаскивается,
@@ -91,6 +94,8 @@ function buildElements(data: GraphData, options: RenderOptions): cytoscape.Eleme
         // Заглушка — только при пустом пути; битую ссылку не подменяем.
         // Скрытый узел игроку всегда рисуется заглушкой.
         img: (isMasked(node, options.isGM) ? "" : node.img) || DEFAULT_NODE_IMG,
+        // рамка — цвет основной фракции (она и так видна всем областью), без фракции — нейтральная
+        borderColor: (node.primaryFactionId && factionColorById.get(node.primaryFactionId)) || NEUTRAL_COLOR,
       },
       position: { x: node.x, y: node.y },
     });
@@ -115,7 +120,7 @@ function buildElements(data: GraphData, options: RenderOptions): cytoscape.Eleme
         // шрифт подписи растёт с узлами; после resize его обновляет edge-labels.ts
         labelFontSize: edgeLabelFontSize(scaleById.get(edge.source) ?? 1, scaleById.get(edge.target) ?? 1),
         arrow: edge.directional ? "triangle" : "none",
-        edgeColor: relType?.color ?? "#64748b",
+        edgeColor: relType?.color ?? NEUTRAL_COLOR,
         lineStyle: dashPattern ? "dashed" : "solid",
         ...(dashPattern ? { dashPattern } : {}),
         edgeOpacity: edge.gmOnly ? 0.6 : 1,
@@ -150,7 +155,7 @@ const STYLE = [
       height: "data(size)",
       "background-color": "#334155",
       "border-width": 2,
-      "border-color": "#64748b",
+      "border-color": "data(borderColor)",
       "background-image": "data(img)",
       "background-fit": "cover",
       // подписи у узла нет: имя, роль и бейджи рисует HTML-слой (node-decor.ts)

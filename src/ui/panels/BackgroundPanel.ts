@@ -11,6 +11,7 @@ import { browseImage, colorField, createPanelShell, field, hint, select, textInp
 const MODE_OPTIONS: ReadonlyArray<{ value: BackgroundImageMode; label: string }> = [
   { value: "single", label: "Общее изображение" },
   { value: "tile", label: "Текстура (плиткой)" },
+  { value: "screen", label: "На весь экран (неподвижно)" },
 ];
 
 export interface BackgroundPanelCallbacks {
@@ -99,17 +100,22 @@ export function createBackgroundPanel(background: GraphBackground | null, callba
   positionRow.className = "frg-field-row";
   positionRow.append(x, y);
 
-  // Поля картинки — только когда она задана; положение и «вписать» — только у общего изображения.
-  const imageFields = [
-    field("Как показывать", mode),
-    field("Ширина (в единицах графа)", width, hint("0 — натуральный размер файла. У текстуры — ширина одной плитки.")),
-    field("Непрозрачность, %", opacity),
-  ];
+  // Поля картинки — только когда она задана; ширина — кроме режима «на весь экран»;
+  // положение и «вписать» — только у общего изображения.
+  const imageFields = [field("Как показывать", mode), field("Непрозрачность, %", opacity)];
+  const widthField = field(
+    "Ширина (в единицах графа)",
+    width,
+    hint("0 — натуральный размер файла. У текстуры — ширина одной плитки."),
+  );
   const singleFields = [field("Левый верхний угол (X, Y)", positionRow), fit];
+  const screenHint = hint("Картинка закрывает всю область графа и не двигается при перемещении и масштабе.");
   const sync = () => {
     const hasImage = image.value.trim() !== "";
     imageFields.forEach((element) => (element.hidden = !hasImage));
+    widthField.hidden = !hasImage || mode.value === "screen";
     singleFields.forEach((element) => (element.hidden = !hasImage || mode.value !== "single"));
+    screenHint.hidden = !hasImage || mode.value !== "screen";
   };
   image.addEventListener("input", sync);
   mode.addEventListener("change", sync);
@@ -117,9 +123,12 @@ export function createBackgroundPanel(background: GraphBackground | null, callba
   shell.body.append(
     field("Цвет фона", color.element, hint("Пусто — стандартный цвет.")),
     field("Картинка", imageRow),
-    ...imageFields,
+    imageFields[0],
+    screenHint,
+    widthField,
     ...singleFields,
-    hint("Картинка лежит в координатах графа: двигается и масштабируется вместе с узлами. Фон видят все."),
+    imageFields[1],
+    hint("Общее изображение и текстура лежат в координатах графа: двигаются и масштабируются вместе с узлами. Фон видят все."),
   );
   sync();
   return shell.element;

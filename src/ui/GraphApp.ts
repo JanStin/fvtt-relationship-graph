@@ -486,7 +486,7 @@ export class GraphApp extends ApplicationV2 {
         void this.#persistNodeChanges(nodes);
       },
       onContextMenu: (target, client) => this.#openContextMenu(target, client),
-      onInfo: (target, client) => this.#openInfo(target, client),
+      onInfo: (target, client) => this.#onDoubleClick(target, client),
       onQuickLink: (nodeId) => {
         this.#interaction?.startLinking(nodeId);
       },
@@ -526,13 +526,34 @@ export class GraphApp extends ApplicationV2 {
     return game.user?.isGM === true;
   }
 
+  /**
+   * Двойной клик ЛКМ: в режиме просмотра — карточка информации, в режиме редактирования —
+   * панель редактирования узла, связи или фракции. Узел «Правит только GM» игроку панель не
+   * откроет — ему показывается карточка.
+   */
+  #onDoubleClick(target: GraphTarget, client: Point): void {
+    const data = this.#currentData;
+    if (!data || target.kind === "background") return;
+    if (this.#editing) {
+      if (target.kind === "edge") {
+        this.#openEdgePanel(target.id);
+        return;
+      }
+      if (target.kind === "faction") {
+        this.#openFactionPanel(target.id); // игроку — с правкой только описания
+        return;
+      }
+      const node = data.nodes.find((n) => n.id === target.id);
+      if (node && canEditNode(node, this.#isGM)) {
+        this.#openNodePanel(target.id);
+        return;
+      }
+    }
+    this.#openInfo(target, client);
+  }
+
   #openInfo(target: GraphTarget, client: Point): void {
     if (!this.#currentData || target.kind === "background") return;
-    if (target.kind === "edge" && this.#editing) {
-      // В режиме редактирования двойной клик по связи сразу открывает её панель.
-      this.#openEdgePanel(target.id);
-      return;
-    }
     const options = { isGM: this.#isGM };
     const card =
       target.kind === "node"

@@ -52,20 +52,24 @@ export interface ConditionDef {
   icon: string; // класс Font Awesome: "fa-skull" или набор классов
 }
 
-/** Как показывать картинку фона: плиткой (текстура) или одним изображением (как карта). */
-export type BackgroundImageMode = "tile" | "single";
+/**
+ * Как показывать картинку фона: плиткой (текстура), одним изображением в координатах графа
+ * (как карта) или на весь экран — неподвижно, независимо от панорамирования и зума.
+ */
+export type BackgroundImageMode = "tile" | "single" | "screen";
 
 /**
- * Фон графа (задаёт GM, видят все). Картинка лежит в координатах графа: двигается и
- * масштабируется вместе с узлами. Логика — core/background.ts, отрисовка — ui/background-layer.ts.
+ * Фон графа (задаёт GM, видят все). Картинка tile/single лежит в координатах графа: двигается и
+ * масштабируется вместе с узлами; screen закрывает всю область графа и стоит на месте.
+ * Логика — core/background.ts, отрисовка — ui/background-layer.ts.
  */
 export interface GraphBackground {
   color: string; // hex; '' — стандартный цвет
   image: string; // путь к картинке; '' — без картинки
   imageMode: BackgroundImageMode;
-  imageX: number; // single — левый верхний угол картинки; tile — точка привязки плиток
+  imageX: number; // single — левый верхний угол картинки; tile — точка привязки плиток; screen — не используется
   imageY: number;
-  imageWidth: number; // ширина картинки (плитки) в единицах графа; 0 — натуральная ширина
+  imageWidth: number; // ширина картинки (плитки) в единицах графа; 0 — натуральная ширина; screen — не используется
   imageOpacity: number; // 0..1
 }
 

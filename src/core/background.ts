@@ -4,6 +4,8 @@
  *
  * Картинка лежит в координатах графа (как карта): при панорамировании и зуме она двигается
  * и масштабируется вместе с узлами. Текстура — та же картинка плитками от точки привязки.
+ * Режим «на весь экран» — исключение: картинка закрывает область графа (как CSS cover) и стоит
+ * на месте, геометрия ей не нужна.
  */
 
 import type { BackgroundImageMode, GraphBackground, GraphData } from "./model";
@@ -14,7 +16,7 @@ const MIN_OPACITY = 0.05;
 /** Меньше — плитки текстуры превращаются в рябь, а браузер — в печку. */
 const MIN_IMAGE_WIDTH = 16;
 
-export const BACKGROUND_IMAGE_MODES: readonly BackgroundImageMode[] = ["tile", "single"];
+export const BACKGROUND_IMAGE_MODES: readonly BackgroundImageMode[] = ["tile", "single", "screen"];
 
 export function defaultBackground(): GraphBackground {
   return { color: "", image: "", imageMode: "single", imageX: 0, imageY: 0, imageWidth: 0, imageOpacity: 1 };

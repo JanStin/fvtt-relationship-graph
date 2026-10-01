@@ -6,7 +6,8 @@
  * Как рисуется: для каждой фракции SDF считается на сетке экранных клеток (BLOB_CELL px)
  * в пределах видимой части её области — по всем узлам фракции сразу, чтобы перемычки между
  * соседними «островами», которые тянутся друг к другу, не обрезались. По SDF — непрозрачность
- * клетки с мягким порогом (blobCoverage). Сетка кладётся в маленький ImageData и растягивается на канвас со
+ * клетки с мягким порогом (blobCoverage). Форма полная (core/blob.blobShape): круги узлов
+ * и залитое пространство внутри фигур из узлов фракции. Сетка кладётся в маленький ImageData и растягивается на канвас со
  * сглаживанием — так край получается размытым и без лесенки, а расчёт остаётся дешёвым.
  * Под каждым островом — название фракции.
  *
@@ -19,10 +20,11 @@ import {
   BLOB_SOFTNESS,
   blobBounds,
   blobCoverage,
-  blobIslands,
   blobRadius,
-  blobSdf,
-  blobSmoothing,
+  blobShape,
+  shapeIslands,
+  shapeSdf,
+  type BlobShape,
   islandLabelAnchor,
   type BlobCircle,
   type BlobGroup,
@@ -78,14 +80,8 @@ export function createFactionBlobLayer(container: HTMLElement, cy: cytoscape.Cor
 
   let frame: number | null = null;
 
-  /** Заливка области фракции; smoothing — её сила сглаживания (core/blob.blobSmoothing). */
-  function drawArea(
-    ctx: CanvasRenderingContext2D,
-    circles: BlobCircle[],
-    smoothing: number,
-    rgb: [number, number, number],
-    opacity: number,
-  ) {
+  /** Заливка области фракции по её полной форме (core/blob.blobShape). */
+  function drawArea(ctx: CanvasRenderingContext2D, shape: BlobShape, rgb: [number, number, number], opacity: number) {
     if (!gridContext) return;
     const zoom = cy.zoom();
     const pan = cy.pan();
@@ -93,7 +89,8 @@ export function createFactionBlobLayer(container: HTMLElement, cy: cytoscape.Cor
     const height = canvas.clientHeight;
 
     // видимая часть области на экране; гладкий минимум раздувает форму наружу не больше чем на k/4
-    const bounds = blobBounds(circles, BLOB_SOFTNESS + smoothing / 4);
+    // залитые треугольники лежат между центрами кругов — в той же рамке
+    const bounds = blobBounds(shape.circles, BLOB_SOFTNESS + shape.smoothing / 4);
     const left = Math.max(0, Math.floor(pan.x + bounds.x1 * zoom));
     const top = Math.max(0, Math.floor(pan.y + bounds.y1 * zoom));
     const right = Math.min(width, Math.ceil(pan.x + bounds.x2 * zoom));
@@ -118,7 +115,7 @@ export function createFactionBlobLayer(container: HTMLElement, cy: cytoscape.Cor
       const y = (top + (row + 0.5) * BLOB_CELL - pan.y) / zoom;
       for (let column = 0; column < columns; column++) {
         const x = (left + (column + 0.5) * BLOB_CELL - pan.x) / zoom;
-        const sdf = blobSdf({ x, y }, circles, smoothing);
+        const sdf = shapeSdf({ x, y }, shape, softness);
         const coverage = blobCoverage(sdf, softness);
         if (coverage <= 0) continue;
         // уплотнение у края: колокол вокруг внутренней стороны контура
@@ -169,9 +166,9 @@ export function createFactionBlobLayer(container: HTMLElement, cy: cytoscape.Cor
       const rgb = parseColor((faction.data("factionColor") as string | undefined) ?? "");
       const opacity = faction.hasClass(FACTION_SELECTED_CLASS) ? SELECTED_FILL_OPACITY : FILL_OPACITY;
       const label = (faction.data("label") as string | undefined) ?? "";
-      const smoothing = blobSmoothing(circles);
-      drawArea(context, circles, smoothing, rgb, opacity);
-      for (const island of blobIslands(circles, smoothing)) {
+      const shape = blobShape(circles);
+      drawArea(context, shape, rgb, opacity);
+      for (const island of shapeIslands(shape)) {
         drawLabel(
           context,
           island.map((i) => circles[i]),
