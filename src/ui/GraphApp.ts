@@ -1003,8 +1003,8 @@ export class GraphApp extends ApplicationV2 {
       items.push({ label: "Информация", onSelect: () => this.#openInfo(target, client) });
       if (editable) items.push({ label: "Редактировать", onSelect: () => this.#openNodePanel(nodeId) });
       if (editing) items.push({ label: "Создать связь", onSelect: () => this.#interaction?.startLinking(nodeId) });
-      // У скрытого узла игроку лист актёра не предлагаем — он выдал бы, кто это.
-      const actorId = node && !isMasked(node, this.#isGM) ? node.actorId : null;
+      // Лист актёра открывает только GM: игроку он выдал бы лишнее (у скрытого узла — ещё и кто это).
+      const actorId = node && this.#isGM ? node.actorId : null;
       const actor = actorId ? game.actors?.get(actorId) : null;
       if (actor) items.push({ label: "Открыть лист актёра", onSelect: () => actor.sheet?.render(true) });
       if (editable) items.push({ label: "Сбросить размер", onSelect: () => this.#interaction?.resetScale(nodeId) });

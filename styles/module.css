@@ -314,16 +314,21 @@
   text-align: center;
   line-height: 1.2;
   overflow-wrap: anywhere;
+  /* тёмная обводка — имя и роль читаются на любом фоне графа; растёт вместе с узлом,
+     paint-order рисует обводку под заливкой, чтобы она не съедала буквы */
+  -webkit-text-stroke: calc(var(--frg-size) * 0.04) #0b1220;
+  paint-order: stroke fill;
 }
 
 .frg-node-name {
   color: #e2e8f0;
-  font-size: calc(var(--frg-size) * 0.15);
+  font-size: calc(var(--frg-size) * 0.15 + 2px);
 }
 
 .frg-node-role {
-  color: #94a3b8;
-  font-size: calc(var(--frg-size) * 0.117);
+  /* бежевая — отличается от имени, но читается на тёмной обводке */
+  color: #e7d7b4;
+  font-size: calc(var(--frg-size) * 0.117 + 2px);
 }
 
 /* Фракции: строка выбора в панели узла и строка списка фракций (src/ui/panels/). */

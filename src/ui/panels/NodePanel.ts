@@ -5,7 +5,8 @@
 
 import { conditionIconClass } from "../../core/conditions";
 import { primaryAfterUncheck, type NodeEditValues } from "../../core/edit";
-import type { ConditionDef, Faction, GraphNode, NodeType } from "../../core/model";
+import { normalizeImageAlign } from "../../core/image-align";
+import type { ConditionDef, Faction, GraphNode, ImageAlign, NodeType } from "../../core/model";
 import { SCALE_MAX, SCALE_MIN } from "../../core/selection";
 import { browseImage, checkbox, createPanelShell, field, hint, select, textArea, textInput } from "./form";
 
@@ -15,6 +16,14 @@ const NODE_TYPE_OPTIONS: ReadonlyArray<{ value: NodeType; label: string }> = [
   { value: "actor", label: "Актёр" },
   { value: "placeholder", label: "Без актёра" },
   { value: "image", label: "Просто изображение" },
+];
+
+const IMAGE_ALIGN_OPTIONS: ReadonlyArray<{ value: ImageAlign; label: string }> = [
+  { value: "top-left", label: "Сверху / слева" },
+  { value: "top-right", label: "Сверху / справа" },
+  { value: "center", label: "По центру" },
+  { value: "bottom-left", label: "Снизу / слева" },
+  { value: "bottom-right", label: "Снизу / справа" },
 ];
 
 export interface ActorOption {
@@ -162,6 +171,7 @@ export function createNodePanel(
 
   const name = textInput(node.name);
   const img = textInput(node.img);
+  const imageAlign = select(IMAGE_ALIGN_OPTIONS, normalizeImageAlign(node.imageAlign));
   const role = textInput(node.role);
   const factionPicker = createFactionPicker(node, factions, isGM);
   const scale = document.createElement("input");
@@ -191,6 +201,7 @@ export function createNodePanel(
         actorId: actor.value === NO_ACTOR ? null : actor.value,
         name: name.value,
         img: img.value,
+        imageAlign: imageAlign.value as ImageAlign,
         role: role.value,
         ...factionPicker.value(),
         scale: scale.valueAsNumber,
@@ -239,6 +250,9 @@ export function createNodePanel(
     field("Имя", name),
     field("Изображение", imgRow),
     actorHint,
+    // у привязанного к актёру узла тоже можно: картинка от актёра, выравнивание — своё
+    field("Выравнивание изображения", imageAlign),
+    hint("Изображение заполняет узел целиком; если оно выше или шире узла, выравнивание решает, какую часть оставить."),
     field("Роль", role),
     factionPicker.element,
     field("Размер", scale),

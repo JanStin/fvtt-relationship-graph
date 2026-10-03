@@ -13,6 +13,7 @@
 
 import cytoscape from "cytoscape";
 import fcose from "cytoscape-fcose";
+import { imageAlignPosition } from "../core/image-align";
 import type { GraphData } from "../core/model";
 import { canEditNode } from "../core/permissions";
 import { edgeLabelFontSize } from "../core/label-layout";
@@ -94,6 +95,8 @@ function buildElements(data: GraphData, options: RenderOptions): cytoscape.Eleme
         // Заглушка — только при пустом пути; битую ссылку не подменяем.
         // Скрытый узел игроку всегда рисуется заглушкой.
         img: (isMasked(node, options.isGM) ? "" : node.img) || DEFAULT_NODE_IMG,
+        // картинка заполняет узел (cover), лишнее обрезается по одной оси — с какой стороны, задаёт узел
+        imgPosition: imageAlignPosition(node.imageAlign),
         // рамка — цвет основной фракции (она и так видна всем областью), без фракции — нейтральная
         borderColor: (node.primaryFactionId && factionColorById.get(node.primaryFactionId)) || NEUTRAL_COLOR,
       },
@@ -158,6 +161,8 @@ const STYLE = [
       "border-color": "data(borderColor)",
       "background-image": "data(img)",
       "background-fit": "cover",
+      "background-position-x": (node: cytoscape.NodeSingular) => (node.data("imgPosition") as { x: string }).x,
+      "background-position-y": (node: cytoscape.NodeSingular) => (node.data("imgPosition") as { y: string }).y,
       // подписи у узла нет: имя, роль и бейджи рисует HTML-слой (node-decor.ts)
     },
   },

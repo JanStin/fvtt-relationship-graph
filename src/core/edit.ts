@@ -5,7 +5,8 @@
 
 import { allConditions } from "./conditions";
 import { addFaction, updateEdge, updateFaction, updateNode } from "./graph-state";
-import type { GraphData, GraphEdge, GraphNode, NodeType } from "./model";
+import { normalizeImageAlign } from "./image-align";
+import type { GraphData, GraphEdge, GraphNode, ImageAlign, NodeType } from "./model";
 import { SCALE_MAX, SCALE_MIN } from "./selection";
 import { normalizeNodeFlags } from "./visibility";
 
@@ -16,6 +17,8 @@ export interface NodeEditValues {
   actorId: string | null;
   name: string;
   img: string;
+  /** Меняется и у привязанного к актёру узла: картинка от актёра, выравнивание — наше. */
+  imageAlign: ImageAlign;
   role: string;
   /** Все отмеченные фракции узла. */
   factionIds: string[];
@@ -109,6 +112,7 @@ export function applyNodeEdit(data: GraphData, nodeId: string, values: NodeEditV
     // «просто изображение» может быть без подписи, остальным узлам имя обязательно
     name: actorBound || (name === "" && type !== "image") ? node.name : name,
     img: actorBound ? node.img : values.img.trim(),
+    imageAlign: normalizeImageAlign(values.imageAlign),
     role: values.role.trim(),
     scale,
     lore: values.lore,

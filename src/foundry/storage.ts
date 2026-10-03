@@ -17,6 +17,7 @@ declare const JournalEntry: {
 };
 
 export interface MockableJournalEntry {
+  id?: string;
   name?: string;
   getFlag(scope: string, key: string): unknown;
   setFlag(scope: string, key: string, value: unknown): Promise<unknown>;
@@ -41,6 +42,18 @@ export function getStorageEntry(): MockableJournalEntry | null {
 /** Это журнал-хранилище графа (для фильтрации хуков updateJournalEntry). */
 export function isStorageEntry(entry: { name?: string } | null | undefined): boolean {
   return entry?.name === JOURNAL_NAME;
+}
+
+/**
+ * Убирает журнал-хранилище из списка вкладки «Журналы» у всех, включая GM (хук
+ * renderJournalDirectory). Сам журнал нужен — в нём лежит граф, и игроки пишут в него при
+ * сохранении, — но открывать его руками незачем (страниц нет, данные во флаге), а удаление
+ * стёрло бы граф.
+ */
+export function hideStorageEntry(html: HTMLElement): void {
+  const id = getStorageEntry()?.id;
+  if (!id) return;
+  html.querySelectorAll(`[data-entry-id="${id}"], [data-document-id="${id}"]`).forEach((item) => item.remove());
 }
 
 export async function getOrCreateStorageEntry(): Promise<MockableJournalEntry> {

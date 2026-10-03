@@ -13,6 +13,7 @@
 
 import { pickCleaner, releaseEditLock } from "./edit-lock";
 import { MODULE_ID, registerSettings } from "./settings";
+import { hideStorageEntry } from "./storage";
 
 declare const Hooks: any;
 declare const game: any;
@@ -79,6 +80,11 @@ Hooks.on("renderActorDirectory", (_app: unknown, html: HTMLElement) => {
     console.warn(`${MODULE_ID} | не нашли .directory-footer в ActorDirectory, кнопка добавлена в корень`);
     html.appendChild(button);
   }
+});
+
+// Журнал-хранилище графа в списке журналов не показываем никому (storage.ts).
+Hooks.on("renderJournalDirectory", (_app: unknown, html: HTMLElement) => {
+  hideStorageEntry(html);
 });
 
 export {};

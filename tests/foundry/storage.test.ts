@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { allowPlayersToSave, loadGraphData, saveGraphData } from "../../src/foundry/storage";
+import { allowPlayersToSave, hideStorageEntry, loadGraphData, saveGraphData } from "../../src/foundry/storage";
 import type { GraphData } from "../../src/core/model";
 import { createMockJournalEntry, installMockFoundry } from "../mocks/foundry";
 
@@ -118,5 +118,28 @@ describe("права игроков на хранилище", () => {
     mock = installMockFoundry();
     await allowPlayersToSave();
     expect(mock.journalEntries).toHaveLength(0);
+  });
+});
+
+describe("hideStorageEntry", () => {
+  function directory(...ids: string[]): HTMLElement {
+    const root = document.createElement("section");
+    root.innerHTML = ids.map((id) => `<li class="directory-item" data-entry-id="${id}"></li>`).join("");
+    return root;
+  }
+
+  it("убирает из списка только журнал-хранилище", () => {
+    const entry = createMockJournalEntry("Relationship Graph Data", "store1");
+    mock = installMockFoundry({ journalEntries: [entry, createMockJournalEntry("Заметки", "other")] });
+    const html = directory("other", "store1");
+    hideStorageEntry(html);
+    expect([...html.querySelectorAll("li")].map((li) => li.dataset.entryId)).toEqual(["other"]);
+  });
+
+  it("без журнала-хранилища список не трогает", () => {
+    mock = installMockFoundry();
+    const html = directory("other");
+    hideStorageEntry(html);
+    expect(html.querySelectorAll("li")).toHaveLength(1);
   });
 });

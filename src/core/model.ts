@@ -1,5 +1,8 @@
 export type NodeType = "actor" | "placeholder" | "image";
 
+/** Выравнивание картинки в узле (core/image-align.ts). */
+export type ImageAlign = "top-left" | "top-right" | "center" | "bottom-left" | "bottom-right";
+
 export interface GraphNode {
   id: string;
   type: NodeType;
@@ -7,6 +10,7 @@ export interface GraphNode {
   name: string;
   originalName: string;
   img: string;
+  imageAlign?: ImageAlign; // нет — по центру (графы до 1.0.3)
   x: number;
   y: number;
   scale: number; // 1.0 по умолчанию; отсутствует в FANG

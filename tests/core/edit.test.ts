@@ -58,6 +58,7 @@ function values(overrides: Partial<NodeEditValues> = {}): NodeEditValues {
     actorId: null,
     name: "Новое",
     img: "new.png",
+    imageAlign: "center",
     role: "",
     factionIds: [],
     primaryFactionId: null,
@@ -133,6 +134,13 @@ describe("applyNodeEdit", () => {
     expect(nodeOf(applyNodeEdit(data, "free", values({ scale: 99 })), "free").scale).toBe(5);
     expect(nodeOf(applyNodeEdit(data, "free", values({ scale: 0 })), "free").scale).toBe(0.3);
     expect(nodeOf(applyNodeEdit(data, "free", values({ scale: NaN })), "free").scale).toBe(1);
+  });
+
+  it("выравнивание изображения: меняется и у привязанного узла, неизвестное — по центру", () => {
+    const bound = applyNodeEdit(data, "bound", values({ type: "actor", actorId: "actor1", imageAlign: "top-right" }));
+    expect(nodeOf(bound, "bound").imageAlign).toBe("top-right");
+    const unknown = applyNodeEdit(data, "free", values({ imageAlign: "diagonal" as never }));
+    expect(nodeOf(unknown, "free").imageAlign).toBe("center");
   });
 
   it("смена основной фракции: основная встаёт первой, остальные сохраняются", () => {
