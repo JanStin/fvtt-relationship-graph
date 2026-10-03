@@ -119,6 +119,35 @@
   padding: 4px 12px 12px;
 }
 
+/* Вкладки панели (form.ts, addPanelTabs): полоса между заголовком и телом. */
+.frg-panel-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 4px;
+  padding: 0 12px 8px;
+  border-bottom: 1px solid #334155;
+}
+
+.frg-panel .frg-panel-tab {
+  flex: 1 1 0;
+  background: transparent;
+  color: #94a3b8;
+  border: 1px solid #334155;
+}
+
+.frg-panel .frg-panel-tab-active {
+  background: #1e293b;
+  color: #f8fafc;
+  border-color: #64748b;
+}
+
+.frg-panel-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 8px;
+}
+
 .frg-field {
   display: flex;
   flex-direction: column;

@@ -42,6 +42,8 @@ function values(overrides: Partial<NodeEditValues> = {}): NodeEditValues {
     actorId: null,
     name: "Новое",
     img: "",
+    imageSource: "portrait",
+    imageFit: "cover",
     imageAlign: "center",
     role: "",
     factionIds: [],

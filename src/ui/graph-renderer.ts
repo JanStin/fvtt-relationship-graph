@@ -15,6 +15,7 @@ import cytoscape from "cytoscape";
 import fcose from "cytoscape-fcose";
 import { imageAlignPosition } from "../core/image-align";
 import type { GraphData } from "../core/model";
+import { cytoscapeImageFit, normalizeImageFit, type Size } from "../core/node-image";
 import { canEditNode } from "../core/permissions";
 import { edgeLabelFontSize } from "../core/label-layout";
 import { parseDash } from "../core/relationship-types";
@@ -99,6 +100,7 @@ function buildElements(data: GraphData, options: RenderOptions): cytoscape.Eleme
         img: (isMasked(node, options.isGM) ? "" : node.img) || DEFAULT_NODE_IMG,
         // картинка заполняет узел (cover), лишнее обрезается по одной оси — с какой стороны, задаёт узел
         imgPosition: imageAlignPosition(node.imageAlign),
+        imageFit: normalizeImageFit(node.imageFit),
         // рамка — цвет основной фракции (она и так видна всем областью), без фракции — нейтральная
         borderColor: (node.primaryFactionId && factionColorById.get(node.primaryFactionId)) || NEUTRAL_COLOR,
       },
@@ -136,6 +138,42 @@ function buildElements(data: GraphData, options: RenderOptions): cytoscape.Eleme
   return elements as cytoscape.ElementDefinition[];
 }
 
+function imageFitOf(node: cytoscape.NodeSingular) {
+  return cytoscapeImageFit(
+    node.data("imageFit"),
+    node.data("size") as number,
+    (node.data("imgNatural") as Size | undefined) ?? null,
+  );
+}
+
+/** Натуральные размеры уже загруженных картинок: при перерисовке графа scale-down не мигает. */
+const naturalSizes = new Map<string, Size>();
+
+/**
+ * Узлам scale-down нужен натуральный размер картинки: загружаем её сами (Cytoscape размер не
+ * отдаёт) и кладём в data.imgNatural — функция стиля пересчитается. Не загрузилась — остаётся contain.
+ */
+function provideNaturalSizes(cy: cytoscape.Core): void {
+  const pending = new Map<string, cytoscape.NodeSingular[]>();
+  cy.nodes("[!isFaction]").forEach((node) => {
+    if (node.data("imageFit") !== "scale-down") return;
+    const url = node.data("img") as string;
+    const known = naturalSizes.get(url);
+    if (known) node.data("imgNatural", known);
+    else pending.set(url, [...(pending.get(url) ?? []), node]);
+  });
+  pending.forEach((nodes, url) => {
+    const image = new Image();
+    image.onload = () => {
+      const size = { width: image.naturalWidth, height: image.naturalHeight };
+      naturalSizes.set(url, size);
+      if (cy.destroyed()) return;
+      cy.batch(() => nodes.forEach((node) => node.data("imgNatural", size)));
+    };
+    image.src = url;
+  });
+}
+
 // @types/cytoscape не типизирует data()-мапперы для enum-подобных свойств (arrow-shape и т.д.),
 // хотя рантайм их прекрасно принимает (стандартный cytoscape API) — строим как plain array,
 // приводим тип на использовании.
@@ -162,7 +200,11 @@ const STYLE = [
       "border-width": 2,
       "border-color": "data(borderColor)",
       "background-image": "data(img)",
-      "background-fit": "cover",
+      // как CSS object-fit (core/node-image.ts); scale-down смотрит на натуральный размер файла —
+      // его renderGraph кладёт в data.imgNatural, когда картинка загрузится
+      "background-fit": (node: cytoscape.NodeSingular) => imageFitOf(node).fit,
+      "background-width": (node: cytoscape.NodeSingular) => (imageFitOf(node).stretch ? "100%" : "auto"),
+      "background-height": (node: cytoscape.NodeSingular) => (imageFitOf(node).stretch ? "100%" : "auto"),
       "background-position-x": (node: cytoscape.NodeSingular) => (node.data("imgPosition") as { x: string }).x,
       "background-position-y": (node: cytoscape.NodeSingular) => (node.data("imgPosition") as { y: string }).y,
       // подписи у узла нет: имя, роль и бейджи рисует HTML-слой (node-decor.ts)
@@ -253,7 +295,7 @@ export function renderGraph(container: HTMLElement, data: GraphData, options: Re
         nodeSeparation: 30,
       } as unknown as cytoscape.LayoutOptions);
 
-  return cytoscape({
+  const cy = cytoscape({
     container,
     boxSelectionEnabled: true, // Shift+ЛКМ-drag — rubber-band, нативное поведение Cytoscape, см. §6
     autoungrabify: !options.editable,
@@ -264,4 +306,6 @@ export function renderGraph(container: HTMLElement, data: GraphData, options: Re
     style: [...STYLE, { selector: "edge", style: { "font-family": options.fontFamily } }] as cytoscape.StylesheetStyle[],
     layout,
   });
+  provideNaturalSizes(cy);
+  return cy;
 }

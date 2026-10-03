@@ -10,6 +10,7 @@ import { BACKGROUND_IMAGE_MODES, defaultBackground, setBackground } from "../cor
 import { ensureConditionDefs, isBuiltinCondition } from "../core/conditions";
 import { normalizeFactions } from "../core/edit";
 import { normalizeImageAlign } from "../core/image-align";
+import { normalizeImageFit, normalizeImageSource } from "../core/node-image";
 import type {
   BackgroundImageMode,
   ConditionDef,
@@ -92,6 +93,8 @@ function parseNode(item: Record<string, unknown>, factions: Faction[], warnings:
     name,
     originalName: str(item.originalName, name),
     img: str(item.img),
+    imageSource: normalizeImageSource(item.imageSource),
+    imageFit: normalizeImageFit(item.imageFit),
     imageAlign: normalizeImageAlign(item.imageAlign),
     x: num(item.x),
     y: num(item.y),

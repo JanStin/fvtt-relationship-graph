@@ -28,7 +28,9 @@ GM». Поэтому кнопка экспорта есть только у GM.
 ## data
 
 - `nodes[]` — узлы: `id`, `type` (`actor` / `placeholder` / `image`), `actorId`, `name`,
-  `originalName`, `img` (пустая строка — картинка по умолчанию), `imageAlign` (`top-left`, `top-right`,
+  `originalName`, `img` (пустая строка — картинка по умолчанию), `imageSource` (`portrait` / `token`, у узла с актёром;
+  нет — `portrait`), `imageFit` (`cover` / `contain` / `fill` / `scale-down`; нет — `cover`),
+  `imageAlign` (`top-left`, `top-right`,
   `center`, `bottom-left`, `bottom-right`; нет или неизвестное — `center`), `x`, `y`, `scale`,
   `primaryFactionId`, `factionIds`, `role`, `lore`, `playerNotes`, `gmNotes`, `conditions`
   (id состояний), `hidden`, `gmOnly`.

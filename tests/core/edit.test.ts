@@ -58,6 +58,8 @@ function values(overrides: Partial<NodeEditValues> = {}): NodeEditValues {
     actorId: null,
     name: "Новое",
     img: "new.png",
+    imageSource: "portrait",
+    imageFit: "cover",
     imageAlign: "center",
     role: "",
     factionIds: [],
@@ -141,6 +143,13 @@ describe("applyNodeEdit", () => {
     expect(nodeOf(bound, "bound").imageAlign).toBe("top-right");
     const unknown = applyNodeEdit(data, "free", values({ imageAlign: "diagonal" as never }));
     expect(nodeOf(unknown, "free").imageAlign).toBe("center");
+  });
+
+  it("источник и вписывание изображения сохраняются, неизвестные — по умолчанию", () => {
+    const bound = applyNodeEdit(data, "bound", values({ type: "actor", actorId: "actor1", imageSource: "token", imageFit: "contain" }));
+    expect(nodeOf(bound, "bound")).toMatchObject({ imageSource: "token", imageFit: "contain" });
+    const unknown = applyNodeEdit(data, "free", values({ imageSource: "x" as never, imageFit: "y" as never }));
+    expect(nodeOf(unknown, "free")).toMatchObject({ imageSource: "portrait", imageFit: "cover" });
   });
 
   it("смена основной фракции: основная встаёт первой, остальные сохраняются", () => {

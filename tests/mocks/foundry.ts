@@ -7,6 +7,7 @@ export interface MockActor {
   id: string;
   name: string;
   img: string;
+  prototypeToken?: { texture: { src: string | null } };
 }
 
 export interface MockJournalEntry {

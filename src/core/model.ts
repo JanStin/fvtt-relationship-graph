@@ -1,5 +1,11 @@
 export type NodeType = "actor" | "placeholder" | "image";
 
+/** Откуда узел с актёром берёт картинку (core/node-image.ts). */
+export type ImageSource = "portrait" | "token";
+
+/** Как картинка вписывается в узел — как CSS object-fit (core/node-image.ts). */
+export type ImageFit = "cover" | "fill" | "contain" | "scale-down";
+
 /** Выравнивание картинки в узле (core/image-align.ts). */
 export type ImageAlign = "top-left" | "top-right" | "center" | "bottom-left" | "bottom-right";
 
@@ -10,6 +16,8 @@ export interface GraphNode {
   name: string;
   originalName: string;
   img: string;
+  imageSource?: ImageSource; // только у узла с актёром; нет — портрет (графы до 1.0.4)
+  imageFit?: ImageFit; // нет — cover (графы до 1.0.4)
   imageAlign?: ImageAlign; // нет — по центру (графы до 1.0.3)
   x: number;
   y: number;

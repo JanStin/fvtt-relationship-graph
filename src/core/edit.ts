@@ -6,7 +6,8 @@
 import { allConditions } from "./conditions";
 import { addFaction, updateEdge, updateFaction, updateNode } from "./graph-state";
 import { normalizeImageAlign } from "./image-align";
-import type { GraphData, GraphEdge, GraphNode, ImageAlign, NodeType } from "./model";
+import type { GraphData, GraphEdge, GraphNode, ImageAlign, ImageFit, ImageSource, NodeType } from "./model";
+import { normalizeImageFit, normalizeImageSource } from "./node-image";
 import { SCALE_MAX, SCALE_MIN } from "./selection";
 import { normalizeNodeFlags } from "./visibility";
 
@@ -17,7 +18,10 @@ export interface NodeEditValues {
   actorId: string | null;
   name: string;
   img: string;
-  /** Меняется и у привязанного к актёру узла: картинка от актёра, выравнивание — наше. */
+  /** Портрет или токен актёра; у узла без актёра хранится, но не используется. */
+  imageSource: ImageSource;
+  /** Вписывание и выравнивание меняются и у привязанного к актёру узла: картинка от актёра, вид — наш. */
+  imageFit: ImageFit;
   imageAlign: ImageAlign;
   role: string;
   /** Все отмеченные фракции узла. */
@@ -112,6 +116,8 @@ export function applyNodeEdit(data: GraphData, nodeId: string, values: NodeEditV
     // «просто изображение» может быть без подписи, остальным узлам имя обязательно
     name: actorBound || (name === "" && type !== "image") ? node.name : name,
     img: actorBound ? node.img : values.img.trim(),
+    imageSource: normalizeImageSource(values.imageSource),
+    imageFit: normalizeImageFit(values.imageFit),
     imageAlign: normalizeImageAlign(values.imageAlign),
     role: values.role.trim(),
     scale,

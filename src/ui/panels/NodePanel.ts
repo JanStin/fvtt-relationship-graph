@@ -1,14 +1,17 @@
 /**
  * Боковая панель редактирования узла. Только собирает форму и отдаёт введённые значения —
  * нормализацию и применение к GraphData делает core/edit.ts, сохранение — GraphApp.
+ * Вкладки: «Инфо» — тексты и флаги видимости, «Вид» — тип, актёр, изображение и размер,
+ * «Метки» — фракции и состояния.
  */
 
 import { conditionIconClass } from "../../core/conditions";
 import { primaryAfterUncheck, type NodeEditValues } from "../../core/edit";
 import { normalizeImageAlign } from "../../core/image-align";
-import type { ConditionDef, Faction, GraphNode, ImageAlign, NodeType } from "../../core/model";
+import type { ConditionDef, Faction, GraphNode, ImageAlign, ImageFit, ImageSource, NodeType } from "../../core/model";
+import { normalizeImageFit, normalizeImageSource } from "../../core/node-image";
 import { SCALE_MAX, SCALE_MIN } from "../../core/selection";
-import { browseImage, checkbox, createPanelShell, field, hint, select, textArea, textInput } from "./form";
+import { addPanelTabs, browseImage, checkbox, createPanelShell, field, hint, select, textArea, textInput } from "./form";
 
 const NO_ACTOR = ""; // значение <option> «не выбран»; id актёров пустыми не бывают
 
@@ -16,6 +19,18 @@ const NODE_TYPE_OPTIONS: ReadonlyArray<{ value: NodeType; label: string }> = [
   { value: "actor", label: "Актёр" },
   { value: "placeholder", label: "Без актёра" },
   { value: "image", label: "Просто изображение" },
+];
+
+const IMAGE_SOURCE_OPTIONS: ReadonlyArray<{ value: ImageSource; label: string }> = [
+  { value: "portrait", label: "Портрет" },
+  { value: "token", label: "Токен" },
+];
+
+const IMAGE_FIT_OPTIONS: ReadonlyArray<{ value: ImageFit; label: string }> = [
+  { value: "cover", label: "Заполнить (обрезать лишнее)" },
+  { value: "contain", label: "Вписать целиком" },
+  { value: "fill", label: "Растянуть" },
+  { value: "scale-down", label: "Вписать, не увеличивая" },
 ];
 
 const IMAGE_ALIGN_OPTIONS: ReadonlyArray<{ value: ImageAlign; label: string }> = [
@@ -171,6 +186,8 @@ export function createNodePanel(
 
   const name = textInput(node.name);
   const img = textInput(node.img);
+  const imageSource = select(IMAGE_SOURCE_OPTIONS, normalizeImageSource(node.imageSource));
+  const imageFit = select(IMAGE_FIT_OPTIONS, normalizeImageFit(node.imageFit));
   const imageAlign = select(IMAGE_ALIGN_OPTIONS, normalizeImageAlign(node.imageAlign));
   const role = textInput(node.role);
   const factionPicker = createFactionPicker(node, factions, isGM);
@@ -201,6 +218,8 @@ export function createNodePanel(
         actorId: actor.value === NO_ACTOR ? null : actor.value,
         name: name.value,
         img: img.value,
+        imageSource: imageSource.value as ImageSource,
+        imageFit: imageFit.value as ImageFit,
         imageAlign: imageAlign.value as ImageAlign,
         role: role.value,
         ...factionPicker.value(),
@@ -226,6 +245,12 @@ export function createNodePanel(
 
   const actorField = field("Актёр", actor);
   const actorHint = hint("Имя и изображение берутся из актёра — меняйте их в листе актёра.");
+  const nameHint = hint("Имя берётся из актёра (вкладка «Вид»).");
+  const sourceField = field(
+    "Изображение актёра",
+    imageSource,
+    hint("Токен с шаблонным изображением (путь со *) показывается портретом."),
+  );
   // Имя и картинку привязанного узла при каждом открытии графа перезаписывает актёр,
   // поэтому при выбранном актёре эти поля заблокированы.
   const syncBinding = () => {
@@ -233,6 +258,8 @@ export function createNodePanel(
     const bound = isActor && actor.value !== NO_ACTOR;
     actorField.hidden = !isActor || !isGM;
     actorHint.hidden = !bound;
+    nameHint.hidden = !bound;
+    sourceField.hidden = !bound;
     name.disabled = bound;
     img.disabled = bound;
     browse.disabled = bound;
@@ -244,23 +271,38 @@ export function createNodePanel(
   const typeField = field("Тип узла", type);
   typeField.hidden = !isGM && node.type === "actor";
 
-  shell.body.append(
-    typeField,
-    actorField,
-    field("Имя", name),
-    field("Изображение", imgRow),
-    actorHint,
-    // у привязанного к актёру узла тоже можно: картинка от актёра, выравнивание — своё
-    field("Выравнивание изображения", imageAlign),
-    hint("Изображение заполняет узел целиком; если оно выше или шире узла, выравнивание решает, какую часть оставить."),
-    field("Роль", role),
-    factionPicker.element,
-    field("Размер", scale),
-    conditionPicker.element,
-    field("Описание", lore),
-    field("Заметки для игроков", playerNotes),
-    // у игрока этих полей нет — при сохранении прежние значения подставит core/permissions.ts
-    ...(isGM ? [field("Заметки GM", gmNotes), hidden.row, gmOnly.row] : []),
-  );
+  addPanelTabs(shell, [
+    {
+      label: "Инфо",
+      content: [
+        field("Имя", name),
+        nameHint,
+        field("Роль", role),
+        field("Описание", lore),
+        field("Заметки для игроков", playerNotes),
+        // у игрока этих полей нет — при сохранении прежние значения подставит core/permissions.ts
+        ...(isGM ? [field("Заметки GM", gmNotes), hidden.row, gmOnly.row] : []),
+      ],
+    },
+    {
+      label: "Вид",
+      content: [
+        typeField,
+        actorField,
+        field("Изображение", imgRow),
+        actorHint,
+        sourceField,
+        // у привязанного к актёру узла тоже можно: картинка от актёра, вид — свой
+        field("Вписывание изображения", imageFit),
+        field(
+          "Выравнивание изображения",
+          imageAlign,
+          hint("Если изображение не совпадает с узлом по форме, выравнивание решает, к какому краю его прижать."),
+        ),
+        field("Размер", scale),
+      ],
+    },
+    { label: "Метки", content: [factionPicker.element, conditionPicker.element] },
+  ]);
   return shell.element;
 }

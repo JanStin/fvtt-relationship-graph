@@ -19,6 +19,8 @@ function makeNode(overrides: Partial<GraphNode> & { id: string }): GraphNode {
     name: overrides.id,
     originalName: overrides.id,
     img: "",
+    imageSource: "portrait",
+    imageFit: "cover",
     imageAlign: "center",
     x: 10,
     y: 20,
@@ -164,6 +166,17 @@ describe("импорт своего формата: нормализация и 
     expect(data.conditions.map((c) => c.id)).toEqual(["новое"]);
     expect(data.relationshipTypes.map((rt) => rt.id)).toEqual(["romantic"]);
     expect(warnings.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("источник и вписывание изображения: известное читается, нет или неизвестное — по умолчанию", () => {
+    const { data } = parseGraphFileJson(
+      file({ nodes: [{ id: "a", imageSource: "token", imageFit: "scale-down" }, { id: "b" }, { id: "c", imageSource: "x", imageFit: "y" }] }),
+    );
+    expect(data.nodes.map((n) => [n.imageSource, n.imageFit])).toEqual([
+      ["token", "scale-down"],
+      ["portrait", "cover"],
+      ["portrait", "cover"],
+    ]);
   });
 
   it("выравнивание изображения: известное читается, нет или неизвестное — по центру", () => {

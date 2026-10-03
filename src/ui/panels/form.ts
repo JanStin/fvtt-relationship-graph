@@ -172,3 +172,40 @@ export function browseImage(input: HTMLInputElement): void {
     },
   }).browse();
 }
+
+export interface PanelTab {
+  label: string;
+  content: HTMLElement[];
+}
+
+/**
+ * Вкладки панели: полоса кнопок между заголовком и телом, в теле видна только выбранная вкладка.
+ * Поля всех вкладок остаются в одной форме — «Сохранить» забирает значения со всех сразу.
+ */
+export function addPanelTabs(shell: PanelShell, tabs: readonly PanelTab[]): void {
+  const bar = document.createElement("div");
+  bar.className = "frg-panel-tabs";
+  const panes = tabs.map((tab) => {
+    const pane = document.createElement("div");
+    pane.className = "frg-panel-pane";
+    pane.append(...tab.content);
+    return pane;
+  });
+  const buttons = tabs.map((tab, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "frg-panel-tab";
+    button.textContent = tab.label;
+    button.addEventListener("click", () => select(index));
+    return button;
+  });
+  const select = (active: number) => {
+    buttons.forEach((button, index) => button.classList.toggle("frg-panel-tab-active", index === active));
+    panes.forEach((pane, index) => (pane.hidden = index !== active));
+    shell.body.scrollTop = 0;
+  };
+  bar.append(...buttons);
+  shell.element.insertBefore(bar, shell.body);
+  shell.body.append(...panes);
+  select(0);
+}
