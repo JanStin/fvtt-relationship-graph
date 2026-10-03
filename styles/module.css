@@ -308,27 +308,34 @@
   top: 100%;
   left: 50%;
   transform: translateX(-50%);
-  /* подпись не шире узла (переносится) и растёт вместе с ним */
-  width: var(--frg-size);
+  /* шрифт подписей из «Фон графа» (GraphApp ставит переменную на контейнер графа) */
+  font-family: var(--frg-font, inherit);
+  /* подпись по ширине текста, но не шире 2.5 узла (дальше переносится); растёт вместе с узлом */
+  width: max-content;
+  max-width: calc(var(--frg-size) * 2.5);
   margin-top: calc(var(--frg-size) * 0.07);
   text-align: center;
   line-height: 1.2;
   overflow-wrap: anywhere;
-  /* тёмная обводка — имя и роль читаются на любом фоне графа; растёт вместе с узлом,
-     paint-order рисует обводку под заливкой, чтобы она не съедала буквы */
-  -webkit-text-stroke: calc(var(--frg-size) * 0.04) #0b1220;
-  paint-order: stroke fill;
+  /* тёмная плашка — имя и роль читаются на любом фоне графа */
+  padding: calc(var(--frg-size) * 0.03) calc(var(--frg-size) * 0.1);
+  border-radius: calc(var(--frg-size) * 0.1);
+  background: rgba(0, 0, 0, 0.8);
 }
 
 .frg-node-name {
-  color: #e2e8f0;
-  font-size: calc(var(--frg-size) * 0.15 + 2px);
+  color: #fff;
+  font-weight: bold;
+  /* 15px при размере узла ×1 */
+  font-size: calc(var(--frg-size) * 0.25);
 }
 
 .frg-node-role {
-  /* бежевая — отличается от имени, но читается на тёмной обводке */
-  color: #e7d7b4;
-  font-size: calc(var(--frg-size) * 0.117 + 2px);
+  /* тёплый серо-бежевый — отличается от имени, но читается на тёмной плашке */
+  color: #dcd6cc;
+  font-style: italic;
+  /* 12px при размере узла ×1 */
+  font-size: calc(var(--frg-size) * 0.2);
 }
 
 /* Фракции: строка выбора в панели узла и строка списка фракций (src/ui/panels/). */

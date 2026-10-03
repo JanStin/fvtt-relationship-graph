@@ -6,6 +6,8 @@ import {
   coverVisibleArea,
   DEFAULT_BACKGROUND_COLOR,
   defaultBackground,
+  graphFontFamily,
+  isDefaultBackground,
   setBackground,
   tileScreenLayout,
   type BackgroundEditValues,
@@ -23,6 +25,7 @@ function values(overrides: Partial<BackgroundEditValues> = {}): BackgroundEditVa
     imageY: "0",
     imageWidth: "0",
     imageOpacityPercent: "100",
+    font: "",
     ...overrides,
   };
 }
@@ -41,6 +44,7 @@ describe("backgroundFromEdit", () => {
       imageY: 20,
       imageWidth: 300,
       imageOpacity: 0.4,
+      font: "",
     });
   });
 
@@ -118,5 +122,21 @@ describe("coverVisibleArea", () => {
     expect(placement.imageWidth).toBe(300);
     expect(placement.imageX).toBe(10);
     expect(placement.imageY).toBe(10 + (100 - 600) / 2);
+  });
+});
+
+describe("шрифт подписей", () => {
+  it("по умолчанию — Signika, выбранный — первым, с запасными", () => {
+    expect(graphFontFamily(null)).toBe('"Signika", sans-serif');
+    expect(graphFontFamily(defaultBackground())).toBe('"Signika", sans-serif');
+    expect(graphFontFamily({ ...defaultBackground(), font: "Segoe UI" })).toBe('"Segoe UI", "Signika", sans-serif');
+  });
+
+  it("фон только со своим шрифтом — не стандартный", () => {
+    expect(isDefaultBackground({ ...defaultBackground(), font: "Tahoma" })).toBe(false);
+  });
+
+  it("шрифт из формы обрезается от пробелов", () => {
+    expect(backgroundFromEdit(values({ font: " Arial " })).font).toBe("Arial");
   });
 });

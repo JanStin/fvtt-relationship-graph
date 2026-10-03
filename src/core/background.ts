@@ -18,8 +18,28 @@ const MIN_IMAGE_WIDTH = 16;
 
 export const BACKGROUND_IMAGE_MODES: readonly BackgroundImageMode[] = ["tile", "single", "screen"];
 
+/** Шрифт подписей по умолчанию — шрифт интерфейса Foundry. */
+export const DEFAULT_GRAPH_FONT = "Signika";
+
+/**
+ * Системные шрифты для выбора в «Фон графа» (вместе со шрифтами Foundry). Их может не оказаться
+ * у игрока (Segoe UI нет на Mac) — тогда браузер возьмёт запасной из graphFontFamily.
+ */
+export const SYSTEM_FONTS: readonly string[] = [
+  "Segoe UI",
+  "Tahoma",
+  "Arial",
+  "Verdana",
+  "Trebuchet MS",
+  "Georgia",
+  "Times New Roman",
+  "Palatino Linotype",
+  "Garamond",
+  "Courier New",
+];
+
 export function defaultBackground(): GraphBackground {
-  return { color: "", image: "", imageMode: "single", imageX: 0, imageY: 0, imageWidth: 0, imageOpacity: 1 };
+  return { color: "", image: "", imageMode: "single", imageX: 0, imageY: 0, imageWidth: 0, imageOpacity: 1, font: "" };
 }
 
 /** Значения формы фона: числа приходят текстом из полей ввода. */
@@ -32,6 +52,8 @@ export interface BackgroundEditValues {
   imageWidth: string;
   /** Непрозрачность в процентах. */
   imageOpacityPercent: string;
+  /** '' — шрифт по умолчанию. */
+  font: string;
 }
 
 function parseNumber(text: string, fallback: number): number {
@@ -52,12 +74,13 @@ export function backgroundFromEdit(values: BackgroundEditValues): GraphBackgroun
     imageY: parseNumber(values.imageY, 0),
     imageWidth: width <= 0 ? 0 : Math.max(MIN_IMAGE_WIDTH, width),
     imageOpacity: Math.min(1, Math.max(MIN_OPACITY, opacityPercent / 100)),
+    font: values.font.trim(),
   };
 }
 
-/** Фон без цвета и картинки ничем не отличается от стандартного. */
+/** Фон без цвета, картинки и своего шрифта ничем не отличается от стандартного. */
 export function isDefaultBackground(background: GraphBackground): boolean {
-  return background.color === "" && background.image === "";
+  return background.color === "" && background.image === "" && !background.font;
 }
 
 /** Задаёт фон графа; стандартный фон хранится как null (см. GraphData.background). */
@@ -68,6 +91,16 @@ export function setBackground(data: GraphData, background: GraphBackground | nul
 /** Цвет, которым заливается фон графа. */
 export function backgroundColor(background: GraphBackground | null | undefined): string {
   return background?.color || DEFAULT_BACKGROUND_COLOR;
+}
+
+/**
+ * CSS font-family подписей (и для HTML-слоя, и для Cytoscape): выбранный шрифт, за ним Signika
+ * и общий sans-serif — на случай, если выбранного шрифта у зрителя нет.
+ */
+export function graphFontFamily(background: GraphBackground | null | undefined): string {
+  const font = background?.font?.trim() ?? "";
+  const fallback = `"${DEFAULT_GRAPH_FONT}", sans-serif`;
+  return font && font !== DEFAULT_GRAPH_FONT ? `"${font.replace(/"/g, "")}", ${fallback}` : fallback;
 }
 
 export interface Size {

@@ -63,7 +63,7 @@ export interface ConditionDef {
 export type BackgroundImageMode = "tile" | "single" | "screen";
 
 /**
- * Фон графа (задаёт GM, видят все). Картинка tile/single лежит в координатах графа: двигается и
+ * Фон графа (задаёт GM, видят все). Сюда же — шрифт подписей: это тоже оформление графа целиком. Картинка tile/single лежит в координатах графа: двигается и
  * масштабируется вместе с узлами; screen закрывает всю область графа и стоит на месте.
  * Логика — core/background.ts, отрисовка — ui/background-layer.ts.
  */
@@ -75,6 +75,7 @@ export interface GraphBackground {
   imageY: number;
   imageWidth: number; // ширина картинки (плитки) в единицах графа; 0 — натуральная ширина; screen — не используется
   imageOpacity: number; // 0..1
+  font?: string; // шрифт подписей узлов и связей; '' или нет (графы до 1.0.4) — Signika
 }
 
 export interface GraphData {

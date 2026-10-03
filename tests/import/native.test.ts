@@ -105,6 +105,7 @@ describe("экспорт → импорт", () => {
         imageY: 50,
         imageWidth: 256,
         imageOpacity: 0.5,
+        font: "Tahoma",
       },
     };
     expect(parseGraphFileJson(roundTrip(withBackground)).data).toEqual(withBackground);
@@ -211,6 +212,7 @@ describe("импорт своего формата: фон", () => {
       imageY: 0,
       imageWidth: 0,
       imageOpacity: 1,
+      font: "",
     });
   });
 

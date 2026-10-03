@@ -93,16 +93,16 @@ describe("layoutEdgeLabels", () => {
 
 describe("edgeLabelFontSize", () => {
   it("у узлов scale 1.0 — базовый размер", () => {
-    expect(edgeLabelFontSize(1, 1)).toBe(8);
+    expect(edgeLabelFontSize(1, 1)).toBe(14);
   });
 
   it("растёт по среднему scale концов", () => {
-    expect(edgeLabelFontSize(2, 1)).toBe(12);
-    expect(edgeLabelFontSize(2, 2)).toBe(16);
+    expect(edgeLabelFontSize(2, 1)).toBe(21);
+    expect(edgeLabelFontSize(2, 2)).toBe(28);
   });
 
   it("ограничен снизу и сверху", () => {
-    expect(edgeLabelFontSize(0.3, 0.3)).toBe(6);
-    expect(edgeLabelFontSize(5, 5)).toBe(24);
+    expect(edgeLabelFontSize(0.3, 0.3)).toBe(8);
+    expect(edgeLabelFontSize(5, 5)).toBe(32);
   });
 });

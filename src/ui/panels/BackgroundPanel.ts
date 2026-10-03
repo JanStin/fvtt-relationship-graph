@@ -4,7 +4,7 @@
  * применение значений — core/background.ts, сохранение — GraphApp.
  */
 
-import { defaultBackground, type BackgroundEditValues } from "../../core/background";
+import { DEFAULT_GRAPH_FONT, defaultBackground, type BackgroundEditValues } from "../../core/background";
 import type { BackgroundImageMode, GraphBackground } from "../../core/model";
 import { browseImage, colorField, createPanelShell, field, hint, select, textInput } from "./form";
 
@@ -35,9 +35,34 @@ function numberInput(value: number, step = "any"): HTMLInputElement {
   return input;
 }
 
-/** background === null — фон стандартный. */
-export function createBackgroundPanel(background: GraphBackground | null, callbacks: BackgroundPanelCallbacks): HTMLElement {
+/**
+ * Выбор шрифта подписей: '' — по умолчанию (Signika). Каждый пункт показан своим шрифтом.
+ * Шрифт, которого нет в списке (например, удалённый из настроек мира), всё равно остаётся выбранным.
+ */
+function fontSelect(fonts: readonly string[], current: string): HTMLSelectElement {
+  const names = [...new Set(fonts.filter((name) => name && name !== DEFAULT_GRAPH_FONT))];
+  if (current && current !== DEFAULT_GRAPH_FONT && !names.includes(current)) names.unshift(current);
+  const element = select(
+    [{ value: "", label: `${DEFAULT_GRAPH_FONT} (по умолчанию)` }, ...names.map((name) => ({ value: name, label: name }))],
+    current === DEFAULT_GRAPH_FONT ? "" : current,
+  );
+  [...element.options].forEach((option) => {
+    option.style.fontFamily = `"${option.value || DEFAULT_GRAPH_FONT}"`;
+  });
+  return element;
+}
+
+/**
+ * background === null — фон стандартный. fonts — шрифты для выбора: шрифты Foundry, затем
+ * системные (повторы и Signika отбрасываются).
+ */
+export function createBackgroundPanel(
+  background: GraphBackground | null,
+  fonts: readonly string[],
+  callbacks: BackgroundPanelCallbacks,
+): HTMLElement {
   const current = background ?? defaultBackground();
+  const font = fontSelect(fonts, current.font ?? "");
 
   const color = colorField(current.color);
 
@@ -91,6 +116,7 @@ export function createBackgroundPanel(background: GraphBackground | null, callba
         imageY: y.value,
         imageWidth: width.value,
         imageOpacityPercent: opacity.value,
+        font: font.value,
       }),
     onDelete: callbacks.onReset,
     onClose: callbacks.onClose,
@@ -129,6 +155,11 @@ export function createBackgroundPanel(background: GraphBackground | null, callba
     ...singleFields,
     imageFields[1],
     hint("Общее изображение и текстура лежат в координатах графа: двигаются и масштабируются вместе с узлами. Фон видят все."),
+    field(
+      "Шрифт подписей",
+      font,
+      hint("Имена и роли узлов, подписи связей. Если системного шрифта нет у игрока, он увидит Signika."),
+    ),
   );
   sync();
   return shell.element;

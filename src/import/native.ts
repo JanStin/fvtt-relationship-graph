@@ -120,6 +120,7 @@ function parseBackground(raw: unknown): GraphBackground | null {
     imageY: num(raw.imageY),
     imageWidth: Math.max(0, num(raw.imageWidth)),
     imageOpacity: Math.min(1, Math.max(0, num(raw.imageOpacity, defaults.imageOpacity))),
+    font: str(raw.font),
   };
 }
 

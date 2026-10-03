@@ -24,6 +24,8 @@ import {
 } from "../foundry/storage";
 import {
   backgroundFromEdit,
+  graphFontFamily,
+  SYSTEM_FONTS,
   coverVisibleArea,
   DEFAULT_BACKGROUND_COLOR,
   setBackground,
@@ -89,6 +91,7 @@ declare const foundry: any;
 declare const game: any;
 declare const ui: any;
 declare const Hooks: any;
+declare const CONFIG: any;
 
 /** Через сколько минут полного бездействия редактор выходит из режима. */
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -102,6 +105,16 @@ const EMPTY_GRAPH: GraphData = ensureDefaultRelationshipTypes({
 });
 
 const ApplicationV2 = foundry.applications.api.ApplicationV2;
+
+/**
+ * Шрифты, которые Foundry уже загрузил для всех клиентов: встроенные и добавленные в настройках
+ * мира («Дополнительные шрифты»).
+ */
+function foundryFonts(): string[] {
+  const fontConfig = foundry.applications?.settings?.menus?.FontConfig;
+  const names: unknown = fontConfig?.getAvailableFonts?.() ?? Object.keys(CONFIG.fontDefinitions ?? {});
+  return Array.isArray(names) ? names.filter((name): name is string => typeof name === "string") : [];
+}
 
 export class GraphApp extends ApplicationV2 {
   static DEFAULT_OPTIONS = {
@@ -501,7 +514,10 @@ export class GraphApp extends ApplicationV2 {
         void this.#redo();
       },
     }, { editable: this.#editing });
-    this.#cy = renderGraph(this.#cyHost, hydrated, { isGM: this.#isGM, editable: this.#editing });
+    // шрифт подписей: HTML-слою (node-decor.ts) — через CSS-переменную, Cytoscape — в стиле связей
+    const fontFamily = graphFontFamily(hydrated.background);
+    this.#cyHost.style.setProperty("--frg-font", fontFamily);
+    this.#cy = renderGraph(this.#cyHost, hydrated, { isGM: this.#isGM, editable: this.#editing, fontFamily });
     if (viewport) this.#cy.viewport(viewport);
     this.#interaction.bind(this.#cy);
     this.#zoomControl?.attach(this.#cy);
@@ -889,7 +905,7 @@ export class GraphApp extends ApplicationV2 {
     const data = this.#currentData;
     if (!data || !this.#isGM || !this.#editing) return;
 
-    const panel = createBackgroundPanel(data.background ?? null, {
+    const panel = createBackgroundPanel(data.background ?? null, [...foundryFonts(), ...SYSTEM_FONTS], {
       onSave: (values) => {
         void this.#saveBackground(values);
       },

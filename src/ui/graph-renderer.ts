@@ -60,6 +60,8 @@ export interface RenderOptions {
    * рисуется картинкой-заглушкой — architecture.md §13. gmOnly-узлы игрок не двигает.
    */
   isGM: boolean;
+  /** CSS font-family подписей связей (core/background.ts, graphFontFamily). */
+  fontFamily: string;
 }
 
 function buildElements(data: GraphData, options: RenderOptions): cytoscape.ElementDefinition[] {
@@ -188,10 +190,10 @@ const STYLE = [
       "source-label": "data(label)",
       "source-text-offset": "data(labelOffset)",
       "font-size": "data(labelFontSize)",
-      color: "#f8fafc",
-      // тёмная подложка — текст читается поверх линии любого цвета
-      "text-background-color": "#0f172a",
-      "text-background-opacity": 0.8,
+      color: "#000000",
+      // белая подложка — текст читается поверх линии любого цвета
+      "text-background-color": "#ffffff",
+      "text-background-opacity": 1,
       "text-background-padding": "2px",
       "text-background-shape": "roundrectangle",
     },
@@ -259,7 +261,7 @@ export function renderGraph(container: HTMLElement, data: GraphData, options: Re
     minZoom: ZOOM_MIN,
     maxZoom: ZOOM_MAX,
     elements: buildElements(data, options),
-    style: STYLE,
+    style: [...STYLE, { selector: "edge", style: { "font-family": options.fontFamily } }] as cytoscape.StylesheetStyle[],
     layout,
   });
 }
