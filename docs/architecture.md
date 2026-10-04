@@ -16,6 +16,7 @@
 | Права | GM / игрок, флаги узла `hidden` / `gmOnly` (`core/permissions.ts`, `core/visibility.ts`) |
 | Совместная работа | Режим просмотра по умолчанию, один редактор (блокировка), живое обновление у остальных |
 | Отмена | История снимков на 30 шагов в пределах сеанса редактирования (`core/history.ts`) |
+| Локализация | `lang/ru.json`, `lang/en.json`; `t()` / `tn()` в `core/i18n.ts`, переводчик — `game.i18n` |
 | Foundry-интеграция | `ApplicationV2` (Foundry v13 API) как оболочка |
 
 ---
@@ -277,12 +278,14 @@ src/
 │   ├── background.ts       # фон графа: значения формы, геометрия картинки
 │   ├── zoom.ts             # пределы масштаба, логарифмический ползунок
 │   ├── decor.ts            # что рисовать на узле (имя, роль, значки)
+│   ├── node-image.ts       # картинка узла: портрет/токен актёра, вписывание
+│   ├── image-align.ts      # выравнивание картинки узла
 │   ├── label-layout.ts     # раздвигание подписей связей, размер их шрифта
 │   ├── describe.ts         # карточки информации (узел, связь, фракция)
 │   ├── visibility.ts       # флаги hidden/gmOnly, маскировка «неизвестного»
 │   ├── permissions.ts      # что можно игроку
 │   ├── history.ts          # отмена/повтор
-│   └── plural.ts           # русское согласование чисел
+│   └── i18n.ts             # t()/tn(): перевод строк, согласование чисел (Intl.PluralRules)
 │
 ├── import/
 │   ├── fang.ts             # parseFangJson()
@@ -310,8 +313,12 @@ src/
     └── panels/             # боковые панели: узел, связь, фракции, типы связей,
                             # состояния, фон, импорт/экспорт; form.ts — общие элементы форм
 
+lang/                       # переводы: ru.json (эталон ключей), en.json
+tools/                      # i18n-extract.mjs (i18n:extract / i18n:check), i18n-apply.mjs
+
 tests/                      # Vitest: core/, import/, foundry/ (с моками), ui/idle-timer
 ├── mocks/foundry.ts        # моки game, Hooks, ui, JournalEntry
+├── setup/i18n.ts           # переводчик из lang/ru.json для тестов
 └── fixtures/fang.json      # урезанный экспорт FANG
 ```
 
