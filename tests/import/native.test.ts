@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { GraphData, GraphNode } from "../../src/core/model";
+import { DEFAULT_RELATIONSHIP_TYPES } from "../../src/core/relationship-types";
 import { parseFangJson } from "../../src/import/fang";
 import {
   exportFileName,
@@ -64,7 +65,11 @@ const graph: GraphData = {
     { id: "f1", name: "Стража", color: "#ff0000", description: "город" },
     { id: "f2", name: "Воры", color: "#00ff00", description: "" },
   ],
-  relationshipTypes: [{ id: "romantic", label: "Романтическая", color: "#ec4899", dash: "4,4" }],
+  // все стандартные типы уже есть — импорт ничего не дописывает, граф совпадает с исходным
+  relationshipTypes: [
+    { id: "romantic", label: "Романтическая", color: "#ec4899", dash: "4,4" },
+    ...DEFAULT_RELATIONSHIP_TYPES.filter((rt) => rt.id !== "romantic"),
+  ],
   conditions: [{ id: "cursed", label: "Проклят", icon: "fa-ghost" }],
 };
 
@@ -162,9 +167,9 @@ describe("импорт своего формата: нормализация и 
     });
     expect(data.edges.map((e) => e.id)).toEqual(["e2"]);
     expect(data.edges[0].relationshipTypeId).toBe("");
-    // неизвестное состояние — в справочник, тип «Романтическая» — по умолчанию
+    // неизвестное состояние — в справочник, стандартные типы связей — по умолчанию
     expect(data.conditions.map((c) => c.id)).toEqual(["новое"]);
-    expect(data.relationshipTypes.map((rt) => rt.id)).toEqual(["romantic"]);
+    expect(data.relationshipTypes).toEqual(DEFAULT_RELATIONSHIP_TYPES);
     expect(warnings.length).toBeGreaterThanOrEqual(4);
   });
 

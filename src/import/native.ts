@@ -9,6 +9,7 @@
 import { BACKGROUND_IMAGE_MODES, defaultBackground, setBackground } from "../core/background";
 import { ensureConditionDefs, isBuiltinCondition } from "../core/conditions";
 import { normalizeFactions } from "../core/edit";
+import { t } from "../core/i18n";
 import { normalizeImageAlign } from "../core/image-align";
 import { normalizeImageFit, normalizeImageSource } from "../core/node-image";
 import type {
@@ -67,7 +68,7 @@ function records(raw: unknown, what: string, warnings: string[]): Record<string,
   if (!Array.isArray(raw)) return [];
   return raw.filter((item, index) => {
     const ok = isRecord(item) && typeof item.id === "string";
-    if (!ok) warnings.push(`${what}[${index}]: отсутствует или невалиден id, пропущено`);
+    if (!ok) warnings.push(t("RELGRAPH.Import.Warn.NoId", { what, index }));
     return ok;
   }) as Record<string, unknown>[];
 }
@@ -80,7 +81,7 @@ function parseNode(item: Record<string, unknown>, factions: Faction[], warnings:
   const known = new Set(factions.map((f) => f.id));
   const rawFactionIds = strArray(item.factionIds);
   if (rawFactionIds.some((f) => !known.has(f))) {
-    warnings.push(`узел ${id}: ссылка на несуществующую фракцию, проигнорирована`);
+    warnings.push(t("RELGRAPH.Import.Warn.NodeBadFaction", { id }));
   }
   const primary = typeof item.primaryFactionId === "string" ? item.primaryFactionId : null;
   const faction = normalizeFactions({ factions } as GraphData, rawFactionIds, primary);
@@ -130,20 +131,20 @@ function parseBackground(raw: unknown): GraphBackground | null {
 /** Свой формат (уже распознанный по маркеру). Бросает, если файл повреждён или новее, чем поддерживается. */
 export function parseGraphFileJson(raw: unknown): ParseResult {
   if (!isGraphFile(raw) || !isRecord(raw)) {
-    throw new Error("parseGraphFileJson: это не файл графа Relationship Graph");
+    throw new Error(t("RELGRAPH.Import.Error.NotGraphFile"));
   }
   const version = num(raw.version, NaN);
   if (!Number.isInteger(version) || version < 1) {
-    throw new Error("parseGraphFileJson: не указана версия формата");
+    throw new Error(t("RELGRAPH.Import.Error.NoVersion"));
   }
   if (version > GRAPH_FILE_VERSION) {
     throw new Error(
-      `parseGraphFileJson: файл версии ${version}, модуль понимает до ${GRAPH_FILE_VERSION} — обновите модуль`,
+      t("RELGRAPH.Import.Error.NewerVersion", { version, supported: GRAPH_FILE_VERSION }),
     );
   }
   const data = raw.data;
   if (!isRecord(data) || !Array.isArray(data.nodes)) {
-    throw new Error("parseGraphFileJson: отсутствует или невалиден массив data.nodes");
+    throw new Error(t("RELGRAPH.Import.Error.NoNodes"));
   }
 
   const warnings: string[] = [];
@@ -166,7 +167,7 @@ export function parseGraphFileJson(raw: unknown): ParseResult {
   const nodeIds = new Set<string>();
   for (const item of records(data.nodes, "nodes", warnings)) {
     if (nodeIds.has(item.id as string)) {
-      warnings.push(`узел ${item.id}: повторяющийся id, пропущен`);
+      warnings.push(t("RELGRAPH.Import.Warn.NodeDuplicate", { id: item.id as string }));
       continue;
     }
     nodeIds.add(item.id as string);
@@ -181,11 +182,11 @@ export function parseGraphFileJson(raw: unknown): ParseResult {
     const source = str(item.source);
     const target = str(item.target);
     if (!nodeIds.has(source) || !nodeIds.has(target)) {
-      warnings.push(`связь ${id}: битая ссылка (${source} -> ${target}), пропущена`);
+      warnings.push(t("RELGRAPH.Import.Warn.EdgeBroken", { id, source, target }));
       continue;
     }
     if (edgeIds.has(id)) {
-      warnings.push(`связь ${id}: повторяющийся id, пропущена`);
+      warnings.push(t("RELGRAPH.Import.Warn.EdgeDuplicate", { id }));
       continue;
     }
     edgeIds.add(id);

@@ -1,12 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { setTranslator } from "../../src/core/i18n";
 import type { GraphData } from "../../src/core/model";
 import {
   createRelationshipType,
   ensureDefaultRelationshipTypes,
+  isDefaultRelationshipTypeLabel,
   parseDash,
+  relationshipTypeLabel,
   removeRelationshipType,
   updateRelationshipType,
 } from "../../src/core/relationship-types";
+import { installRuTranslator } from "../setup/i18n";
 
 function makeData(): GraphData {
   return {
@@ -40,15 +44,26 @@ describe("parseDash", () => {
 });
 
 describe("ensureDefaultRelationshipTypes", () => {
-  it("добавляет розовый тип «Романтическая», если его нет", () => {
+  it("дописывает недостающие стандартные типы, существующие оставляет на месте", () => {
     const result = ensureDefaultRelationshipTypes(makeData());
-    expect(result.relationshipTypes.map((rt) => rt.id)).toEqual(["ally", "enemy", "romantic"]);
-    expect(result.relationshipTypes[2]).toEqual({ id: "romantic", label: "Романтическая", color: "#ec4899", dash: "" });
+    expect(result.relationshipTypes.map((rt) => rt.id)).toEqual([
+      "ally",
+      "enemy",
+      "family",
+      "hierarchy",
+      "quest",
+      "romantic",
+      "unknown",
+    ]);
+    const romantic = result.relationshipTypes.find((rt) => rt.id === "romantic")!;
+    expect(romantic).toEqual({ id: "romantic", label: "", color: "#ec4899", dash: "" });
+    expect(relationshipTypeLabel(romantic)).toBe("Романтическая");
   });
 
   it("существующий тип с тем же id не трогает (в том числе переименованный)", () => {
-    const data = makeData();
-    data.relationshipTypes.push({ id: "romantic", label: "Любовь", color: "#ff00ff", dash: "2,4" });
+    const data = ensureDefaultRelationshipTypes(makeData());
+    const index = data.relationshipTypes.findIndex((rt) => rt.id === "romantic");
+    data.relationshipTypes[index] = { id: "romantic", label: "Любовь", color: "#ff00ff", dash: "2,4" };
     expect(ensureDefaultRelationshipTypes(data)).toBe(data);
   });
 });
@@ -59,9 +74,10 @@ describe("createRelationshipType", () => {
     expect(result.relationshipTypes[2]).toEqual({ id: "t3", label: "Родня", color: "#123456", dash: "4,4" });
   });
 
-  it("пустые поля заменяются значениями по умолчанию, мусорный стиль — сплошной линией", () => {
+  it("пустое название хранится пустым, цвет — по умолчанию, мусорный стиль — сплошной линией", () => {
     const result = createRelationshipType(makeData(), "t3", { label: "", color: "", dash: "oops" });
-    expect(result.relationshipTypes[2]).toEqual({ id: "t3", label: "Новый тип связи", color: "#888888", dash: "" });
+    expect(result.relationshipTypes[2]).toEqual({ id: "t3", label: "", color: "#888888", dash: "" });
+    expect(relationshipTypeLabel(result.relationshipTypes[2])).toBe("Новый тип связи");
   });
 
   it("бросает на занятом и на пустом id (пустой id значит «тип не задан»)", () => {
@@ -103,5 +119,39 @@ describe("removeRelationshipType", () => {
   it("неизвестный тип — no-op", () => {
     const data = makeData();
     expect(removeRelationshipType(data, "nope")).toEqual(data);
+  });
+});
+
+describe("relationshipTypeLabel", () => {
+  // Часть тестов ставит переводчик «ключ как есть» — так видно, что название переведено.
+  afterEach(installRuTranslator);
+
+  it("isDefaultRelationshipTypeLabel: стандартное и старое название — не задано пользователем", () => {
+    expect(isDefaultRelationshipTypeLabel({ id: "family", label: "Семья", color: "", dash: "" })).toBe(true);
+    expect(isDefaultRelationshipTypeLabel({ id: "family", label: "Родня", color: "", dash: "" })).toBe(false);
+    expect(isDefaultRelationshipTypeLabel({ id: "t1", label: "Семья", color: "", dash: "" })).toBe(false);
+  });
+
+  it("стандартный тип: пустое название и старое русское — перевод по id", () => {
+    setTranslator((key) => key, "en");
+    expect(relationshipTypeLabel({ id: "romantic", label: "", color: "", dash: "" })).toBe("RELGRAPH.RelationshipType.Builtin.romantic");
+    expect(relationshipTypeLabel({ id: "ally", label: "Союзник", color: "", dash: "" })).toBe("RELGRAPH.RelationshipType.Builtin.ally");
+    expect(relationshipTypeLabel({ id: "unknown", label: "Неизвестно", color: "", dash: "" })).toBe("RELGRAPH.RelationshipType.Builtin.unknown");
+  });
+
+  it("свой тип без названия и со старым «Новый тип связи» — «Новый тип связи» на языке клиента", () => {
+    setTranslator((key) => key, "en");
+    expect(relationshipTypeLabel({ id: "t1", label: "", color: "", dash: "" })).toBe("RELGRAPH.RelationshipType.DefaultName");
+    expect(relationshipTypeLabel({ id: "t1", label: "Новый тип связи", color: "", dash: "" })).toBe("RELGRAPH.RelationshipType.DefaultName");
+  });
+
+  it("старое русское название чужого типа — не стандартное, как есть", () => {
+    setTranslator((key) => key, "en");
+    expect(relationshipTypeLabel({ id: "t1", label: "Союзник", color: "", dash: "" })).toBe("Союзник");
+  });
+
+  it("переименованный стандартный и свой тип — как введены", () => {
+    expect(relationshipTypeLabel({ id: "romantic", label: "Любовь", color: "", dash: "" })).toBe("Любовь");
+    expect(relationshipTypeLabel({ id: "t1", label: "Союз", color: "", dash: "" })).toBe("Союз");
   });
 });

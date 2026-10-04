@@ -5,6 +5,7 @@
  * понадобится; сейчас достаточно "выбрал файл — импортировалось".
  */
 
+import { t, tn } from "../../core/i18n";
 import { parseGraphFile } from "../../import/native";
 import type { GraphData } from "../../core/model";
 import { iconButton } from "./form";
@@ -23,14 +24,13 @@ export interface ImportControl {
   setEnabled(enabled: boolean): void;
 }
 
-const IMPORT_TITLE = "Импорт графа (файл экспорта модуля или FANG JSON)";
-
 export function createImportControl(callbacks: ImportControlCallbacks): ImportControl {
   const wrapper = document.createElement("span");
   wrapper.className = "frg-toolbar-group";
 
-  const button = iconButton("fa-file-import", IMPORT_TITLE);
-  const exportButton = iconButton("fa-file-export", "Экспорт графа в файл");
+  const importTitle = t("RELGRAPH.Import.Title");
+  const button = iconButton("fa-file-import", importTitle);
+  const exportButton = iconButton("fa-file-export", t("RELGRAPH.Import.Export"));
   exportButton.addEventListener("click", () => callbacks.onExport());
 
   const input = document.createElement("input");
@@ -53,7 +53,7 @@ export function createImportControl(callbacks: ImportControlCallbacks): ImportCo
     element: wrapper,
     setEnabled(enabled) {
       button.disabled = !enabled;
-      button.title = enabled ? IMPORT_TITLE : `${IMPORT_TITLE} — доступен в режиме редактирования`;
+      button.title = enabled ? importTitle : t("RELGRAPH.Import.TitleDisabled", { title: importTitle });
     },
   };
 }
@@ -66,16 +66,21 @@ async function handleFile(file: File, callbacks: ImportControlCallbacks): Promis
 
     callbacks.onImported(data, warnings);
 
-    const source = format === "fang" ? "FANG" : "файл графа";
-    const summary = `Импортировано (${source}): ${data.nodes.length} узлов, ${data.edges.length} связей, ${data.factions.length} фракций`;
+    const source = format === "fang" ? "FANG" : t("RELGRAPH.Import.SourceNative");
+    const summary = t("RELGRAPH.Import.Done", {
+      source,
+      nodes: tn("RELGRAPH.Common.Nodes", data.nodes.length),
+      edges: tn("RELGRAPH.Common.Edges", data.edges.length),
+      factions: tn("RELGRAPH.Common.FactionsCount", data.factions.length),
+    });
     if (warnings.length > 0) {
-      ui.notifications?.warn(`${summary}. Предупреждений: ${warnings.length} (см. консоль).`);
+      ui.notifications?.warn(t("RELGRAPH.Import.DoneWithWarnings", { summary, count: warnings.length }));
       console.warn("fvtt-relationship-graph | import warnings", warnings);
     } else {
       ui.notifications?.info(summary);
     }
   } catch (err) {
     console.error("fvtt-relationship-graph | import failed", err);
-    ui.notifications?.error("Импорт не удался — см. консоль");
+    ui.notifications?.error(t("RELGRAPH.Import.Failed"));
   }
 }

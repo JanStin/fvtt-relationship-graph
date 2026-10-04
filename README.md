@@ -1,109 +1,124 @@
 # Relationship Graph
 
-Модуль для [Foundry VTT](https://foundryvtt.com/) 13: граф связей между персонажами кампании —
-кто кому друг, враг, наниматель, в какой фракции состоит и что о нём знают игроки.
+**English** · [Русский](README.ru.md)
 
-Интерфейс модуля — на русском.
+A [Foundry VTT](https://foundryvtt.com/) 13 module: a graph of relationships between the characters
+of your campaign — who is whose friend, enemy or employer, which faction they belong to, and what
+the players know about them.
 
-## Возможности
+The interface is available in English and Russian; each player sees it in the language chosen in
+their Foundry settings.
 
-- **Узлы** трёх видов: привязанный к актёру (имя и картинка берутся из актёра), без актёра и
-  «просто изображение». Под узлом — имя и роль.
-- **Размер узлов** — у одного узла или у группы выделенных, с сохранением пропорций. Узлы не
-  накладываются друг на друга: после перетаскивания и изменения размера соседи раздвигаются.
-- **Фракции** — фоновые области цвета фракции. Узел может состоять в нескольких фракциях:
-  основная показана областью, остальные — ромбиками на узле.
-- **Состояния** (мёртв, в плену, пропал, даёт задание и свои) — иконками на узле.
-- **Связи** с подписью, направлением и типом; тип задаёт цвет и стиль линии.
-- **Скрытое от игроков**: узел «Скрыт от игроков» игроки видят как «неизвестного», узел «Правит
-  только GM» игроки видят, но не меняют, связь «Видна только GM» игрокам не показывается.
-- **Совместная работа**: граф открывается в режиме просмотра, редактирует один человек за раз,
-  его изменения сразу появляются у всех.
-- **Отмена и повтор** — до 30 шагов (`Ctrl` + `Z` / `Ctrl` + `Y`).
-- **Импорт из FANG** и экспорт/импорт графа в собственный формат без потерь.
+## Features
 
-## Установка
+- **Nodes** of three kinds: linked to an actor (name and image come from the actor), without an
+  actor, and "image only". The name and role are shown under the node.
+- **Node size** — for one node or a group of selected nodes, keeping proportions. Nodes never
+  overlap: after dragging or resizing, neighbours move apart.
+- **Factions** — background areas in the faction's colour. A node can belong to several factions:
+  the primary one is shown as an area, the others as small diamonds on the node.
+- **Conditions** (deceased, captured, missing, quest giver, and your own) — icons on the node.
+- **Relationships** with a label, direction and type; the type sets the line colour and style.
+- **Hidden from players**: a node marked "Hidden from players" is shown to players as "unknown",
+  a "GM-only editing" node is visible to players but they can't change it, and a "GM-only"
+  relationship is not shown to players at all.
+- **Collaboration**: the graph opens in view mode, one person edits at a time, and their changes
+  appear for everyone immediately.
+- **Undo and redo** — up to 30 steps (`Ctrl` + `Z` / `Ctrl` + `Y`).
+- **Import from FANG**, plus lossless export/import in the module's own format.
+- **Two interface languages.** Everything the module itself displays (panels, menus, built-in
+  conditions and relationship types, default names) follows each client's language; everything
+  you type stays exactly as you typed it.
 
-В Foundry: **Add-on Modules → Install Module**, в поле **Manifest URL** вставить:
+## Installation
+
+In Foundry: **Add-on Modules → Install Module**, paste into **Manifest URL**:
 
 ```
 https://github.com/JanStin/fvtt-relationship-graph/releases/latest/download/module.json
 ```
 
-Затем включить модуль в мире (**Manage Modules**).
+Then enable the module in your world (**Manage Modules**).
 
-## Быстрый старт
+## Quick start
 
-1. Откройте вкладку «Актёры» в боковой панели — внизу появится кнопка **Relationship Graph**.
-2. Нажмите **«Редактировать»** на верхней панели окна графа.
-3. Правый клик по пустому месту → **«Добавить узел»**; связь — правый клик по узлу →
-   **«Создать связь»** и клик по второму узлу (или `S` + клик).
-4. Фракции, типы связей и состояния — кнопками на верхней панели.
+1. Open the **Actors** tab in the sidebar — a **Relationship Graph** button appears at the bottom.
+2. Click **Edit** on the top bar of the graph window.
+3. Right-click an empty spot → **Add node**. To link nodes, right-click a node →
+   **Create relationship**, then click the second node (or `S` + click).
+4. Factions, relationship types and conditions are managed with the buttons on the top bar.
 
-Полная схема управления мышью и клавиатурой — [docs/controls.md](docs/controls.md).
+Full mouse and keyboard reference: [docs/controls.md](docs/controls.md) (in Russian).
 
-## Права игроков
+## Player permissions
 
-С обычными узлами и связями игрок может то же, что GM: двигать, менять размер, создавать,
-править и удалять — когда он в режиме редактирования. Только GM:
+With regular nodes and relationships, players can do everything the GM can — move, resize,
+create, edit and delete — while they are in edit mode. GM only:
 
-- узлы «Правит только GM» и «Скрыт от игроков»;
-- заметки GM, флаги видимости, привязка узла к актёру;
-- создание и удаление фракций, типов связей и состояний (игрок может править описание фракции);
-- импорт и экспорт.
+- "GM-only editing" and "Hidden from players" nodes;
+- GM notes, visibility flags, linking a node to an actor;
+- creating and deleting factions, relationship types and conditions (players can edit a faction's
+  description);
+- import and export.
 
-Чтобы игроки могли сохранять правки, журнал с данными графа («Relationship Graph Data») открыт
-им на запись — модуль делает это сам, когда граф открывает GM.
+To let players save their edits, the journal holding the graph data ("Relationship Graph Data") is
+opened to them for writing — the module does this automatically when the GM opens the graph.
 
-## Перенос из FANG
+## Migrating from FANG
 
-Экспортируйте граф в модуле FANG в JSON-файл и нажмите **«Импорт»** на верхней панели (только GM,
-в режиме редактирования). Переносятся узлы, связи, фракции, типы связей, состояния и позиции;
-зоны не переносятся, а связи между фракциями заменены фоновыми областями. Импорт заменяет текущий
-граф целиком и отменяется `Ctrl` + `Z`.
+Export your graph from FANG to a JSON file and click **Import graph** on the top bar (GM only, in
+edit mode). Nodes, relationships, factions, relationship types, conditions and positions are
+transferred; zones are not, and faction-to-faction links are replaced by background areas. Import
+replaces the current graph entirely and can be undone with `Ctrl` + `Z`.
 
-Подробности форматов: [FANG](docs/fang-json-format.md), [собственный формат](docs/graph-json-format.md).
+Format details (in Russian): [FANG](docs/fang-json-format.md), [own format](docs/graph-json-format.md).
 
-## Известные ограничения
+## Known limitations
 
-- **Скрытое не защищено от чтения.** Граф хранится в журнале, открытом игрокам на запись. Скрытые
-  узлы, заметки GM и связи «только GM» прячутся только при отрисовке — через консоль браузера
-  игрок может прочитать полный граф. Права игроков и блокировка редактирования тоже соблюдаются
-  только интерфейсом модуля. Не храните в графе то, что игрокам нельзя увидеть ни при каких
-  условиях.
-- Интерфейс только на русском.
-- Один граф на мир.
+- **Hidden data is not protected from reading.** The graph is stored in a journal that players can
+  write to. Hidden nodes, GM notes and GM-only relationships are hidden only when rendering — a
+  player can read the full graph from the browser console. Player permissions and the edit lock
+  are likewise enforced only by the module's interface. Don't keep anything in the graph that
+  players must never see.
+- One graph per world.
 
-## Разработка
+## Development
 
-Нужен Node.js 20+.
+Requires Node.js 20+.
 
 ```bash
-npm install          # ставит зависимости и патч Cytoscape (patches/)
-npm run build        # сборка в scripts/
-npm run dev          # сборка в режиме watch
-npm run test         # юнит-тесты (Vitest)
-npm run typecheck    # проверка типов
+npm install          # installs dependencies and the Cytoscape patch (patches/)
+npm run build        # build into scripts/
+npm run dev          # build in watch mode
+npm run test         # unit tests (Vitest)
+npm run typecheck    # type checking
+npm run i18n:check   # no UI strings left in code, lang/*.json match ru.json
 ```
 
-Для локальной проверки папку проекта удобно подключить в Foundry ссылкой:
-`Data/modules/fvtt-relationship-graph` → папка репозитория (после `npm run build`).
+For local testing, link the project folder into Foundry:
+`Data/modules/fvtt-relationship-graph` → the repository folder (after `npm run build`).
 
-**Патч Cytoscape.** Foundry замораживает `Array.prototype.equals`, из-за чего Cytoscape падает при
-загрузке. `patches/cytoscape+3.34.3.patch` (накладывается `patch-package` при `npm install`)
-это исправляет; подробности — [docs/architecture.md](docs/architecture.md), риск R7.
+**Localization.** UI strings live in `lang/ru.json` and `lang/en.json`; code uses
+`t("RELGRAPH.…")`, and `tn()` for counts (`src/core/i18n.ts`). To add a language, create
+`lang/<code>.json` with the same keys and add it to `languages` in `module.json`;
+`npm run i18n:check` lists missing keys. `npm run i18n:extract` prints any Russian strings still
+left in the code.
 
-Архитектура — [docs/architecture.md](docs/architecture.md), планы — [docs/tasks.md](docs/tasks.md),
-история изменений — [CHANGELOG.md](CHANGELOG.md).
+**Cytoscape patch.** Foundry freezes `Array.prototype.equals`, which makes Cytoscape crash on load.
+`patches/cytoscape+3.34.3.patch` (applied by `patch-package` on `npm install`) fixes this; see
+[docs/architecture.md](docs/architecture.md), risk R7.
 
-**Релиз.** Тег `vX.Y.Z` запускает GitHub Actions: проверки, сборка, архив `module.zip` и
-`module.json` с версией из тега публикуются в GitHub Release.
+Architecture — [docs/architecture.md](docs/architecture.md), plans — [docs/tasks.md](docs/tasks.md),
+changelog — [CHANGELOG.md](CHANGELOG.md) (all in Russian).
 
-## Благодарности и лицензия
+**Release.** A `vX.Y.Z` tag triggers GitHub Actions: checks, build, and a GitHub Release with
+`module.zip` and `module.json` carrying the tag's version.
 
-Идея и формат импорта — от модуля
+## Credits and license
+
+The idea and the import format come from
 [FANG (Foundry Actor Nexus Graph)](https://github.com/Niclasp1501/Foundry-Actor-Nexus-Graph--FANG-).
-Relationship Graph написан с нуля и не содержит кода или ресурсов FANG; поддерживается только
-импорт его файлов экспорта.
+Relationship Graph is written from scratch and contains no FANG code or assets; only importing its
+export files is supported.
 
-Лицензия — [MIT](LICENSE). Сторонние библиотеки — [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+License — [MIT](LICENSE). Third-party libraries — [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

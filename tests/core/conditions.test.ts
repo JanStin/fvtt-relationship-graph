@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { setTranslator } from "../../src/core/i18n";
+import { installRuTranslator } from "../setup/i18n";
 import {
   allConditions,
   conditionIconClass,
+  conditionLabel,
   createCondition,
   ensureConditionDefs,
   isBuiltinCondition,
@@ -98,9 +101,24 @@ describe("createCondition", () => {
     expect(result.conditions[1]).toEqual({ id: "c2", label: "Ранен", icon: "fa-droplet" });
   });
 
-  it("пустые название и иконка заменяются значениями по умолчанию", () => {
+  it("пустое название хранится пустым и показывается как «Новое состояние», пустая иконка — по умолчанию", () => {
     const result = createCondition(makeData(), "c2", { label: "", icon: "" });
-    expect(result.conditions[1]).toEqual({ id: "c2", label: "Новое состояние", icon: "fa-tag" });
+    expect(result.conditions[1]).toEqual({ id: "c2", label: "", icon: "fa-tag" });
+    expect(conditionLabel(result.conditions[1])).toBe("Новое состояние");
+  });
+
+  it("встроенные состояния — с переведёнными названиями, свои — как введены", () => {
+    expect(allConditions(makeData()).find((c) => c.id === "deceased")?.label).toBe("Мёртв");
+    expect(conditionLabel({ id: "c9", label: "Ранен", icon: "" })).toBe("Ранен");
+  });
+
+  it("старое «Новое состояние» (до локализации) переводится", () => {
+    setTranslator((key) => key, "en");
+    try {
+      expect(conditionLabel({ id: "c9", label: "Новое состояние", icon: "" })).toBe("RELGRAPH.Condition.DefaultName");
+    } finally {
+      installRuTranslator();
+    }
   });
 
   it("бросает на занятом id — своём или встроенном", () => {

@@ -4,8 +4,9 @@
  * Устроены как панели фракций (FactionPanel.ts): только DOM, логика — core/relationship-types.ts.
  */
 
+import { t } from "../../core/i18n";
 import type { RelationshipType } from "../../core/model";
-import { DASH_PRESETS, type RelationshipTypeEditValues } from "../../core/relationship-types";
+import { dashPresets, isDefaultRelationshipTypeLabel, relationshipTypeLabel, type RelationshipTypeEditValues } from "../../core/relationship-types";
 import { colorField, createPanelShell, field, hint, panelHeader, select, textInput } from "./form";
 
 const NEW_TYPE_COLOR = "#64748b";
@@ -31,7 +32,7 @@ export function createRelationshipTypeListPanel(
   const body = document.createElement("div");
   body.className = "frg-panel-body";
 
-  if (types.length === 0) body.append(hint("Типов связей пока нет."));
+  if (types.length === 0) body.append(hint(t("RELGRAPH.RelationshipType.None")));
   for (const type of types) {
     // у игрока строка — просто текст, без клика
     const row = document.createElement(editable ? "button" : "div");
@@ -42,23 +43,23 @@ export function createRelationshipTypeListPanel(
     swatch.style.background = type.color;
     const name = document.createElement("span");
     name.className = "frg-faction-name";
-    name.textContent = type.label;
+    name.textContent = relationshipTypeLabel(type);
     const count = document.createElement("span");
     count.className = "frg-field-hint";
     count.textContent = String(usageCount(type.id));
-    count.title = "Связей этого типа";
+    count.title = t("RELGRAPH.RelationshipType.EdgeCount");
     row.append(swatch, name, count);
     if (editable) row.addEventListener("click", () => callbacks.onEdit(type.id));
     body.append(row);
   }
 
-  element.append(panelHeader("Типы связей", callbacks.onClose), body);
+  element.append(panelHeader(t("RELGRAPH.Common.RelationshipTypes"), callbacks.onClose), body);
   if (editable) {
     const footer = document.createElement("div");
     footer.className = "frg-panel-footer";
     const create = document.createElement("button");
     create.type = "button";
-    create.textContent = "Создать тип связи";
+    create.textContent = t("RELGRAPH.RelationshipType.Create");
     create.addEventListener("click", () => callbacks.onCreate());
     footer.append(create);
     element.append(footer);
@@ -77,22 +78,27 @@ export function createRelationshipTypePanel(
   type: RelationshipType | null,
   callbacks: RelationshipTypePanelCallbacks,
 ): HTMLElement {
-  const label = textInput(type?.label ?? "");
+  // Пустое название — подсказка с тем, что будет показано (перевод встроенного или «Новый тип связи»).
+  const label = textInput(
+    type && !isDefaultRelationshipTypeLabel(type) ? type.label : "",
+    type ? relationshipTypeLabel(type) : t("RELGRAPH.RelationshipType.DefaultName"),
+  );
   const color = colorField(type?.color ?? NEW_TYPE_COLOR);
 
   // Стиль, которого нет среди готовых (например из импорта), сохраняем отдельным пунктом.
   const currentDash = type?.dash ?? "";
-  const options = DASH_PRESETS.some((p) => p.value === currentDash)
-    ? DASH_PRESETS
-    : [...DASH_PRESETS, { value: currentDash, label: `Свой (${currentDash})` }];
+  const presets = dashPresets();
+  const options = presets.some((p) => p.value === currentDash)
+    ? presets
+    : [...presets, { value: currentDash, label: t("RELGRAPH.RelationshipType.DashCustom", { dash: currentDash }) }];
   const dash = select(options, currentDash);
 
-  const shell = createPanelShell(type ? "Тип связи" : "Новый тип связи", type ? "Удалить тип связи" : null, {
+  const shell = createPanelShell(type ? t("RELGRAPH.Edge.Type") : t("RELGRAPH.RelationshipType.DefaultName"), type ? t("RELGRAPH.RelationshipType.Delete") : null, {
     onSave: () => callbacks.onSave({ label: label.value, color: color.value(), dash: dash.value }),
     onDelete: callbacks.onDelete,
     onClose: callbacks.onClose,
   });
 
-  shell.body.append(field("Название", label), field("Цвет", color.element), field("Стиль линии", dash));
+  shell.body.append(field(t("RELGRAPH.Common.Name"), label), field(t("RELGRAPH.Common.Color"), color.element), field(t("RELGRAPH.RelationshipType.LineStyle"), dash));
   return shell.element;
 }

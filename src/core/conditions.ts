@@ -4,17 +4,39 @@
  * Узел ссылается на состояния по id (GraphNode.conditions).
  */
 
+import { t } from "./i18n";
 import type { ConditionDef, GraphData } from "./model";
 
 export const DEFAULT_CONDITION_ICON = "fa-tag";
 
-/** id совпадают со строками состояний из экспорта FANG. */
-export const BUILTIN_CONDITIONS: readonly ConditionDef[] = [
-  { id: "deceased", label: "Мёртв", icon: "fa-skull" },
-  { id: "questgiver", label: "Даёт задание", icon: "fa-circle-exclamation" },
-  { id: "captured", label: "В плену", icon: "fa-link" },
-  { id: "missing", label: "Пропал", icon: "fa-circle-question" },
+/**
+ * id совпадают со строками состояний из экспорта FANG. Названия не хранятся — переводятся по id
+ * (RELGRAPH.Condition.Builtin.<id>) на языке клиента.
+ */
+const BUILTIN_CONDITIONS: ReadonlyArray<{ id: string; icon: string }> = [
+  { id: "deceased", icon: "fa-skull" },
+  { id: "questgiver", icon: "fa-circle-exclamation" },
+  { id: "captured", icon: "fa-link" },
+  { id: "missing", icon: "fa-circle-question" },
 ];
+
+/** Встроенные состояния с переведёнными названиями. */
+export function builtinConditions(): ConditionDef[] {
+  return BUILTIN_CONDITIONS.map((c) => ({ ...c, label: t(`RELGRAPH.Condition.Builtin.${c.id}`) }));
+}
+
+/** Название нового состояния без названия, как оно сохранялось до локализации (1.1.0 и раньше). */
+const LEGACY_DEFAULT_LABEL = "Новое состояние"; // i18n-ignore
+
+/** true — название своего состояния не задано пользователем: пустое или старое «Новое состояние». */
+export function isDefaultConditionLabel(label: string): boolean {
+  return label === "" || label === LEGACY_DEFAULT_LABEL;
+}
+
+/** Название для показа: не заданное пользователем — «Новое состояние» на языке клиента. */
+export function conditionLabel(condition: ConditionDef): string {
+  return isDefaultConditionLabel(condition.label) ? t("RELGRAPH.Condition.DefaultName") : condition.label;
+}
 
 export interface ConditionEditValues {
   label: string;
@@ -28,7 +50,7 @@ export function isBuiltinCondition(conditionId: string): boolean {
 
 /** Весь справочник: встроенные, затем свои. */
 export function allConditions(data: GraphData): ConditionDef[] {
-  return [...BUILTIN_CONDITIONS, ...data.conditions];
+  return [...builtinConditions(), ...data.conditions];
 }
 
 /** Классы для <i>: одиночное "fa-skull" дополняется стилем fa-solid, набор классов идёт как есть. */
@@ -65,14 +87,14 @@ function assertCustom(fn: string, data: GraphData, conditionId: string): void {
   }
 }
 
-/** id генерирует вызывающий (core не знает про Foundry). Пустое название — «Новое состояние». */
+/** id генерирует вызывающий (core не знает про Foundry). Пустое название так и хранится — см. conditionLabel. */
 export function createCondition(data: GraphData, conditionId: string, values: ConditionEditValues): GraphData {
   if (allConditions(data).some((c) => c.id === conditionId)) {
     throw new Error(`createCondition: condition "${conditionId}" already exists`);
   }
   const condition: ConditionDef = {
     id: conditionId,
-    label: values.label.trim() || "Новое состояние",
+    label: values.label.trim(),
     icon: values.icon.trim() || DEFAULT_CONDITION_ICON,
   };
   return { ...data, conditions: [...data.conditions, condition] };

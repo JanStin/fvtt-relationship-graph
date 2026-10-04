@@ -5,8 +5,9 @@
 
 import { allConditions } from "./conditions";
 import { addFaction, updateEdge, updateFaction, updateNode } from "./graph-state";
+import { t } from "./i18n";
 import { normalizeImageAlign } from "./image-align";
-import type { GraphData, GraphEdge, GraphNode, ImageAlign, ImageFit, ImageSource, NodeType } from "./model";
+import type { Faction, GraphData, GraphEdge, GraphNode, ImageAlign, ImageFit, ImageSource, NodeType } from "./model";
 import { normalizeImageFit, normalizeImageSource } from "./node-image";
 import { SCALE_MAX, SCALE_MIN } from "./selection";
 import { normalizeNodeFlags } from "./visibility";
@@ -130,7 +131,6 @@ export function applyNodeEdit(data: GraphData, nodeId: string, values: NodeEditV
   });
 }
 
-const DEFAULT_FACTION_NAME = "Новая фракция";
 const DEFAULT_FACTION_COLOR = "#888888";
 
 /** Пустое имя оставляет прежнее, пустой цвет — прежний. */
@@ -144,11 +144,27 @@ export function applyFactionEdit(data: GraphData, factionId: string, values: Fac
   });
 }
 
-/** Создаёт фракцию с заданным id (id генерирует вызывающий — core не знает про Foundry). */
+/** Название новой фракции без названия, как оно сохранялось до локализации (1.1.0 и раньше). */
+const LEGACY_DEFAULT_FACTION_NAME = "Новая фракция"; // i18n-ignore
+
+/** true — название не задано пользователем: пустое или старое «Новая фракция». */
+export function isDefaultFactionName(name: string): boolean {
+  return name === "" || name === LEGACY_DEFAULT_FACTION_NAME;
+}
+
+/** Название для показа: не заданное пользователем — «Новая фракция» на языке клиента. */
+export function factionName(faction: Faction): string {
+  return isDefaultFactionName(faction.name) ? t("RELGRAPH.Faction.DefaultName") : faction.name;
+}
+
+/**
+ * Создаёт фракцию с заданным id (id генерирует вызывающий — core не знает про Foundry).
+ * Пустое имя так и хранится — см. factionName.
+ */
 export function createFactionFromEdit(data: GraphData, factionId: string, values: FactionEditValues): GraphData {
   return addFaction(data, {
     id: factionId,
-    name: values.name.trim() || DEFAULT_FACTION_NAME,
+    name: values.name.trim(),
     color: values.color.trim() || DEFAULT_FACTION_COLOR,
     description: values.description,
   });
@@ -165,19 +181,18 @@ export function applyEdgeEdit(data: GraphData, edgeId: string, values: EdgeEditV
   });
 }
 
-const NEW_NODE_NAME = "Новый узел";
-
 /**
  * Заготовка узла для «Добавить узел»: без актёра, в заданной точке; factionId — область,
- * по которой кликнули (null — пустое место). id генерирует вызывающий.
+ * по которой кликнули (null — пустое место). id генерирует вызывающий. Имя пустое — показывается
+ * как «Новый узел» на языке клиента (nodeName).
  */
 export function blankNode(id: string, position: { x: number; y: number }, factionId: string | null): GraphNode {
   return {
     id,
     type: "placeholder",
     actorId: null,
-    name: NEW_NODE_NAME,
-    originalName: NEW_NODE_NAME,
+    name: "",
+    originalName: "",
     img: "",
     x: position.x,
     y: position.y,

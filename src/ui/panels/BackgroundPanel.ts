@@ -5,14 +5,17 @@
  */
 
 import { DEFAULT_GRAPH_FONT, defaultBackground, type BackgroundEditValues } from "../../core/background";
+import { t } from "../../core/i18n";
 import type { BackgroundImageMode, GraphBackground } from "../../core/model";
 import { browseImage, colorField, createPanelShell, field, hint, select, textInput } from "./form";
 
-const MODE_OPTIONS: ReadonlyArray<{ value: BackgroundImageMode; label: string }> = [
-  { value: "single", label: "Общее изображение" },
-  { value: "tile", label: "Текстура (плиткой)" },
-  { value: "screen", label: "На весь экран (неподвижно)" },
-];
+function modeOptions(): Array<{ value: BackgroundImageMode; label: string }> {
+  return [
+    { value: "single", label: t("RELGRAPH.Background.ModeImage") },
+    { value: "tile", label: t("RELGRAPH.Background.ModeTile") },
+    { value: "screen", label: t("RELGRAPH.Background.ModeScreen") },
+  ];
+}
 
 export interface BackgroundPanelCallbacks {
   onSave(values: BackgroundEditValues): void;
@@ -43,7 +46,7 @@ function fontSelect(fonts: readonly string[], current: string): HTMLSelectElemen
   const names = [...new Set(fonts.filter((name) => name && name !== DEFAULT_GRAPH_FONT))];
   if (current && current !== DEFAULT_GRAPH_FONT && !names.includes(current)) names.unshift(current);
   const element = select(
-    [{ value: "", label: `${DEFAULT_GRAPH_FONT} (по умолчанию)` }, ...names.map((name) => ({ value: name, label: name }))],
+    [{ value: "", label: t("RELGRAPH.Background.FontDefault", { font: DEFAULT_GRAPH_FONT }) }, ...names.map((name) => ({ value: name, label: name }))],
     current === DEFAULT_GRAPH_FONT ? "" : current,
   );
   [...element.options].forEach((option) => {
@@ -67,16 +70,16 @@ export function createBackgroundPanel(
   const color = colorField(current.color);
 
   const image = textInput(current.image);
-  image.placeholder = "Без картинки";
+  image.placeholder = t("RELGRAPH.Background.NoImage");
   const browse = document.createElement("button");
   browse.type = "button";
-  browse.textContent = "Обзор";
+  browse.textContent = t("RELGRAPH.Common.Browse");
   browse.addEventListener("click", () => browseImage(image));
   const imageRow = document.createElement("div");
   imageRow.className = "frg-field-row";
   imageRow.append(image, browse);
 
-  const mode = select(MODE_OPTIONS, current.imageMode);
+  const mode = select(modeOptions(), current.imageMode);
   const width = numberInput(current.imageWidth, "1");
   width.min = "0";
   const x = numberInput(current.imageX);
@@ -87,8 +90,8 @@ export function createBackgroundPanel(
 
   const fit = document.createElement("button");
   fit.type = "button";
-  fit.textContent = "Вписать в текущий вид";
-  fit.title = "Картинка закроет видимую часть графа";
+  fit.textContent = t("RELGRAPH.Background.FitToView");
+  fit.title = t("RELGRAPH.Background.FitToViewHint");
   fit.addEventListener("click", () => {
     const path = image.value.trim();
     if (!path) return;
@@ -106,7 +109,7 @@ export function createBackgroundPanel(
       });
   });
 
-  const shell = createPanelShell("Фон графа", "Сбросить фон", {
+  const shell = createPanelShell(t("RELGRAPH.Background.Panel"), t("RELGRAPH.Background.Reset"), {
     onSave: () =>
       callbacks.onSave({
         color: color.value(),
@@ -128,14 +131,14 @@ export function createBackgroundPanel(
 
   // Поля картинки — только когда она задана; ширина — кроме режима «на весь экран»;
   // положение и «вписать» — только у общего изображения.
-  const imageFields = [field("Как показывать", mode), field("Непрозрачность, %", opacity)];
+  const imageFields = [field(t("RELGRAPH.Background.Mode"), mode), field(t("RELGRAPH.Background.Opacity"), opacity)];
   const widthField = field(
-    "Ширина (в единицах графа)",
+    t("RELGRAPH.Background.Width"),
     width,
-    hint("0 — натуральный размер файла. У текстуры — ширина одной плитки."),
+    hint(t("RELGRAPH.Background.WidthHint")),
   );
-  const singleFields = [field("Левый верхний угол (X, Y)", positionRow), fit];
-  const screenHint = hint("Картинка закрывает всю область графа и не двигается при перемещении и масштабе.");
+  const singleFields = [field(t("RELGRAPH.Background.Position"), positionRow), fit];
+  const screenHint = hint(t("RELGRAPH.Background.ScreenHint"));
   const sync = () => {
     const hasImage = image.value.trim() !== "";
     imageFields.forEach((element) => (element.hidden = !hasImage));
@@ -147,18 +150,18 @@ export function createBackgroundPanel(
   mode.addEventListener("change", sync);
 
   shell.body.append(
-    field("Цвет фона", color.element, hint("Пусто — стандартный цвет.")),
-    field("Картинка", imageRow),
+    field(t("RELGRAPH.Background.Color"), color.element, hint(t("RELGRAPH.Background.ColorHint"))),
+    field(t("RELGRAPH.Background.Image"), imageRow),
     imageFields[0],
     screenHint,
     widthField,
     ...singleFields,
     imageFields[1],
-    hint("Общее изображение и текстура лежат в координатах графа: двигаются и масштабируются вместе с узлами. Фон видят все."),
+    hint(t("RELGRAPH.Background.ModeHint")),
     field(
-      "Шрифт подписей",
+      t("RELGRAPH.Background.Font"),
       font,
-      hint("Имена и роли узлов, подписи связей. Если системного шрифта нет у игрока, он увидит Signika."),
+      hint(t("RELGRAPH.Background.FontHint")),
     ),
   );
   sync();

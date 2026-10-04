@@ -7,7 +7,8 @@
  * добраться до неё через область нельзя.
  */
 
-import type { FactionEditValues } from "../../core/edit";
+import { factionName, isDefaultFactionName, type FactionEditValues } from "../../core/edit";
+import { t } from "../../core/i18n";
 import type { Faction } from "../../core/model";
 import { colorField, createPanelShell, field, hint, panelHeader, textArea, textInput } from "./form";
 
@@ -44,7 +45,7 @@ export function createFactionListPanel(
   const body = document.createElement("div");
   body.className = "frg-panel-body";
 
-  if (factions.length === 0) body.append(hint("Фракций пока нет."));
+  if (factions.length === 0) body.append(hint(t("RELGRAPH.Faction.None")));
   for (const faction of factions) {
     // в режиме просмотра строка — просто текст, без клика
     const row = document.createElement(options.editable ? "button" : "div");
@@ -55,23 +56,23 @@ export function createFactionListPanel(
     swatch.style.background = faction.color;
     const name = document.createElement("span");
     name.className = "frg-faction-name";
-    name.textContent = faction.name;
+    name.textContent = factionName(faction);
     const count = document.createElement("span");
     count.className = "frg-field-hint";
     count.textContent = String(memberCount(faction.id));
-    count.title = "Узлов во фракции";
+    count.title = t("RELGRAPH.Faction.NodeCount");
     row.append(swatch, name, count);
     if (options.editable) row.addEventListener("click", () => callbacks.onEdit(faction.id));
     body.append(row);
   }
 
-  element.append(panelHeader("Фракции", callbacks.onClose), body);
+  element.append(panelHeader(t("RELGRAPH.Common.Factions"), callbacks.onClose), body);
   if (options.editable && options.canCreate) {
     const footer = document.createElement("div");
     footer.className = "frg-panel-footer";
     const create = document.createElement("button");
     create.type = "button";
-    create.textContent = "Создать фракцию";
+    create.textContent = t("RELGRAPH.Faction.Create");
     create.addEventListener("click", () => callbacks.onCreate());
     footer.append(create);
     element.append(footer);
@@ -95,7 +96,7 @@ export function createFactionPanel(
   options: FactionPanelOptions,
 ): HTMLElement {
   const { isGM } = options;
-  const name = textInput(faction?.name ?? "");
+  const name = textInput(faction && !isDefaultFactionName(faction.name) ? faction.name : "", t("RELGRAPH.Faction.DefaultName"));
   const color = colorField(faction?.color ?? NEW_FACTION_COLOR);
   name.disabled = !isGM;
   color.element.querySelectorAll("input").forEach((input) => {
@@ -104,13 +105,13 @@ export function createFactionPanel(
 
   const description = textArea(faction?.description ?? "", 4);
 
-  const shell = createPanelShell(faction ? "Фракция" : "Новая фракция", faction && isGM ? "Удалить фракцию" : null, {
+  const shell = createPanelShell(faction ? t("RELGRAPH.Faction.Panel") : t("RELGRAPH.Faction.DefaultName"), faction && isGM ? t("RELGRAPH.Faction.Delete") : null, {
     onSave: () => callbacks.onSave({ name: name.value, color: color.value(), description: description.value }),
     onDelete: callbacks.onDelete,
     onClose: callbacks.onClose,
   });
 
-  shell.body.append(field("Название", name), field("Цвет", color.element), field("Описание", description));
-  if (!isGM) shell.body.append(hint("Название и цвет фракции меняет только GM."));
+  shell.body.append(field(t("RELGRAPH.Common.Name"), name), field(t("RELGRAPH.Common.Color"), color.element), field(t("RELGRAPH.Common.Description"), description));
+  if (!isGM) shell.body.append(hint(t("RELGRAPH.Faction.GmOnlyHint")));
   return shell.element;
 }

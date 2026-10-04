@@ -1,12 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { setTranslator } from "../../src/core/i18n";
 import type { GraphData, GraphNode } from "../../src/core/model";
 import {
   displayName,
   ensureNodeFlags,
+  isDefaultNodeName,
   isMasked,
+  nodeName,
   normalizeNodeFlags,
-  UNKNOWN_NODE_NAME,
 } from "../../src/core/visibility";
+import { installRuTranslator } from "../setup/i18n";
 
 function makeNode(overrides: Partial<GraphNode> & { id: string }): GraphNode {
   return {
@@ -78,12 +81,31 @@ describe("isMasked / displayName", () => {
   it("скрытый узел замаскирован только для игрока", () => {
     expect(isMasked(hidden, false)).toBe(true);
     expect(isMasked(hidden, true)).toBe(false);
-    expect(displayName(hidden, false)).toBe(UNKNOWN_NODE_NAME);
+    expect(displayName(hidden, false)).toBe("Неизвестный");
     expect(displayName(hidden, true)).toBe("Алиса");
   });
 
   it("gmOnly-узел игроку виден как обычно", () => {
     expect(isMasked(gmOnly, false)).toBe(false);
     expect(displayName(gmOnly, false)).toBe("Боб");
+  });
+});
+
+describe("nodeName / isDefaultNodeName", () => {
+  // переводчик «ключ как есть» — так видно, что имя переведено, а не взято из данных
+  afterEach(installRuTranslator);
+
+  it("пустое имя узла с подписью и старое «Новый узел» — «Новый узел» на языке клиента", () => {
+    setTranslator((key) => key, "en");
+    expect(nodeName(makeNode({ id: "a", name: "" }))).toBe("RELGRAPH.Node.DefaultName");
+    expect(nodeName(makeNode({ id: "a", name: "Новый узел" }))).toBe("RELGRAPH.Node.DefaultName");
+    expect(nodeName(makeNode({ id: "a", name: "Новый узел", type: "image" }))).toBe("RELGRAPH.Node.DefaultName");
+    expect(displayName(makeNode({ id: "a", name: "" }), true)).toBe("RELGRAPH.Node.DefaultName");
+  });
+
+  it("«просто изображение» без имени остаётся без подписи, своё имя — как есть", () => {
+    expect(isDefaultNodeName(makeNode({ id: "a", name: "", type: "image" }))).toBe(false);
+    expect(nodeName(makeNode({ id: "a", name: "", type: "image" }))).toBe("");
+    expect(nodeName(makeNode({ id: "a", name: "Алиса" }))).toBe("Алиса");
   });
 });

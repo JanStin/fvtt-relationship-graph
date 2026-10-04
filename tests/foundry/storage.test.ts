@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { allowPlayersToSave, hideStorageEntry, loadGraphData, saveGraphData } from "../../src/foundry/storage";
 import type { GraphData } from "../../src/core/model";
+import { DEFAULT_RELATIONSHIP_TYPES } from "../../src/core/relationship-types";
 import { createMockJournalEntry, installMockFoundry } from "../mocks/foundry";
 
 const SAMPLE: GraphData = {
@@ -63,14 +64,14 @@ describe("saveGraphData + loadGraphData", () => {
     expect(mock.journalEntries[0].name).toBe("Relationship Graph Data");
   });
 
-  it("сохранённые данные читаются обратно; дописывается только тип связи по умолчанию", async () => {
+  it("сохранённые данные читаются обратно; дописываются только стандартные типы связей", async () => {
     mock = installMockFoundry();
     await saveGraphData(SAMPLE);
 
     const loaded = await loadGraphData();
     expect(loaded).toEqual({
       ...SAMPLE,
-      relationshipTypes: [{ id: "romantic", label: "Романтическая", color: "#ec4899", dash: "" }],
+      relationshipTypes: DEFAULT_RELATIONSHIP_TYPES,
     });
   });
 

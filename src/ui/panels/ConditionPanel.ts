@@ -5,7 +5,8 @@
  * Встроенные состояния показаны в списке, но не редактируются.
  */
 
-import { conditionIconClass, isBuiltinCondition, type ConditionEditValues } from "../../core/conditions";
+import { conditionIconClass, conditionLabel, isBuiltinCondition, isDefaultConditionLabel, type ConditionEditValues } from "../../core/conditions";
+import { t } from "../../core/i18n";
 import type { ConditionDef } from "../../core/model";
 import { createPanelShell, field, hint, panelHeader, textInput } from "./form";
 
@@ -41,17 +42,17 @@ export function createConditionListPanel(
     row.className = "frg-faction-row";
     const name = document.createElement("span");
     name.className = "frg-faction-name";
-    name.textContent = condition.label;
+    name.textContent = conditionLabel(condition);
     const count = document.createElement("span");
     count.className = "frg-field-hint";
     count.textContent = String(usageCount(condition.id));
-    count.title = "Узлов с этим состоянием";
+    count.title = t("RELGRAPH.Condition.NodeCount");
     row.append(iconElement(condition.icon), name, count);
     if (row instanceof HTMLButtonElement) {
       row.type = "button";
       if (isBuiltinCondition(condition.id)) {
         row.disabled = true;
-        row.title = "Встроенное состояние — не редактируется";
+        row.title = t("RELGRAPH.Condition.BuiltinHint");
       } else {
         row.addEventListener("click", () => callbacks.onEdit(condition.id));
       }
@@ -59,13 +60,13 @@ export function createConditionListPanel(
     body.append(row);
   }
 
-  element.append(panelHeader("Состояния", callbacks.onClose), body);
+  element.append(panelHeader(t("RELGRAPH.Common.Conditions"), callbacks.onClose), body);
   if (options.editable) {
     const footer = document.createElement("div");
     footer.className = "frg-panel-footer";
     const create = document.createElement("button");
     create.type = "button";
-    create.textContent = "Создать состояние";
+    create.textContent = t("RELGRAPH.Condition.Create");
     create.addEventListener("click", () => callbacks.onCreate());
     footer.append(create);
     element.append(footer);
@@ -81,7 +82,10 @@ export interface ConditionPanelCallbacks {
 
 /** condition === null — создание нового состояния (без кнопки удаления). */
 export function createConditionPanel(condition: ConditionDef | null, callbacks: ConditionPanelCallbacks): HTMLElement {
-  const label = textInput(condition?.label ?? "");
+  const label = textInput(
+    condition && !isDefaultConditionLabel(condition.label) ? condition.label : "",
+    t("RELGRAPH.Condition.DefaultName"),
+  );
   const icon = textInput(condition?.icon ?? "");
   icon.placeholder = "fa-skull";
 
@@ -95,16 +99,16 @@ export function createConditionPanel(condition: ConditionDef | null, callbacks: 
   iconRow.className = "frg-field-row";
   iconRow.append(icon, preview);
 
-  const shell = createPanelShell(condition ? "Состояние" : "Новое состояние", condition ? "Удалить состояние" : null, {
+  const shell = createPanelShell(condition ? t("RELGRAPH.Condition.Panel") : t("RELGRAPH.Condition.DefaultName"), condition ? t("RELGRAPH.Condition.Delete") : null, {
     onSave: () => callbacks.onSave({ label: label.value, icon: icon.value }),
     onDelete: callbacks.onDelete,
     onClose: callbacks.onClose,
   });
 
   shell.body.append(
-    field("Название", label),
-    field("Иконка (класс Font Awesome)", iconRow),
-    hint("Например fa-skull, fa-heart, fa-crown. Пустое поле — иконка по умолчанию."),
+    field(t("RELGRAPH.Common.Name"), label),
+    field(t("RELGRAPH.Condition.Icon"), iconRow),
+    hint(t("RELGRAPH.Condition.IconHint")),
   );
   return shell.element;
 }

@@ -1,3 +1,4 @@
+import { t } from "../../core/i18n";
 /**
  * Общие DOM-кирпичики боковых панелей редактирования (NodePanel, EdgePanel).
  * Панель — обычный <form> в wrapper окна графа (см. GraphApp), без отдельного ApplicationV2.
@@ -29,7 +30,7 @@ export function panelHeader(title: string, onClose: () => void): HTMLElement {
   close.type = "button";
   close.className = "frg-panel-close";
   close.textContent = "×";
-  close.title = "Закрыть";
+  close.title = t("RELGRAPH.Common.Close");
   close.addEventListener("click", () => onClose());
   header.append(heading, close);
   return header;
@@ -53,7 +54,7 @@ export function createPanelShell(title: string, deleteLabel: string | null, acti
   footer.className = "frg-panel-footer";
   const save = document.createElement("button");
   save.type = "submit";
-  save.textContent = "Сохранить";
+  save.textContent = t("RELGRAPH.Common.Save");
   footer.append(save);
   if (deleteLabel !== null) {
     const remove = document.createElement("button");
@@ -86,10 +87,12 @@ export function hint(text: string): HTMLElement {
   return element;
 }
 
-export function textInput(value: string): HTMLInputElement {
+/** placeholder — что показывается вместо пустого значения. */
+export function textInput(value: string, placeholder = ""): HTMLInputElement {
   const input = document.createElement("input");
   input.type = "text";
   input.value = value;
+  input.placeholder = placeholder;
   return input;
 }
 

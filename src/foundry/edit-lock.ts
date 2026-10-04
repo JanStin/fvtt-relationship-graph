@@ -13,6 +13,7 @@
  * выходит в просмотр (GraphApp).
  */
 
+import { t } from "../core/i18n";
 import { FLAG_SCOPE, getOrCreateStorageEntry, getStorageEntry } from "./storage";
 
 declare const game: {
@@ -47,7 +48,7 @@ export function currentEditor(): string | null {
 
 /** Имя пользователя для подсказок. */
 export function userName(userId: string): string {
-  return game.users?.get(userId)?.name ?? "другой пользователь";
+  return game.users?.get(userId)?.name ?? t("RELGRAPH.Common.OtherUser");
 }
 
 /**

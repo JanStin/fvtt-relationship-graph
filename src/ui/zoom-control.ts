@@ -9,6 +9,7 @@
  */
 
 import type cytoscape from "cytoscape";
+import { t } from "../core/i18n";
 import { formatZoom, sliderToZoom, stepZoom, ZOOM_SLIDER_STEPS, zoomToSlider } from "../core/zoom";
 import { iconButton } from "./panels/form";
 
@@ -28,9 +29,9 @@ export function createZoomControl(): ZoomControl {
   const element = document.createElement("div");
   element.className = "frg-zoom";
 
-  const zoomIn = iconButton("fa-plus", "Приблизить");
-  const zoomOut = iconButton("fa-minus", "Отдалить");
-  const fit = iconButton("fa-expand", "Показать весь граф");
+  const zoomIn = iconButton("fa-plus", t("RELGRAPH.Graph.ZoomIn"));
+  const zoomOut = iconButton("fa-minus", t("RELGRAPH.Graph.ZoomOut"));
+  const fit = iconButton("fa-expand", t("RELGRAPH.Graph.FitAll"));
   for (const button of [zoomIn, zoomOut, fit]) button.className = "frg-zoom-button";
 
   const slider = document.createElement("input");
@@ -39,8 +40,8 @@ export function createZoomControl(): ZoomControl {
   slider.min = "0";
   slider.max = String(ZOOM_SLIDER_STEPS);
   slider.step = "1";
-  slider.title = "Масштаб";
-  slider.setAttribute("aria-label", "Масштаб");
+  slider.title = t("RELGRAPH.Graph.Zoom");
+  slider.setAttribute("aria-label", t("RELGRAPH.Graph.Zoom"));
 
   // Горизонтальный ползунок, повёрнутый на −90° внутри рамки: вертикальный writing-mode
   // ломал размеры дорожки и бегунка из стилей Foundry (бегунок выходил уже дорожки).

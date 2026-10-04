@@ -1,4 +1,5 @@
 import { ensureConditionDefs } from "../core/conditions";
+import { t } from "../core/i18n";
 import { ensureDefaultRelationshipTypes } from "../core/relationship-types";
 import { ensureNodeFlags } from "../core/visibility";
 import type { Faction, GraphData, GraphEdge, GraphNode, RelationshipType } from "../core/model";
@@ -22,7 +23,7 @@ function parseFactions(raw: unknown, warnings: string[]): Faction[] {
   const factions: Faction[] = [];
   raw.forEach((item, index) => {
     if (!isRecord(item) || typeof item.id !== "string") {
-      warnings.push(`factions[${index}]: отсутствует или невалиден id, узел пропущен`);
+      warnings.push(t("RELGRAPH.Import.Warn.FangFactionNoId", { index }));
       return;
     }
     factions.push({
@@ -53,7 +54,7 @@ function parseNodes(raw: unknown, factionIds: Set<string>, warnings: string[]): 
 
   raw.forEach((item, index) => {
     if (!isRecord(item) || typeof item.id !== "string") {
-      warnings.push(`nodes[${index}]: отсутствует или невалиден id, узел пропущен`);
+      warnings.push(t("RELGRAPH.Import.Warn.FangNodeNoId", { index }));
       return;
     }
 
@@ -63,7 +64,7 @@ function parseNodes(raw: unknown, factionIds: Set<string>, warnings: string[]): 
     const rawFactionIds = strArray(item.factionIds);
     const validFactionIds = rawFactionIds.filter((id) => factionIds.has(id));
     if (validFactionIds.length < rawFactionIds.length) {
-      warnings.push(`nodes[${index}] (${item.id}): ссылка на несуществующую фракцию, проигнорирована`);
+      warnings.push(t("RELGRAPH.Import.Warn.FangNodeBadFaction", { index, id: item.id }));
     }
 
     const img = str(item.img);
@@ -99,11 +100,11 @@ function parseEdges(raw: unknown, nodeIds: Set<string>, warnings: string[]): Gra
 
   raw.forEach((item, index) => {
     if (!isRecord(item) || typeof item.source !== "string" || typeof item.target !== "string") {
-      warnings.push(`links[${index}]: отсутствует source/target, связь пропущена`);
+      warnings.push(t("RELGRAPH.Import.Warn.FangLinkNoEnds", { index }));
       return;
     }
     if (!nodeIds.has(item.source) || !nodeIds.has(item.target)) {
-      warnings.push(`links[${index}]: битая ссылка (${item.source} -> ${item.target}), связь пропущена`);
+      warnings.push(t("RELGRAPH.Import.Warn.FangLinkBroken", { index, source: item.source, target: item.target }));
       return;
     }
 
@@ -129,10 +130,10 @@ function parseEdges(raw: unknown, nodeIds: Set<string>, warnings: string[]): Gra
  */
 export function parseFangJson(raw: unknown): ParseResult {
   if (!isRecord(raw)) {
-    throw new Error("parseFangJson: ожидался объект верхнего уровня");
+    throw new Error(t("RELGRAPH.Import.Error.FangNotObject"));
   }
   if (!Array.isArray(raw.nodes)) {
-    throw new Error("parseFangJson: отсутствует или невалиден массив nodes");
+    throw new Error(t("RELGRAPH.Import.Error.FangNoNodes"));
   }
 
   const warnings: string[] = [];

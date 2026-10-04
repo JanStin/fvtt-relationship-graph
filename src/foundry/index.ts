@@ -11,6 +11,7 @@
  * контролов, которую сложно проверить не отходя от живого Foundry.
  */
 
+import { setTranslator, t } from "../core/i18n";
 import { pickCleaner, releaseEditLock } from "./edit-lock";
 import { MODULE_ID, registerSettings } from "./settings";
 import { hideStorageEntry } from "./storage";
@@ -22,6 +23,14 @@ declare const foundry: any;
 
 Hooks.once("init", () => {
   registerSettings();
+});
+
+// Переводы загружены — с этого момента t() отдаёт строки на языке из настроек Foundry.
+Hooks.once("i18nInit", () => {
+  setTranslator(
+    (key, data) => (data ? game.i18n.format(key, data) : game.i18n.localize(key)),
+    game.i18n.lang,
+  );
 });
 
 Hooks.once("ready", () => {
@@ -57,7 +66,7 @@ function openGraphApp(): void {
     })
     .catch((err: unknown) => {
       console.error(`${MODULE_ID} | failed to load GraphApp`, err);
-      ui.notifications?.error("Relationship Graph: не удалось загрузить, см. консоль");
+      ui.notifications?.error(t("RELGRAPH.LoadFailed"));
     });
 }
 
@@ -70,7 +79,7 @@ Hooks.on("renderActorDirectory", (_app: unknown, html: HTMLElement) => {
   const button = document.createElement("button");
   button.type = "button";
   button.setAttribute(BUTTON_MARKER, "");
-  button.innerHTML = `<i class="fa-solid fa-diagram-project"></i> Relationship Graph`;
+  button.innerHTML = `<i class="fa-solid fa-diagram-project"></i> ${t("RELGRAPH.Title")}`;
   button.addEventListener("click", openGraphApp);
 
   const footer = html.querySelector(".directory-footer") ?? html.querySelector("footer");

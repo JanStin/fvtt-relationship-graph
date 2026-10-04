@@ -5,7 +5,7 @@
 
 import { allConditions, conditionIconClass, DEFAULT_CONDITION_ICON } from "./conditions";
 import type { GraphData, GraphNode } from "./model";
-import { isMasked } from "./visibility";
+import { isMasked, nodeName } from "./visibility";
 
 /** Не больше стольких значков в углу; если их больше — на месте последнего «плюс». */
 export const MAX_BADGES = 3;
@@ -62,7 +62,7 @@ export function buildNodeDecor(data: GraphData, node: GraphNode, options: DecorO
   const iconById = new Map(allConditions(data).map((c) => [c.id, c.icon]));
 
   return {
-    name: node.name,
+    name: nodeName(node),
     role: node.role.trim(),
     factions: limitBadges(extraColors),
     conditions: limitBadges(

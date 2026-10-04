@@ -3,9 +3,12 @@
  * Чистая логика поверх GraphData — без DOM и Foundry; GM-only данные отсекаются здесь же.
  */
 
-import { allConditions } from "./conditions";
+import { allConditions, conditionLabel } from "./conditions";
+import { factionName } from "./edit";
+import { t } from "./i18n";
 import type { GraphData, NodeType } from "./model";
-import { displayName, isMasked, UNKNOWN_NODE_NAME } from "./visibility";
+import { relationshipTypeLabel } from "./relationship-types";
+import { displayName, isMasked, nodeName, unknownNodeName } from "./visibility";
 
 export interface DescriptionRow {
   label: string;
@@ -23,11 +26,17 @@ export interface DescribeOptions {
   isGM: boolean;
 }
 
-const NODE_TYPE_LABELS: Record<NodeType, string> = {
-  actor: "Актёр",
-  placeholder: "Без актёра",
-  image: "Изображение",
+const NODE_TYPE_KEYS: Record<NodeType, string> = {
+  actor: "RELGRAPH.NodeType.Actor",
+  placeholder: "RELGRAPH.NodeType.Placeholder",
+  image: "RELGRAPH.NodeType.Image",
 };
+
+/** Название типа связи по id; '' — тип не задан или удалён. */
+function relationshipTypeCaption(data: GraphData, typeId: string): string {
+  const type = data.relationshipTypes.find((rt) => rt.id === typeId);
+  return type ? relationshipTypeLabel(type) : "";
+}
 
 function pushIfPresent(rows: DescriptionRow[], label: string, value: string): void {
   if (value.trim() !== "") rows.push({ label, value });
@@ -39,7 +48,7 @@ export function describeNode(data: GraphData, nodeId: string, options: DescribeO
   if (!node) return null;
 
   const nameById = new Map(data.nodes.map((n) => [n.id, displayName(n, options.isGM)]));
-  const typeLabelById = new Map(data.relationshipTypes.map((rt) => [rt.id, rt.label]));
+  const typeLabelById = new Map(data.relationshipTypes.map((rt) => [rt.id, relationshipTypeLabel(rt)]));
   const connections = data.edges
     .filter((e) => (e.source === nodeId || e.target === nodeId) && (options.isGM || !e.gmOnly))
     .map((e) => {
@@ -53,37 +62,37 @@ export function describeNode(data: GraphData, nodeId: string, options: DescribeO
   // Скрытый узел у игрока — «неизвестный»: только то, что и так видно на графе (связи, размер).
   if (isMasked(node, options.isGM)) {
     const rows: DescriptionRow[] = [];
-    pushIfPresent(rows, `Связи (${connections.length})`, connections.join("\n"));
-    rows.push({ label: "Размер", value: `×${node.scale.toFixed(1)}` });
-    return { title: UNKNOWN_NODE_NAME, rows };
+    pushIfPresent(rows, t("RELGRAPH.Node.Connections", { count: connections.length }), connections.join("\n"));
+    rows.push({ label: t("RELGRAPH.Common.Size"), value: `×${node.scale.toFixed(1)}` });
+    return { title: unknownNodeName(), rows };
   }
 
   const rows: DescriptionRow[] = [];
-  pushIfPresent(rows, "Роль", node.role);
+  pushIfPresent(rows, t("RELGRAPH.Common.Role"), node.role);
 
   const factions = node.factionIds
     .map((id) => data.factions.find((f) => f.id === id))
     .filter((f) => f !== undefined);
   // Единственная фракция и так основная — помечаем, только когда есть из чего выбирать.
   const factionNames = factions.map((f) =>
-    factions.length > 1 && f.id === node.primaryFactionId ? `${f.name} (основная)` : f.name,
+    factions.length > 1 && f.id === node.primaryFactionId ? t("RELGRAPH.Node.PrimaryMark", { name: factionName(f) }) : factionName(f),
   );
-  pushIfPresent(rows, "Фракции", factionNames.join(", "));
-  const conditionLabels = new Map(allConditions(data).map((c) => [c.id, c.label]));
-  pushIfPresent(rows, "Состояния", node.conditions.map((id) => conditionLabels.get(id) ?? id).join(", "));
-  pushIfPresent(rows, `Связи (${connections.length})`, connections.join("\n"));
+  pushIfPresent(rows, t("RELGRAPH.Common.Factions"), factionNames.join(", "));
+  const conditionLabels = new Map(allConditions(data).map((c) => [c.id, conditionLabel(c)]));
+  pushIfPresent(rows, t("RELGRAPH.Common.Conditions"), node.conditions.map((id) => conditionLabels.get(id) ?? id).join(", "));
+  pushIfPresent(rows, t("RELGRAPH.Node.Connections", { count: connections.length }), connections.join("\n"));
 
-  pushIfPresent(rows, "Описание", node.lore);
-  pushIfPresent(rows, "Заметки", node.playerNotes);
+  pushIfPresent(rows, t("RELGRAPH.Common.Description"), node.lore);
+  pushIfPresent(rows, t("RELGRAPH.Node.Notes"), node.playerNotes);
   if (options.isGM) {
-    pushIfPresent(rows, "Заметки GM", node.gmNotes);
+    pushIfPresent(rows, t("RELGRAPH.Node.GmNotes"), node.gmNotes);
     // hidden включает gmOnly — показываем более сильный из флагов
-    if (node.hidden) rows.push({ label: "Видимость", value: "Скрыт от игроков" });
-    else if (node.gmOnly) rows.push({ label: "Видимость", value: "Правит только GM" });
+    if (node.hidden) rows.push({ label: t("RELGRAPH.Common.Visibility"), value: t("RELGRAPH.Node.Hidden") });
+    else if (node.gmOnly) rows.push({ label: t("RELGRAPH.Common.Visibility"), value: t("RELGRAPH.Node.GmOnly") });
   }
-  rows.push({ label: "Размер", value: `×${node.scale.toFixed(1)}` });
+  rows.push({ label: t("RELGRAPH.Common.Size"), value: `×${node.scale.toFixed(1)}` });
 
-  return { title: node.name, subtitle: NODE_TYPE_LABELS[node.type], rows };
+  return { title: nodeName(node), subtitle: t(NODE_TYPE_KEYS[node.type]), rows };
 }
 
 /**
@@ -99,11 +108,11 @@ export function describeEdge(data: GraphData, edgeId: string, options: DescribeO
     return node ? displayName(node, options.isGM) : "?";
   };
   const rows: DescriptionRow[] = [];
-  rows.push({ label: "Кто с кем", value: `${nameOf(edge.source)} ${edge.directional ? "→" : "—"} ${nameOf(edge.target)}` });
-  pushIfPresent(rows, "Тип", data.relationshipTypes.find((rt) => rt.id === edge.relationshipTypeId)?.label ?? "");
-  if (edge.gmOnly) rows.push({ label: "Видимость", value: "Видна только GM" });
+  rows.push({ label: t("RELGRAPH.Edge.Ends"), value: `${nameOf(edge.source)} ${edge.directional ? "→" : "—"} ${nameOf(edge.target)}` });
+  pushIfPresent(rows, t("RELGRAPH.Edge.TypeShort"), relationshipTypeCaption(data, edge.relationshipTypeId));
+  if (edge.gmOnly) rows.push({ label: t("RELGRAPH.Common.Visibility"), value: t("RELGRAPH.Edge.GmOnly") });
 
-  return { title: edge.label || "Связь", subtitle: edge.label ? "Связь" : undefined, rows };
+  return { title: edge.label || t("RELGRAPH.Common.Edge"), subtitle: edge.label ? t("RELGRAPH.Common.Edge") : undefined, rows };
 }
 
 /** null — фракции с таким id нет. */
@@ -112,13 +121,13 @@ export function describeFaction(data: GraphData, factionId: string, options: Des
   if (!faction) return null;
 
   const rows: DescriptionRow[] = [];
-  pushIfPresent(rows, "Описание", faction.description);
+  pushIfPresent(rows, t("RELGRAPH.Common.Description"), faction.description);
 
   // У скрытого узла игрок видит только основную фракцию (область) — остальные не выдаём.
   const members = data.nodes
     .filter((n) => (isMasked(n, options.isGM) ? n.primaryFactionId === factionId : n.factionIds.includes(factionId)))
     .map((n) => displayName(n, options.isGM));
-  pushIfPresent(rows, `Участники (${members.length})`, members.join("\n"));
+  pushIfPresent(rows, t("RELGRAPH.Faction.Members", { count: members.length }), members.join("\n"));
 
-  return { title: faction.name, subtitle: "Фракция", rows };
+  return { title: factionName(faction), subtitle: t("RELGRAPH.Faction.Panel"), rows };
 }

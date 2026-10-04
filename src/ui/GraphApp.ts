@@ -11,6 +11,7 @@
  */
 
 import type cytoscape from "cytoscape";
+import { t, tn } from "../core/i18n";
 import type { GraphData, GraphEdge, GraphNode } from "../core/model";
 import { syncNodesWithActors } from "../foundry/actors";
 import { acquireEditLock, currentEditor, LOCK_FLAG_KEY, releaseEditLock, userName } from "../foundry/edit-lock";
@@ -33,6 +34,7 @@ import {
 } from "../core/background";
 import {
   allConditions,
+  conditionLabel,
   createCondition,
   removeCondition,
   updateCondition,
@@ -46,17 +48,18 @@ import {
   blankEdge,
   blankNode,
   createFactionFromEdit,
+  factionName,
   isBlankEdge,
   type FactionEditValues,
 } from "../core/edit";
 import { addEdge, addNode, removeEdge, removeElements, removeFaction, removeNode } from "../core/graph-state";
 import { GraphHistory } from "../core/history";
 import { exportFileName, exportGraphFile } from "../import/native";
-import { pluralize } from "../core/plural";
 import { clientToModel, type Point } from "../core/hit-test";
 import {
   createRelationshipType,
   ensureDefaultRelationshipTypes,
+  relationshipTypeLabel,
   removeRelationshipType,
   updateRelationshipType,
   type RelationshipTypeEditValues,
@@ -68,7 +71,7 @@ import {
   restrictNodeEdit,
   visibleEdgeCount,
 } from "../core/permissions";
-import { displayName, isMasked } from "../core/visibility";
+import { displayName, isMasked, nodeName } from "../core/visibility";
 import { createBackgroundLayer, type BackgroundLayer } from "./background-layer";
 import { setupEdgeLabels, type EdgeLabelsHandle } from "./edge-labels";
 import { createFactionBlobLayer, type FactionBlobLayer } from "./faction-blobs";
@@ -120,7 +123,8 @@ export class GraphApp extends ApplicationV2 {
   static DEFAULT_OPTIONS = {
     id: "fvtt-relationship-graph-app",
     window: {
-      title: "Relationship Graph",
+      // ApplicationV2 сам переводит заголовок окна через game.i18n.localize.
+      title: "RELGRAPH.Title",
       resizable: true,
       icon: "fa-solid fa-diagram-project",
     },
@@ -193,22 +197,22 @@ export class GraphApp extends ApplicationV2 {
     };
 
     // Отмена/повтор — доступны в режиме редактирования, когда есть что отменять/повторять.
-    this.#undoButton = button("fa-rotate-left", "Отменить (Ctrl+Z)", () => void this.#undo());
-    this.#redoButton = button("fa-rotate-right", "Повторить (Ctrl+Y)", () => void this.#redo());
+    this.#undoButton = button("fa-rotate-left", t("RELGRAPH.Graph.Undo"), () => void this.#undo());
+    this.#redoButton = button("fa-rotate-right", t("RELGRAPH.Graph.Redo"), () => void this.#redo());
     toolbar.append(group(this.#undoButton, this.#redoButton));
 
     // Справочники — всем и в любом режиме; что в них можно менять, решают сами списки.
     toolbar.append(
       group(
-        button("fa-flag", "Фракции", () => this.#openFactionList()),
-        button("fa-share-nodes", "Типы связей", () => this.#openRelationshipTypeList()),
-        button("fa-tags", "Состояния", () => this.#openConditionList()),
+        button("fa-flag", t("RELGRAPH.Common.Factions"), () => this.#openFactionList()),
+        button("fa-share-nodes", t("RELGRAPH.Common.RelationshipTypes"), () => this.#openRelationshipTypeList()),
+        button("fa-tags", t("RELGRAPH.Common.Conditions"), () => this.#openConditionList()),
       ),
     );
 
     // Фон графа — только GM и только в режиме редактирования; видят его все.
     if (this.#isGM) {
-      this.#backgroundButton = button("fa-image", "Фон графа", () => this.#openBackgroundPanel());
+      this.#backgroundButton = button("fa-image", t("RELGRAPH.Background.Panel"), () => this.#openBackgroundPanel());
       toolbar.append(group(this.#backgroundButton));
     }
 
@@ -305,13 +309,15 @@ export class GraphApp extends ApplicationV2 {
     const plan = planDeletion(data, nodeIds, edgeIds, this.#isGM);
     if (plan.nodeIds.length === 0 && plan.edgeIds.length === 0) return;
 
-    const parts = [
-      plan.nodeIds.length > 0 ? pluralize(plan.nodeIds.length, "узел", "узла", "узлов") : "",
-      plan.visibleEdgeCount > 0 ? pluralize(plan.visibleEdgeCount, "связь", "связи", "связей") : "",
-    ].filter(Boolean);
+    const nodes = plan.nodeIds.length > 0 ? tn("RELGRAPH.Common.Nodes", plan.nodeIds.length) : "";
+    const edges = plan.visibleEdgeCount > 0 ? tn("RELGRAPH.Common.Edges", plan.visibleEdgeCount) : "";
+    const question =
+      nodes && edges
+        ? t("RELGRAPH.Graph.DeleteSelectedBoth", { nodes, edges })
+        : t("RELGRAPH.Graph.DeleteSelectedOne", { items: nodes || edges });
     const skipped = nodeIds.length - plan.nodeIds.length;
-    const note = skipped > 0 ? ` Узлы «Правит только GM» (${skipped}) останутся.` : "";
-    const confirmed = await this.#confirm("Удалить выделенное", `Удалить ${parts.join(" и ")}?${note}`);
+    const note = skipped > 0 ? ` ${t("RELGRAPH.Graph.DeleteSelectedGmOnlyNote", { count: skipped })}` : "";
+    const confirmed = await this.#confirm(t("RELGRAPH.Graph.DeleteSelected"), question + note);
     if (!confirmed || !this.#currentData) return;
     await this.#commit(removeElements(this.#currentData, plan.nodeIds, plan.edgeIds));
   }
@@ -362,7 +368,7 @@ export class GraphApp extends ApplicationV2 {
     if (this.#editing && editor !== game.user?.id) {
       this.#setEditing(false);
       ui.notifications?.warn(
-        editor ? `Граф уже редактирует ${userName(editor)} — вы в режиме просмотра.` : "Режим редактирования снят.",
+        editor ? t("RELGRAPH.Graph.LockedBy", { user: userName(editor) }) : t("RELGRAPH.Graph.EditingReleased"),
       );
       if (this.#currentData) this.#display(this.#currentData, true);
     }
@@ -400,12 +406,12 @@ export class GraphApp extends ApplicationV2 {
       acquired = await acquireEditLock(userId);
     } catch (err) {
       console.error("fvtt-relationship-graph | edit lock failed", err);
-      ui.notifications?.error("Не удалось начать редактирование — см. консоль. Игрокам запись открывается, когда граф откроет GM.");
+      ui.notifications?.error(t("RELGRAPH.Graph.EditingFailed"));
       return;
     }
     if (!acquired) {
       const editor = currentEditor();
-      ui.notifications?.warn(`Граф сейчас редактирует ${editor ? userName(editor) : "другой пользователь"}.`);
+      ui.notifications?.warn(t("RELGRAPH.Graph.BusyBy", { user: editor ? userName(editor) : t("RELGRAPH.Common.OtherUser") }));
       this.#updateToolbar();
       return;
     }
@@ -439,7 +445,7 @@ export class GraphApp extends ApplicationV2 {
     const root = this.#cyHost?.parentElement;
     if (editing && root) {
       this.#idleTimer = startIdleTimer(root, IDLE_TIMEOUT_MS, () => {
-        void this.#stopEditing("Редактирование графа завершено: 5 минут без действий.");
+        void this.#stopEditing(t("RELGRAPH.Graph.EditingIdle"));
       });
     }
     this.#updateToolbar();
@@ -453,16 +459,16 @@ export class GraphApp extends ApplicationV2 {
       button.disabled = busy;
       button.classList.toggle("frg-toolbar-active", this.#editing);
       button.innerHTML = this.#editing
-        ? `<i class="fa-solid fa-check"></i> Завершить редактирование`
-        : `<i class="fa-solid fa-pen"></i> Редактировать`;
-      button.title = busy && editor ? `Сейчас редактирует: ${userName(editor)}` : "";
+        ? `<i class="fa-solid fa-check"></i> ${t("RELGRAPH.Graph.StopEditing")}`
+        : `<i class="fa-solid fa-pen"></i> ${t("RELGRAPH.Common.Edit")}`;
+      button.title = busy && editor ? t("RELGRAPH.Graph.EditingBy", { user: userName(editor) }) : "";
     }
     if (this.#undoButton) this.#undoButton.disabled = !this.#editing || !this.#history.canUndo;
     if (this.#redoButton) this.#redoButton.disabled = !this.#editing || !this.#history.canRedo;
     this.#importControl?.setEnabled(this.#editing);
     if (this.#backgroundButton) {
       this.#backgroundButton.disabled = !this.#editing;
-      this.#backgroundButton.title = this.#editing ? "Фон графа" : "Фон графа — доступен в режиме редактирования";
+      this.#backgroundButton.title = this.#editing ? t("RELGRAPH.Background.Panel") : t("RELGRAPH.Background.PanelDisabled");
     }
   }
 
@@ -614,7 +620,7 @@ export class GraphApp extends ApplicationV2 {
     } catch (err) {
       // Типичный случай: игрок без права записи (GM ещё не открывал граф после обновления модуля).
       console.error("fvtt-relationship-graph | save failed", err);
-      ui.notifications?.error("Не удалось сохранить граф — см. консоль. Игрокам запись открывается, когда граф откроет GM.");
+      ui.notifications?.error(t("RELGRAPH.Graph.SaveFailed"));
       return;
     }
     if (record && before) this.#history.record(before);
@@ -692,7 +698,7 @@ export class GraphApp extends ApplicationV2 {
     const data = applyEdgeEdit(addEdge(this.#currentData, edge), edge.id, values);
     if (isBlankEdge(data.edges.find((e) => e.id === edge.id)!)) {
       this.#closePanel();
-      ui.notifications?.info("Связь не создана: в ней ничего не заполнено.");
+      ui.notifications?.info(t("RELGRAPH.Edge.EmptyNotCreated"));
       return;
     }
     await this.#commit(data);
@@ -713,7 +719,7 @@ export class GraphApp extends ApplicationV2 {
           void this.#saveNode(nodeId, values);
         },
         onDelete: () => {
-          void this.#deleteNode(nodeId, node.name);
+          void this.#deleteNode(nodeId, nodeName(node));
         },
         onClose: () => this.#closePanel(),
       },
@@ -736,8 +742,8 @@ export class GraphApp extends ApplicationV2 {
     const node = data?.nodes.find((n) => n.id === nodeId);
     if (!data || !node || !canEditNode(node, this.#isGM)) return;
     const edges = visibleEdgeCount(data, nodeId, this.#isGM);
-    const text = edges > 0 ? `Удалить узел «${name}» и его связи (${edges})?` : `Удалить узел «${name}»?`;
-    const confirmed = await this.#confirm("Удалить узел", text);
+    const text = edges > 0 ? t("RELGRAPH.Node.DeleteConfirmEdges", { name, count: edges }) : t("RELGRAPH.Node.DeleteConfirm", { name });
+    const confirmed = await this.#confirm(t("RELGRAPH.Node.Delete"), text);
     if (!confirmed || !this.#currentData) return;
     await this.#commit(removeNode(this.#currentData, nodeId));
   }
@@ -804,7 +810,7 @@ export class GraphApp extends ApplicationV2 {
           void this.#saveFaction(factionId, values);
         },
         onDelete: () => {
-          if (faction) void this.#deleteFaction(faction.id, faction.name);
+          if (faction) void this.#deleteFaction(faction.id, factionName(faction));
         },
         onClose: () => this.#closePanel(),
       },
@@ -832,8 +838,8 @@ export class GraphApp extends ApplicationV2 {
   async #deleteFaction(factionId: string, name: string): Promise<void> {
     if (!this.#isGM) return;
     const confirmed = await this.#confirm(
-      "Удалить фракцию",
-      `Удалить фракцию «${name}»? Её узлы останутся на графе, но без этой фракции.`,
+      t("RELGRAPH.Faction.Delete"),
+      t("RELGRAPH.Faction.DeleteConfirm", { name }),
     );
     if (!confirmed || !this.#currentData) return;
     await this.#commit(removeFaction(this.#currentData, factionId));
@@ -873,7 +879,7 @@ export class GraphApp extends ApplicationV2 {
         void this.#saveCondition(conditionId, values);
       },
       onDelete: () => {
-        if (condition) void this.#deleteCondition(condition.id, condition.label);
+        if (condition) void this.#deleteCondition(condition.id, conditionLabel(condition));
       },
       onClose: () => this.#closePanel(),
     });
@@ -892,8 +898,8 @@ export class GraphApp extends ApplicationV2 {
 
   async #deleteCondition(conditionId: string, label: string): Promise<void> {
     const confirmed = await this.#confirm(
-      "Удалить состояние",
-      `Удалить состояние «${label}»? Оно будет снято со всех узлов.`,
+      t("RELGRAPH.Condition.Delete"),
+      t("RELGRAPH.Condition.DeleteConfirm", { label }),
     );
     if (!confirmed || !this.#currentData) return;
     await this.#commit(removeCondition(this.#currentData, conditionId));
@@ -934,7 +940,7 @@ export class GraphApp extends ApplicationV2 {
       probe.src = image;
     });
     if (!natural) {
-      ui.notifications?.warn("Не удалось загрузить картинку фона.");
+      ui.notifications?.warn(t("RELGRAPH.Background.ImageLoadFailed"));
       return null;
     }
     const extent = cy.extent();
@@ -971,7 +977,7 @@ export class GraphApp extends ApplicationV2 {
         void this.#saveRelationshipType(typeId, values);
       },
       onDelete: () => {
-        if (type) void this.#deleteRelationshipType(type.id, type.label);
+        if (type) void this.#deleteRelationshipType(type.id, relationshipTypeLabel(type));
       },
       onClose: () => this.#closePanel(),
     });
@@ -990,8 +996,8 @@ export class GraphApp extends ApplicationV2 {
 
   async #deleteRelationshipType(typeId: string, label: string): Promise<void> {
     const confirmed = await this.#confirm(
-      "Удалить тип связи",
-      `Удалить тип связи «${label}»? Связи этого типа останутся, но без типа.`,
+      t("RELGRAPH.RelationshipType.Delete"),
+      t("RELGRAPH.RelationshipType.DeleteConfirm", { label }),
     );
     if (!confirmed || !this.#currentData) return;
     await this.#commit(removeRelationshipType(this.#currentData, typeId));
@@ -1001,7 +1007,7 @@ export class GraphApp extends ApplicationV2 {
   async #deleteEdge(edgeId: string): Promise<void> {
     const edge = this.#currentData?.edges.find((e) => e.id === edgeId);
     if (!edge || (edge.gmOnly && !this.#isGM)) return;
-    const confirmed = await this.#confirm("Удалить связь", "Удалить эту связь?");
+    const confirmed = await this.#confirm(t("RELGRAPH.Edge.Delete"), t("RELGRAPH.Edge.DeleteConfirm"));
     if (!confirmed || !this.#currentData) return;
     await this.#commit(removeEdge(this.#currentData, edgeId));
   }
@@ -1016,33 +1022,33 @@ export class GraphApp extends ApplicationV2 {
       const node = this.#currentData?.nodes.find((n) => n.id === nodeId);
       // gmOnly-узел игрок не правит и не ресайзит
       const editable = editing && node !== undefined && canEditNode(node, this.#isGM);
-      items.push({ label: "Информация", onSelect: () => this.#openInfo(target, client) });
-      if (editable) items.push({ label: "Редактировать", onSelect: () => this.#openNodePanel(nodeId) });
-      if (editing) items.push({ label: "Создать связь", onSelect: () => this.#interaction?.startLinking(nodeId) });
+      items.push({ label: t("RELGRAPH.Common.Info"), onSelect: () => this.#openInfo(target, client) });
+      if (editable) items.push({ label: t("RELGRAPH.Common.Edit"), onSelect: () => this.#openNodePanel(nodeId) });
+      if (editing) items.push({ label: t("RELGRAPH.Menu.CreateEdge"), onSelect: () => this.#interaction?.startLinking(nodeId) });
       // Лист актёра открывает только GM: игроку он выдал бы лишнее (у скрытого узла — ещё и кто это).
       const actorId = node && this.#isGM ? node.actorId : null;
       const actor = actorId ? game.actors?.get(actorId) : null;
-      if (actor) items.push({ label: "Открыть лист актёра", onSelect: () => actor.sheet?.render(true) });
-      if (editable) items.push({ label: "Сбросить размер", onSelect: () => this.#interaction?.resetScale(nodeId) });
+      if (actor) items.push({ label: t("RELGRAPH.Menu.OpenActorSheet"), onSelect: () => actor.sheet?.render(true) });
+      if (editable) items.push({ label: t("RELGRAPH.Menu.ResetSize"), onSelect: () => this.#interaction?.resetScale(nodeId) });
     } else if (target.kind === "edge") {
       const edgeId = target.id;
       if (editing) {
-        items.push({ label: "Редактировать связь", onSelect: () => this.#openEdgePanel(edgeId) });
+        items.push({ label: t("RELGRAPH.Menu.EditEdge"), onSelect: () => this.#openEdgePanel(edgeId) });
         items.push({
-          label: "Удалить связь",
+          label: t("RELGRAPH.Edge.Delete"),
           onSelect: () => {
             void this.#deleteEdge(edgeId);
           },
         });
       } else {
-        items.push({ label: "Информация", onSelect: () => this.#openInfo(target, client) });
+        items.push({ label: t("RELGRAPH.Common.Info"), onSelect: () => this.#openInfo(target, client) });
       }
     } else if (target.kind === "faction") {
       const factionId = target.id;
-      items.push({ label: "Информация", onSelect: () => this.#openInfo(target, client) });
-      items.push({ label: "Выбрать область", onSelect: () => this.#interaction?.selectFaction(factionId) });
+      items.push({ label: t("RELGRAPH.Common.Info"), onSelect: () => this.#openInfo(target, client) });
+      items.push({ label: t("RELGRAPH.Menu.SelectArea"), onSelect: () => this.#interaction?.selectFaction(factionId) });
       // игроку форма фракции открывается с правкой только описания
-      if (editing) items.push({ label: "Редактировать фракцию", onSelect: () => this.#openFactionPanel(factionId) });
+      if (editing) items.push({ label: t("RELGRAPH.Menu.EditFaction"), onSelect: () => this.#openFactionPanel(factionId) });
     }
 
     // У узла и связи своё меню — создание узла и общие списки там лишние.
@@ -1050,20 +1056,20 @@ export class GraphApp extends ApplicationV2 {
       const factionId = target.kind === "faction" ? target.id : null;
       if (editing) {
         items.push({
-          label: "Добавить узел",
+          label: t("RELGRAPH.Menu.AddNode"),
           onSelect: () => {
             void this.#createNode(client, factionId);
           },
         });
       }
-      items.push({ label: "Фракции…", onSelect: () => this.#openFactionList() });
-      items.push({ label: "Типы связей…", onSelect: () => this.#openRelationshipTypeList() });
-      items.push({ label: "Состояния…", onSelect: () => this.#openConditionList() });
+      items.push({ label: t("RELGRAPH.Menu.Factions"), onSelect: () => this.#openFactionList() });
+      items.push({ label: t("RELGRAPH.Menu.RelationshipTypes"), onSelect: () => this.#openRelationshipTypeList() });
+      items.push({ label: t("RELGRAPH.Menu.Conditions"), onSelect: () => this.#openConditionList() });
     }
 
-    items.push({ label: "Показать весь граф", onSelect: () => this.#cy?.fit(undefined, 30) });
+    items.push({ label: t("RELGRAPH.Graph.FitAll"), onSelect: () => this.#cy?.fit(undefined, 30) });
     if (this.#cy?.$(":selected").nonempty()) {
-      items.push({ label: "Снять выделение", onSelect: () => this.#cy?.$(":selected").unselect() });
+      items.push({ label: t("RELGRAPH.Menu.ClearSelection"), onSelect: () => this.#cy?.$(":selected").unselect() });
     }
 
     this.#overlays?.showMenu(client, items);

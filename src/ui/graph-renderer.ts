@@ -13,6 +13,7 @@
 
 import cytoscape from "cytoscape";
 import fcose from "cytoscape-fcose";
+import { factionName } from "../core/edit";
 import { imageAlignPosition } from "../core/image-align";
 import type { GraphData } from "../core/model";
 import { cytoscapeImageFit, normalizeImageFit, type Size } from "../core/node-image";
@@ -74,7 +75,7 @@ function buildElements(data: GraphData, options: RenderOptions): cytoscape.Eleme
   data.factions.forEach((faction) => {
     if (!populated.has(faction.id)) return;
     elements.push({
-      data: { id: factionElementId(faction.id), label: faction.name, isFaction: true, factionColor: faction.color },
+      data: { id: factionElementId(faction.id), label: factionName(faction), isFaction: true, factionColor: faction.color },
       selectable: false,
       grabbable: false,
     });

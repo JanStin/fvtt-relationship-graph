@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { setTranslator } from "../../src/core/i18n";
+import { installRuTranslator } from "../setup/i18n";
 import {
   applyEdgeEdit,
   applyFactionEdit,
@@ -7,6 +9,7 @@ import {
   blankNode,
   isBlankEdge,
   createFactionFromEdit,
+  factionName,
   normalizeFactions,
   primaryAfterUncheck,
   type NodeEditValues,
@@ -238,9 +241,20 @@ describe("applyFactionEdit / createFactionFromEdit", () => {
     expect(result.factions[0]).toMatchObject({ name: "F1", color: "#111111" });
   });
 
-  it("создаёт фракцию, подставляя название по умолчанию", () => {
+  it("создаёт фракцию с пустым названием — показывается как «Новая фракция»", () => {
     const result = createFactionFromEdit(data, "f3", { name: "", color: "#333333", description: "" });
-    expect(result.factions[2]).toEqual({ id: "f3", name: "Новая фракция", color: "#333333", description: "" });
+    expect(result.factions[2]).toEqual({ id: "f3", name: "", color: "#333333", description: "" });
+    expect(factionName(result.factions[2])).toBe("Новая фракция");
+  });
+
+  it("старое «Новая фракция» (до локализации) переводится, своё название — как есть", () => {
+    setTranslator((key) => key, "en");
+    try {
+      expect(factionName({ id: "f", name: "Новая фракция", color: "", description: "" })).toBe("RELGRAPH.Faction.DefaultName");
+      expect(factionName({ id: "f", name: "Гильдия", color: "", description: "" })).toBe("Гильдия");
+    } finally {
+      installRuTranslator();
+    }
   });
 
   it("бросает на неизвестной фракции и на повторном id", () => {
@@ -250,12 +264,13 @@ describe("applyFactionEdit / createFactionFromEdit", () => {
 });
 
 describe("blankNode / blankEdge", () => {
-  it("узел-заготовка: без актёра, в точке клика, без фракции", () => {
+  it("узел-заготовка: без актёра, в точке клика, без фракции, имя пустое (показывается как «Новый узел»)", () => {
     expect(blankNode("n1", { x: 10, y: -5 }, null)).toMatchObject({
       id: "n1",
       type: "placeholder",
       actorId: null,
-      name: "Новый узел",
+      name: "",
+      originalName: "",
       x: 10,
       y: -5,
       scale: 1,

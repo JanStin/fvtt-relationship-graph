@@ -36,6 +36,7 @@
 import type cytoscape from "cytoscape";
 import { findBlobAt } from "../core/blob";
 import { clientToModel, type Point } from "../core/hit-test";
+import { t } from "../core/i18n";
 import { separateOverlaps, type PositionedCircle } from "../core/layout";
 import { groupScale, SCALE_MAX, SCALE_MIN } from "../core/selection";
 import {
@@ -496,7 +497,7 @@ export function setupInteraction(
       container.style.cursor = "crosshair";
       linkHint = document.createElement("div");
       linkHint.className = "frg-link-hint";
-      linkHint.textContent = "Создание связи: выберите второй узел. Esc или ПКМ — отмена";
+      linkHint.textContent = t("RELGRAPH.Edge.Linking");
       container.append(linkHint);
     },
     teardown(): void {

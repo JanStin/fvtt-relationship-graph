@@ -8,7 +8,7 @@ describe("parseFangJson", () => {
 
     expect(data.nodes).toHaveLength(5);
     expect(data.factions).toHaveLength(2);
-    expect(data.relationshipTypes).toHaveLength(3); // 2 из FANG + «Романтическая»
+    expect(data.relationshipTypes).toHaveLength(7); // 2 из FANG + 5 стандартных, которых в файле нет
     // один из двух links битый (source/target не существует) -> отброшен
     expect(data.edges).toHaveLength(1);
     expect(warnings.length).toBeGreaterThan(0);
@@ -128,8 +128,12 @@ describe("parseFangJson", () => {
     expect(data.relationshipTypes).toEqual([
       { id: "ally", label: "Союзник", color: "#2f9e44", dash: "" },
       { id: "enemy", label: "Враг", color: "#b91c1c", dash: "" },
-      // тип по умолчанию, которого в FANG нет
-      { id: "romantic", label: "Романтическая", color: "#ec4899", dash: "" },
+      // стандартные типы, которых в файле нет
+      { id: "family", label: "", color: "#d97706", dash: "" },
+      { id: "hierarchy", label: "", color: "#2563eb", dash: "" },
+      { id: "quest", label: "", color: "#9333ea", dash: "" },
+      { id: "romantic", label: "", color: "#ec4899", dash: "" },
+      { id: "unknown", label: "", color: "#6b7280", dash: "" },
     ]);
   });
 

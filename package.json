@@ -1,6 +1,6 @@
 {
   "name": "fvtt-relationship-graph",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Foundry VTT module: relationship graph between actors (FANG alternative)",
   "private": true,
   "license": "MIT",
@@ -23,6 +23,8 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
+    "i18n:extract": "node tools/i18n-extract.mjs",
+    "i18n:check": "node tools/i18n-extract.mjs --check",
     "postinstall": "patch-package"
   },
   "devDependencies": {

@@ -19,5 +19,7 @@ jobs:
       # postinstall ставит патч Cytoscape (patches/)
       - run: npm ci
       - run: npm run typecheck
+      # нет строк интерфейса в коде, lang/*.json совпадают с ru.json
+      - run: npm run i18n:check
       - run: npm run test
       - run: npm run build

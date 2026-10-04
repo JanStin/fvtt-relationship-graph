@@ -40,7 +40,7 @@ jobs:
 
       # Карты исходников (.map) в архив не кладём — это только для разработки.
       - name: Архив модуля
-        run: zip -r module.zip module.json scripts styles assets LICENSE THIRD-PARTY-NOTICES.md README.md CHANGELOG.md -x "*.map"
+        run: zip -r module.zip module.json scripts styles assets lang LICENSE THIRD-PARTY-NOTICES.md README.md README.ru.md CHANGELOG.md -x "*.map"
 
       - uses: softprops/action-gh-release@v2
         with:

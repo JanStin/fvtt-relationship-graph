@@ -4,7 +4,9 @@
  */
 
 import type { EdgeEditValues } from "../../core/edit";
+import { t } from "../../core/i18n";
 import type { GraphEdge, RelationshipType } from "../../core/model";
+import { relationshipTypeLabel } from "../../core/relationship-types";
 import { checkbox, createPanelShell, field, hint, select, textInput } from "./form";
 
 const NO_TYPE = ""; // совпадает с "тип не задан" в модели (relationshipTypeId: '')
@@ -33,13 +35,13 @@ export function createEdgePanel(
   const { isNew = false, isGM } = options;
   const label = textInput(edge.label);
   const type = select(
-    [{ value: NO_TYPE, label: "— не задан —" }, ...relationshipTypes.map((rt) => ({ value: rt.id, label: rt.label }))],
+    [{ value: NO_TYPE, label: t("RELGRAPH.Common.NotSet") }, ...relationshipTypes.map((rt) => ({ value: rt.id, label: relationshipTypeLabel(rt) }))],
     edge.relationshipTypeId,
   );
-  const directional = checkbox("Направленная (со стрелкой)", edge.directional);
-  const gmOnly = checkbox("Видна только GM", edge.gmOnly);
+  const directional = checkbox(t("RELGRAPH.Edge.Directional"), edge.directional);
+  const gmOnly = checkbox(t("RELGRAPH.Edge.GmOnly"), edge.gmOnly);
 
-  const shell = createPanelShell(isNew ? "Новая связь" : "Связь", isNew ? null : "Удалить связь", {
+  const shell = createPanelShell(isNew ? t("RELGRAPH.Edge.New") : t("RELGRAPH.Common.Edge"), isNew ? null : t("RELGRAPH.Edge.Delete"), {
     onSave: () =>
       callbacks.onSave({
         label: label.value,
@@ -53,9 +55,9 @@ export function createEdgePanel(
 
   shell.body.append(
     hint(`${endpoints.source} → ${endpoints.target}`),
-    ...(isNew ? [hint("Связь появится после сохранения. Если ничего не заполнить, она не создаётся.")] : []),
-    field("Подпись", label),
-    field("Тип связи", type),
+    ...(isNew ? [hint(t("RELGRAPH.Edge.NewHint"))] : []),
+    field(t("RELGRAPH.Edge.Label"), label),
+    field(t("RELGRAPH.Edge.Type"), type),
     directional.row,
     // у игрока флажка нет — при сохранении уходит прежнее значение (input остаётся как был)
     ...(isGM ? [gmOnly.row] : []),

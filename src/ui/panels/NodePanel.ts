@@ -5,41 +5,52 @@
  * «Метки» — фракции и состояния.
  */
 
-import { conditionIconClass } from "../../core/conditions";
-import { primaryAfterUncheck, type NodeEditValues } from "../../core/edit";
+import { conditionIconClass, conditionLabel } from "../../core/conditions";
+import { factionName, primaryAfterUncheck, type NodeEditValues } from "../../core/edit";
+import { t } from "../../core/i18n";
 import { normalizeImageAlign } from "../../core/image-align";
 import type { ConditionDef, Faction, GraphNode, ImageAlign, ImageFit, ImageSource, NodeType } from "../../core/model";
 import { normalizeImageFit, normalizeImageSource } from "../../core/node-image";
 import { SCALE_MAX, SCALE_MIN } from "../../core/selection";
+import { isDefaultNodeName } from "../../core/visibility";
 import { addPanelTabs, browseImage, checkbox, createPanelShell, field, hint, select, textArea, textInput } from "./form";
 
 const NO_ACTOR = ""; // значение <option> «не выбран»; id актёров пустыми не бывают
 
-const NODE_TYPE_OPTIONS: ReadonlyArray<{ value: NodeType; label: string }> = [
-  { value: "actor", label: "Актёр" },
-  { value: "placeholder", label: "Без актёра" },
-  { value: "image", label: "Просто изображение" },
-];
+// Списки — функции: названия переводятся при каждой сборке панели, на текущем языке.
+function nodeTypeOptions(): Array<{ value: NodeType; label: string }> {
+  return [
+    { value: "actor", label: t("RELGRAPH.NodeType.Actor") },
+    { value: "placeholder", label: t("RELGRAPH.NodeType.Placeholder") },
+    { value: "image", label: t("RELGRAPH.Node.ImageOnly") },
+  ];
+}
 
-const IMAGE_SOURCE_OPTIONS: ReadonlyArray<{ value: ImageSource; label: string }> = [
-  { value: "portrait", label: "Портрет" },
-  { value: "token", label: "Токен" },
-];
+function imageSourceOptions(): Array<{ value: ImageSource; label: string }> {
+  return [
+    { value: "portrait", label: t("RELGRAPH.Node.ActorImagePortrait") },
+    { value: "token", label: t("RELGRAPH.Node.ActorImageToken") },
+  ];
+}
 
-const IMAGE_FIT_OPTIONS: ReadonlyArray<{ value: ImageFit; label: string }> = [
-  { value: "cover", label: "Заполнить (обрезать лишнее)" },
-  { value: "contain", label: "Вписать целиком" },
-  { value: "fill", label: "Растянуть" },
-  { value: "scale-down", label: "Вписать, не увеличивая" },
-];
+function imageFitOptions(): Array<{ value: ImageFit; label: string }> {
+  return [
+    { value: "cover", label: t("RELGRAPH.Node.FitCover") },
+    { value: "contain", label: t("RELGRAPH.Node.FitContain") },
+    { value: "fill", label: t("RELGRAPH.Node.FitFill") },
+    { value: "scale-down", label: t("RELGRAPH.Node.FitScaleDown") },
+  ];
+}
 
-const IMAGE_ALIGN_OPTIONS: ReadonlyArray<{ value: ImageAlign; label: string }> = [
-  { value: "top-left", label: "Сверху / слева" },
-  { value: "top-right", label: "Сверху / справа" },
-  { value: "center", label: "По центру" },
-  { value: "bottom-left", label: "Снизу / слева" },
-  { value: "bottom-right", label: "Снизу / справа" },
-];
+function imageAlignOptions(): Array<{ value: ImageAlign; label: string }> {
+  return [
+    { value: "top-left", label: t("RELGRAPH.Node.AlignTopLeft") },
+    { value: "top-right", label: t("RELGRAPH.Node.AlignTopRight") },
+    { value: "center", label: t("RELGRAPH.Node.AlignCenter") },
+    { value: "bottom-left", label: t("RELGRAPH.Node.AlignBottomLeft") },
+    { value: "bottom-right", label: t("RELGRAPH.Node.AlignBottomRight") },
+  ];
+}
 
 export interface ActorOption {
   id: string;
@@ -73,10 +84,10 @@ function createFactionPicker(node: GraphNode, factions: readonly Faction[], isGM
   element.className = "frg-field";
   const caption = document.createElement("span");
   caption.className = "frg-field-label";
-  caption.textContent = "Фракции (отметка справа — основная, область)";
+  caption.textContent = t("RELGRAPH.Node.FactionPicker");
   element.append(caption);
   if (factions.length === 0) {
-    element.append(hint(isGM ? "Фракций пока нет — создайте их через ПКМ → «Фракции…»." : "Фракций пока нет."));
+    element.append(hint(isGM ? t("RELGRAPH.Node.NoFactions") : t("RELGRAPH.Faction.None")));
   }
 
   const order = factions.map((f) => f.id);
@@ -101,13 +112,13 @@ function createFactionPicker(node: GraphNode, factions: readonly Faction[], isGM
     swatch.className = "frg-faction-swatch";
     swatch.style.background = faction.color;
     const name = document.createElement("span");
-    name.textContent = faction.name;
+    name.textContent = factionName(faction);
     label.append(check, swatch, name);
 
     const radio = document.createElement("input");
     radio.type = "radio";
     radio.name = `frg-primary-faction-${node.id}`;
-    radio.title = "Основная фракция";
+    radio.title = t("RELGRAPH.Node.PrimaryFaction");
     radio.checked = node.primaryFactionId === faction.id;
 
     check.addEventListener("change", () => {
@@ -146,11 +157,11 @@ function createConditionPicker(
   element.className = "frg-field";
   const caption = document.createElement("span");
   caption.className = "frg-field-label";
-  caption.textContent = "Состояния";
+  caption.textContent = t("RELGRAPH.Common.Conditions");
   element.append(caption);
 
   const inputs = conditions.map((condition) => {
-    const { row, input } = checkbox(condition.label, node.conditions.includes(condition.id));
+    const { row, input } = checkbox(conditionLabel(condition), node.conditions.includes(condition.id));
     const icon = document.createElement("i");
     icon.className = `${conditionIconClass(condition.icon)} frg-condition-icon`;
     input.after(icon);
@@ -177,18 +188,22 @@ export function createNodePanel(
   // (У привязанного узла список полный — поле всё равно скрыто, а значение "actor" нужно
   // syncBinding, чтобы заблокировать имя и изображение.)
   const typeOptions =
-    isGM || node.type === "actor" ? NODE_TYPE_OPTIONS : NODE_TYPE_OPTIONS.filter((o) => o.value !== "actor");
+    isGM || node.type === "actor" ? nodeTypeOptions() : nodeTypeOptions().filter((o) => o.value !== "actor");
   const type = select(typeOptions, node.type);
   const actor = select(
-    [{ value: NO_ACTOR, label: "— не выбран —" }, ...actors.map((a) => ({ value: a.id, label: a.name }))],
+    [{ value: NO_ACTOR, label: t("RELGRAPH.Common.NotSelected") }, ...actors.map((a) => ({ value: a.id, label: a.name }))],
     node.actorId ?? NO_ACTOR,
   );
 
-  const name = textInput(node.name);
+  // Не заданное пользователем имя не подставляется значением (было бы на чужом языке) — видно подсказкой.
+  const name = textInput(
+    isDefaultNodeName(node) ? "" : node.name,
+    node.type === "image" ? "" : t("RELGRAPH.Node.DefaultName"),
+  );
   const img = textInput(node.img);
-  const imageSource = select(IMAGE_SOURCE_OPTIONS, normalizeImageSource(node.imageSource));
-  const imageFit = select(IMAGE_FIT_OPTIONS, normalizeImageFit(node.imageFit));
-  const imageAlign = select(IMAGE_ALIGN_OPTIONS, normalizeImageAlign(node.imageAlign));
+  const imageSource = select(imageSourceOptions(), normalizeImageSource(node.imageSource));
+  const imageFit = select(imageFitOptions(), normalizeImageFit(node.imageFit));
+  const imageAlign = select(imageAlignOptions(), normalizeImageAlign(node.imageAlign));
   const role = textInput(node.role);
   const factionPicker = createFactionPicker(node, factions, isGM);
   const scale = document.createElement("input");
@@ -201,8 +216,8 @@ export function createNodePanel(
   const lore = textArea(node.lore, 4);
   const playerNotes = textArea(node.playerNotes);
   const gmNotes = textArea(node.gmNotes);
-  const hidden = checkbox("Скрыт от игроков (виден как «неизвестный»)", node.hidden);
-  const gmOnly = checkbox("Правит только GM", node.gmOnly);
+  const hidden = checkbox(t("RELGRAPH.Node.HiddenHint"), node.hidden);
+  const gmOnly = checkbox(t("RELGRAPH.Node.GmOnly"), node.gmOnly);
   // hidden всегда подразумевает gmOnly (core/visibility.ts): флажок включается и блокируется.
   const syncFlags = () => {
     if (hidden.input.checked) gmOnly.input.checked = true;
@@ -211,7 +226,7 @@ export function createNodePanel(
   hidden.input.addEventListener("change", syncFlags);
   syncFlags();
 
-  const shell = createPanelShell("Узел", "Удалить узел", {
+  const shell = createPanelShell(t("RELGRAPH.Node.Panel"), t("RELGRAPH.Node.Delete"), {
     onSave: () =>
       callbacks.onSave({
         type: type.value as NodeType,
@@ -239,17 +254,17 @@ export function createNodePanel(
   imgRow.className = "frg-field-row";
   const browse = document.createElement("button");
   browse.type = "button";
-  browse.textContent = "Обзор";
+  browse.textContent = t("RELGRAPH.Common.Browse");
   browse.addEventListener("click", () => browseImage(img));
   imgRow.append(img, browse);
 
-  const actorField = field("Актёр", actor);
-  const actorHint = hint("Имя и изображение берутся из актёра — меняйте их в листе актёра.");
-  const nameHint = hint("Имя берётся из актёра (вкладка «Вид»).");
+  const actorField = field(t("RELGRAPH.NodeType.Actor"), actor);
+  const actorHint = hint(t("RELGRAPH.Node.ActorHint"));
+  const nameHint = hint(t("RELGRAPH.Node.ActorNameHint"));
   const sourceField = field(
-    "Изображение актёра",
+    t("RELGRAPH.Node.ActorImage"),
     imageSource,
-    hint("Токен с шаблонным изображением (путь со *) показывается портретом."),
+    hint(t("RELGRAPH.Node.ActorImageWildcardHint")),
   );
   // Имя и картинку привязанного узла при каждом открытии графа перезаписывает актёр,
   // поэтому при выбранном актёре эти поля заблокированы.
@@ -268,41 +283,41 @@ export function createNodePanel(
   actor.addEventListener("change", syncBinding);
   syncBinding();
 
-  const typeField = field("Тип узла", type);
+  const typeField = field(t("RELGRAPH.Node.Type"), type);
   typeField.hidden = !isGM && node.type === "actor";
 
   addPanelTabs(shell, [
     {
-      label: "Инфо",
+      label: t("RELGRAPH.Node.TabInfo"),
       content: [
-        field("Имя", name),
+        field(t("RELGRAPH.Node.Name"), name),
         nameHint,
-        field("Роль", role),
-        field("Описание", lore),
-        field("Заметки для игроков", playerNotes),
+        field(t("RELGRAPH.Common.Role"), role),
+        field(t("RELGRAPH.Common.Description"), lore),
+        field(t("RELGRAPH.Node.PlayerNotes"), playerNotes),
         // у игрока этих полей нет — при сохранении прежние значения подставит core/permissions.ts
-        ...(isGM ? [field("Заметки GM", gmNotes), hidden.row, gmOnly.row] : []),
+        ...(isGM ? [field(t("RELGRAPH.Node.GmNotes"), gmNotes), hidden.row, gmOnly.row] : []),
       ],
     },
     {
-      label: "Вид",
+      label: t("RELGRAPH.Node.TabLook"),
       content: [
         typeField,
         actorField,
-        field("Изображение", imgRow),
+        field(t("RELGRAPH.NodeType.Image"), imgRow),
         actorHint,
         sourceField,
         // у привязанного к актёру узла тоже можно: картинка от актёра, вид — свой
-        field("Вписывание изображения", imageFit),
+        field(t("RELGRAPH.Node.ImageFit"), imageFit),
         field(
-          "Выравнивание изображения",
+          t("RELGRAPH.Node.ImageAlign"),
           imageAlign,
-          hint("Если изображение не совпадает с узлом по форме, выравнивание решает, к какому краю его прижать."),
+          hint(t("RELGRAPH.Node.ImageAlignHint")),
         ),
-        field("Размер", scale),
+        field(t("RELGRAPH.Common.Size"), scale),
       ],
     },
-    { label: "Метки", content: [factionPicker.element, conditionPicker.element] },
+    { label: t("RELGRAPH.Node.TabLabels"), content: [factionPicker.element, conditionPicker.element] },
   ]);
   return shell.element;
 }
