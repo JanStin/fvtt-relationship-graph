@@ -78,8 +78,9 @@ Format details (in Russian): [FANG](docs/fang-json-format.md), [own format](docs
 - **Hidden data is not protected from reading.** The graph is stored in a journal that players can
   write to. Hidden nodes, GM notes and GM-only relationships are hidden only when rendering — a
   player can read the full graph from the browser console. Player permissions and the edit lock
-  are likewise enforced only by the module's interface. Don't keep anything in the graph that
-  players must never see.
+  are likewise enforced only by the module's interface. A GM-only journal wouldn't help either:
+  Foundry sends players every document, even ones they have no permission for. Don't keep
+  anything in the graph that players must never see.
 - One graph per world.
 
 ## Development
