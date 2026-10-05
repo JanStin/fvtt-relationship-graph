@@ -2,7 +2,7 @@
     "id": "fvtt-relationship-graph",
     "title": "Relationship Graph",
     "description": "A graph of relationships between actors: nodes with or without actors, factions as background areas, conditions and relationship types, nodes hidden from players, collaborative editing with a single editor, undo. Import from FANG, export and import in the module's own format. Interface in English and Russian.",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "compatibility": {
         "minimum": "13",
         "verified": "13"
@@ -34,7 +34,7 @@
     "license": "MIT",
     "url": "https://github.com/JanStin/fvtt-relationship-graph",
     "manifest": "https://github.com/JanStin/fvtt-relationship-graph/releases/latest/download/module.json",
-    "download": "https://github.com/JanStin/fvtt-relationship-graph/releases/download/v1.2.0/module.zip",
+    "download": "https://github.com/JanStin/fvtt-relationship-graph/releases/download/v1.3.0/module.zip",
     "readme": "https://github.com/JanStin/fvtt-relationship-graph#readme",
     "changelog": "https://github.com/JanStin/fvtt-relationship-graph/blob/master/CHANGELOG.md",
     "bugs": "https://github.com/JanStin/fvtt-relationship-graph/issues"
