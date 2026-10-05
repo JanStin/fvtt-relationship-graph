@@ -71,6 +71,18 @@ export interface ConditionDef {
 export type BackgroundImageMode = "tile" | "single" | "screen";
 
 /**
+ * Как показывать дополнительные (не основную) фракции узла: ромбиками на узле или областями —
+ * узел входит в область каждой своей фракции. Основная фракция — всегда областью.
+ */
+export type FactionDisplay = "badges" | "areas";
+
+/**
+ * Цвет там, где области фракций перекрываются: наложение — каждая область своим слоем поверх
+ * предыдущей; смешение — цвет между цветами всех областей в этой точке (core/color.ts).
+ */
+export type FactionBlend = "overlay" | "mix";
+
+/**
  * Фон графа (задаёт GM, видят все). Сюда же — шрифт подписей: это тоже оформление графа целиком. Картинка tile/single лежит в координатах графа: двигается и
  * масштабируется вместе с узлами; screen закрывает всю область графа и стоит на месте.
  * Логика — core/background.ts, отрисовка — ui/background-layer.ts.
@@ -84,6 +96,8 @@ export interface GraphBackground {
   imageWidth: number; // ширина картинки (плитки) в единицах графа; 0 — натуральная ширина; screen — не используется
   imageOpacity: number; // 0..1
   font?: string; // шрифт подписей узлов и связей; '' или нет (графы до 1.0.4) — Signika
+  factionDisplay?: FactionDisplay; // нет (графы до 1.2.1) — "badges"
+  factionBlend?: FactionBlend; // нет (графы до 1.2.1) — "overlay"
 }
 
 export interface GraphData {

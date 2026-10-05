@@ -8,7 +8,7 @@
  * на месте, геометрия ей не нужна.
  */
 
-import type { BackgroundImageMode, GraphBackground, GraphData } from "./model";
+import type { BackgroundImageMode, FactionBlend, FactionDisplay, GraphBackground, GraphData } from "./model";
 
 /** Стандартный цвет фона графа (без настроек). */
 export const DEFAULT_BACKGROUND_COLOR = "#16213e";
@@ -17,6 +17,9 @@ const MIN_OPACITY = 0.05;
 const MIN_IMAGE_WIDTH = 16;
 
 export const BACKGROUND_IMAGE_MODES: readonly BackgroundImageMode[] = ["tile", "single", "screen"];
+
+export const FACTION_DISPLAYS: readonly FactionDisplay[] = ["badges", "areas"];
+export const FACTION_BLENDS: readonly FactionBlend[] = ["overlay", "mix"];
 
 /** Шрифт подписей по умолчанию — шрифт интерфейса Foundry. */
 export const DEFAULT_GRAPH_FONT = "Signika";
@@ -39,7 +42,18 @@ export const SYSTEM_FONTS: readonly string[] = [
 ];
 
 export function defaultBackground(): GraphBackground {
-  return { color: "", image: "", imageMode: "single", imageX: 0, imageY: 0, imageWidth: 0, imageOpacity: 1, font: "" };
+  return {
+    color: "",
+    image: "",
+    imageMode: "single",
+    imageX: 0,
+    imageY: 0,
+    imageWidth: 0,
+    imageOpacity: 1,
+    font: "",
+    factionDisplay: "badges",
+    factionBlend: "overlay",
+  };
 }
 
 /** Значения формы фона: числа приходят текстом из полей ввода. */
@@ -54,6 +68,8 @@ export interface BackgroundEditValues {
   imageOpacityPercent: string;
   /** '' — шрифт по умолчанию. */
   font: string;
+  factionDisplay: FactionDisplay;
+  factionBlend: FactionBlend;
 }
 
 function parseNumber(text: string, fallback: number): number {
@@ -75,12 +91,48 @@ export function backgroundFromEdit(values: BackgroundEditValues): GraphBackgroun
     imageWidth: width <= 0 ? 0 : Math.max(MIN_IMAGE_WIDTH, width),
     imageOpacity: Math.min(1, Math.max(MIN_OPACITY, opacityPercent / 100)),
     font: values.font.trim(),
+    factionDisplay: parseFactionDisplay(values.factionDisplay),
+    factionBlend: parseFactionBlend(values.factionBlend),
   };
 }
 
-/** Фон без цвета, картинки и своего шрифта ничем не отличается от стандартного. */
+/** Неизвестное значение (или его нет) — "badges". */
+export function parseFactionDisplay(value: unknown): FactionDisplay {
+  return FACTION_DISPLAYS.includes(value as FactionDisplay) ? (value as FactionDisplay) : "badges";
+}
+
+/** Неизвестное значение (или его нет) — "overlay". */
+export function parseFactionBlend(value: unknown): FactionBlend {
+  return FACTION_BLENDS.includes(value as FactionBlend) ? (value as FactionBlend) : "overlay";
+}
+
+/** Как красить перекрытие областей фракций. */
+export function factionBlendOf(background: GraphBackground | null | undefined): FactionBlend {
+  return parseFactionBlend(background?.factionBlend);
+}
+
+/**
+ * Как на самом деле красить перекрытие: при ромбиках настройка в панели скрыта — и не действует,
+ * области основных фракций лежат слоями, как до 1.2.1. Сохранённое значение при этом не теряется.
+ */
+export function appliedFactionBlend(background: GraphBackground | null | undefined): FactionBlend {
+  return factionDisplayOf(background) === "areas" ? factionBlendOf(background) : "overlay";
+}
+
+/** Как показывать дополнительные фракции узлов графа. */
+export function factionDisplayOf(background: GraphBackground | null | undefined): FactionDisplay {
+  return parseFactionDisplay(background?.factionDisplay);
+}
+
+/** Фон без цвета, картинки, своего шрифта и с видом фракций по умолчанию ничем не отличается от стандартного. */
 export function isDefaultBackground(background: GraphBackground): boolean {
-  return background.color === "" && background.image === "" && !background.font;
+  return (
+    background.color === "" &&
+    background.image === "" &&
+    !background.font &&
+    factionDisplayOf(background) === "badges" &&
+    factionBlendOf(background) === "overlay"
+  );
 }
 
 /** Задаёт фон графа; стандартный фон хранится как null (см. GraphData.background). */

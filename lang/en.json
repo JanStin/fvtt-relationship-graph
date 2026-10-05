@@ -154,9 +154,9 @@
       }
     },
     "Background": {
-      "Panel": "Graph background",
-      "PanelDisabled": "Graph background — available in edit mode",
-      "Reset": "Reset background",
+      "Panel": "Graph settings",
+      "PanelDisabled": "Graph settings — available in edit mode",
+      "Reset": "Reset",
       "Mode": "Display mode",
       "ModeImage": "Single image",
       "ModeTile": "Texture (tiled)",
@@ -176,7 +176,15 @@
       "ColorHint": "Empty — default color.",
       "Font": "Label font",
       "FontDefault": "{font} (default)",
-      "FontHint": "Node names and roles, relationship labels. If the player doesn't have the system font, they'll see Signika."
+      "FontHint": "Node names and roles, relationship labels. If the player doesn't have the system font, they'll see Signika.",
+      "FactionDisplay": "Additional factions",
+      "FactionDisplayBadges": "Diamonds on the node",
+      "FactionDisplayAreas": "Areas",
+      "FactionDisplayHint": "A node's primary faction is always shown as an area. With \"Areas\", the node also joins the areas of its other factions.",
+      "FactionBlend": "Area overlap color",
+      "FactionBlendOverlay": "Overlay",
+      "FactionBlendMix": "Blend",
+      "FactionBlendHint": "Overlay — areas are stacked in layers. Blend — the color shifts smoothly between the colors of all areas at that spot."
     },
     "Graph": {
       "Undo": "Undo (Ctrl+Z)",

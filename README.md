@@ -16,7 +16,8 @@ their Foundry settings.
 - **Node size** — for one node or a group of selected nodes, keeping proportions. Nodes never
   overlap: after dragging or resizing, neighbours move apart.
 - **Factions** — background areas in the faction's colour. A node can belong to several factions:
-  the primary one is shown as an area, the others as small diamonds on the node.
+  the primary one is shown as an area, the others as small diamonds on the node or, if the GM
+  chooses so, as areas too (overlapping areas can be layered or blended).
 - **Conditions** (deceased, captured, missing, quest giver, and your own) — icons on the node.
 - **Relationships** with a label, direction and type; the type sets the line colour and style.
 - **Hidden from players**: a node marked "Hidden from players" is shown to players as "unknown",

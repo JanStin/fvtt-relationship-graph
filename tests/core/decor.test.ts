@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defaultBackground } from "../../src/core/background";
 import { buildNodeDecor, limitBadges } from "../../src/core/decor";
 import type { GraphData, GraphNode } from "../../src/core/model";
 
@@ -143,5 +144,13 @@ describe("buildNodeDecor", () => {
       ],
       more: true,
     });
+  });
+
+  it("дополнительные фракции «областями» — ромбиков нет", () => {
+    const node = makeNode({ id: "a", primaryFactionId: "f1", factionIds: ["f1", "f2", "f3"] });
+    const data = { ...makeData(node), background: { ...defaultBackground(), factionDisplay: "areas" as const } };
+
+    expect(buildNodeDecor(makeData(node), node, PLAYER).factions.shown).toEqual(["#f2", "#f3"]);
+    expect(buildNodeDecor(data, node, PLAYER).factions).toEqual({ shown: [], more: false });
   });
 });

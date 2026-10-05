@@ -34,18 +34,19 @@
  */
 
 import type cytoscape from "cytoscape";
-import { findBlobAt } from "../core/blob";
+import { blobRadius, findBlobsAt } from "../core/blob";
+import { pickArea } from "../core/faction-areas";
 import { clientToModel, type Point } from "../core/hit-test";
 import { t } from "../core/i18n";
 import { separateOverlaps, type PositionedCircle } from "../core/layout";
 import { groupScale, SCALE_MAX, SCALE_MIN } from "../core/selection";
 import {
   BASE_SIZE,
-  FACTION_SELECTED_CLASS,
   factionElementId,
   factionIdFromElement,
   LINK_SOURCE_CLASS,
 } from "./graph-renderer";
+import { areaMembers, refreshAreaSelection } from "./faction-areas";
 import { factionBlobGroups } from "./faction-blobs";
 
 const SCALE_STEP = 0.1;
@@ -226,18 +227,40 @@ export function setupInteraction(
 
   /**
    * Область под точкой (координаты окна) — области не ловят события мыши, ищем сами по той
-   * же форме, что рисует faction-blobs.ts.
+   * же форме, что рисует faction-blobs.ts. В перекрытии — основная фракция ближайшего узла
+   * этих областей (core/faction-areas.ts, pickArea).
    */
   function factionElementAt(client: Point): string | null {
     if (!cy) return null;
     const rect = container.getBoundingClientRect();
     const point = clientToModel(client.x, client.y, { left: rect.left, top: rect.top, pan: cy.pan(), zoom: cy.zoom() });
-    return findBlobAt(factionBlobGroups(cy), point);
+    const hits = findBlobsAt(factionBlobGroups(cy), point);
+    if (hits.length < 2) return hits[0] ?? null;
+    return pickArea(hits, nearestPrimaryArea(hits, point));
+  }
+
+  /** Основная область (compound-родитель) узла этих областей, ближайшего к точке по краю его круга. */
+  function nearestPrimaryArea(areaIds: readonly string[], point: Point): string | null {
+    if (!cy) return null;
+    let nearest: cytoscape.NodeSingular | null = null;
+    let nearestDistance = Infinity;
+    for (const areaId of areaIds) {
+      for (const node of areaMembers(cy, areaId).toArray() as cytoscape.NodeSingular[]) {
+        const position = node.position();
+        const distance = Math.hypot(position.x - point.x, position.y - point.y) - blobRadius(node.data("size") as number);
+        if (distance < nearestDistance) {
+          nearest = node;
+          nearestDistance = distance;
+        }
+      }
+    }
+    const parent = nearest?.parent();
+    return parent && parent.nonempty() ? parent[0].id() : null;
   }
 
   function selectFactionElement(elementId: string, additive: boolean): void {
     if (!cy) return;
-    const members = cy.getElementById(elementId).children();
+    const members = areaMembers(cy, elementId);
     if (!additive) cy.elements().not(members).unselect();
     members.select();
   }
@@ -441,10 +464,7 @@ export function setupInteraction(
 
   // Область подсвечивается, когда выделены все её узлы — каким бы способом их ни выделили.
   const onSelectionChanged = (evt: cytoscape.EventObject) => {
-    const parent = (evt.target as cytoscape.NodeSingular).parent();
-    if (parent.empty()) return;
-    const children = parent.children();
-    parent.toggleClass(FACTION_SELECTED_CLASS, children.filter(":selected").length === children.length);
+    if (cy) refreshAreaSelection(cy, (evt.target as cytoscape.NodeSingular).id());
   };
 
   const onNodeTap = (evt: cytoscape.EventObject) => {

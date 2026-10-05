@@ -10,6 +10,7 @@ import {
   alphaEdgeLimit,
   blobShape,
   findBlobAt,
+  findBlobsAt,
   shapeIslands,
   shapeSdf,
   triangleSdf,
@@ -228,5 +229,18 @@ describe("заливка пространства внутри фигуры из
   it("узел другой фракции внутри фигуры важнее заливки вокруг", () => {
     const inner = { id: "inner", circles: [node(0, 0)] };
     expect(findBlobAt([{ id: "square", circles: polygon(4, 400) }, inner], { x: 0, y: 0 })).toBe("inner");
+  });
+});
+
+describe("findBlobsAt", () => {
+  const groups = [
+    { id: "a", circles: [circle(0, 0, 50)] },
+    { id: "b", circles: [circle(40, 0, 20)] },
+  ];
+
+  it("все области под точкой — от более глубокой к менее", () => {
+    expect(findBlobsAt(groups, { x: 40, y: 0 })).toEqual(["b", "a"]);
+    expect(findBlobsAt(groups, { x: -20, y: 0 })).toEqual(["a"]);
+    expect(findBlobsAt(groups, { x: 300, y: 300 })).toEqual([]);
   });
 });

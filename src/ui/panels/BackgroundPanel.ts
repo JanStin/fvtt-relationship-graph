@@ -1,12 +1,13 @@
 /**
  * Панель фона графа (только GM, в режиме редактирования): цвет, картинка и как её показывать —
- * текстурой или одним изображением в координатах графа. Как и остальные панели — только DOM;
- * применение значений — core/background.ts, сохранение — GraphApp.
+ * текстурой или одним изображением в координатах графа; шрифт подписей и вид дополнительных
+ * фракций. Как и остальные панели — только DOM; применение значений — core/background.ts,
+ * сохранение — GraphApp.
  */
 
-import { DEFAULT_GRAPH_FONT, defaultBackground, type BackgroundEditValues } from "../../core/background";
+import { DEFAULT_GRAPH_FONT, defaultBackground, factionBlendOf, factionDisplayOf, type BackgroundEditValues } from "../../core/background";
 import { t } from "../../core/i18n";
-import type { BackgroundImageMode, GraphBackground } from "../../core/model";
+import type { BackgroundImageMode, FactionBlend, FactionDisplay, GraphBackground } from "../../core/model";
 import { browseImage, colorField, createPanelShell, field, hint, select, textInput } from "./form";
 
 function modeOptions(): Array<{ value: BackgroundImageMode; label: string }> {
@@ -14,6 +15,20 @@ function modeOptions(): Array<{ value: BackgroundImageMode; label: string }> {
     { value: "single", label: t("RELGRAPH.Background.ModeImage") },
     { value: "tile", label: t("RELGRAPH.Background.ModeTile") },
     { value: "screen", label: t("RELGRAPH.Background.ModeScreen") },
+  ];
+}
+
+function factionDisplayOptions(): Array<{ value: FactionDisplay; label: string }> {
+  return [
+    { value: "badges", label: t("RELGRAPH.Background.FactionDisplayBadges") },
+    { value: "areas", label: t("RELGRAPH.Background.FactionDisplayAreas") },
+  ];
+}
+
+function factionBlendOptions(): Array<{ value: FactionBlend; label: string }> {
+  return [
+    { value: "overlay", label: t("RELGRAPH.Background.FactionBlendOverlay") },
+    { value: "mix", label: t("RELGRAPH.Background.FactionBlendMix") },
   ];
 }
 
@@ -66,6 +81,8 @@ export function createBackgroundPanel(
 ): HTMLElement {
   const current = background ?? defaultBackground();
   const font = fontSelect(fonts, current.font ?? "");
+  const factionDisplay = select(factionDisplayOptions(), factionDisplayOf(current));
+  const factionBlend = select(factionBlendOptions(), factionBlendOf(current));
 
   const color = colorField(current.color);
 
@@ -120,6 +137,8 @@ export function createBackgroundPanel(
         imageWidth: width.value,
         imageOpacityPercent: opacity.value,
         font: font.value,
+        factionDisplay: factionDisplay.value as FactionDisplay,
+        factionBlend: factionBlend.value as FactionBlend,
       }),
     onDelete: callbacks.onReset,
     onClose: callbacks.onClose,
@@ -139,15 +158,24 @@ export function createBackgroundPanel(
   );
   const singleFields = [field(t("RELGRAPH.Background.Position"), positionRow), fit];
   const screenHint = hint(t("RELGRAPH.Background.ScreenHint"));
+  // цвет перекрытия важен только для областей дополнительных фракций; скрытое поле сохраняет
+  // своё значение — при возврате к «Областями» оно вернётся
+  const factionBlendField = field(
+    t("RELGRAPH.Background.FactionBlend"),
+    factionBlend,
+    hint(t("RELGRAPH.Background.FactionBlendHint")),
+  );
   const sync = () => {
     const hasImage = image.value.trim() !== "";
     imageFields.forEach((element) => (element.hidden = !hasImage));
     widthField.hidden = !hasImage || mode.value === "screen";
     singleFields.forEach((element) => (element.hidden = !hasImage || mode.value !== "single"));
     screenHint.hidden = !hasImage || mode.value !== "screen";
+    factionBlendField.hidden = factionDisplay.value !== "areas";
   };
   image.addEventListener("input", sync);
   mode.addEventListener("change", sync);
+  factionDisplay.addEventListener("change", sync);
 
   shell.body.append(
     field(t("RELGRAPH.Background.Color"), color.element, hint(t("RELGRAPH.Background.ColorHint"))),
@@ -163,6 +191,12 @@ export function createBackgroundPanel(
       font,
       hint(t("RELGRAPH.Background.FontHint")),
     ),
+    field(
+      t("RELGRAPH.Background.FactionDisplay"),
+      factionDisplay,
+      hint(t("RELGRAPH.Background.FactionDisplayHint")),
+    ),
+    factionBlendField,
   );
   sync();
   return shell.element;

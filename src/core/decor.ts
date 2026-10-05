@@ -3,6 +3,7 @@
  * Чистая логика поверх GraphData — без DOM; в HTML это превращает ui/node-decor.ts.
  */
 
+import { factionDisplayOf } from "./background";
 import { allConditions, conditionIconClass, DEFAULT_CONDITION_ICON } from "./conditions";
 import type { GraphData, GraphNode } from "./model";
 import { isMasked, nodeName } from "./visibility";
@@ -26,7 +27,7 @@ export interface NodeDecor {
   name: string;
   /** Пустая строка — строки роли нет. */
   role: string;
-  /** Цвета дополнительных (не основной) фракций. */
+  /** Цвета дополнительных (не основной) фракций; в режиме «областями» — пусто. */
   factions: BadgeList<string>;
   conditions: BadgeList<ConditionBadge>;
   /**
@@ -46,7 +47,11 @@ export function limitBadges<T>(items: T[], max = MAX_BADGES): BadgeList<T> {
   return items.length > max ? { shown: items.slice(0, max - 1), more: true } : { shown: [...items], more: false };
 }
 
-/** Основная фракция ромбиком не помечается — она показана областью. Неизвестные фракции пропускаются. */
+/**
+ * Основная фракция ромбиком не помечается — она показана областью. В режиме «областями»
+ * (GraphBackground.factionDisplay) областью показаны и дополнительные — ромбиков нет вовсе.
+ * Неизвестные фракции пропускаются.
+ */
 export function buildNodeDecor(data: GraphData, node: GraphNode, options: DecorOptions): NodeDecor {
   if (isMasked(node, options.isGM)) {
     // скрытый узел всегда gmOnly — кольцо есть
@@ -54,7 +59,8 @@ export function buildNodeDecor(data: GraphData, node: GraphNode, options: DecorO
   }
 
   const colorById = new Map(data.factions.map((f) => [f.id, f.color]));
-  const extraColors = node.factionIds
+  const badgeFactionIds = factionDisplayOf(data.background) === "areas" ? [] : node.factionIds;
+  const extraColors = badgeFactionIds
     .filter((id) => id !== node.primaryFactionId)
     .map((id) => colorById.get(id))
     .filter((color): color is string => color !== undefined);

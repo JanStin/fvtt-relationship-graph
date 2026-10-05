@@ -7,13 +7,15 @@
  * области ведёт себя как клик по пустому месту (панорамирование), а попадание в область
  * interaction.ts определяет сам по форме области (core/blob.ts).
  * Сами области Cytoscape не рисует: compound-узлы фракций невидимы, заливку органической
- * формой и название рисует faction-blobs.ts.
+ * формой и название рисует faction-blobs.ts. Кто в какой области — не дети compound-узла,
+ * а набор из faction-areas.ts: в режиме "areas" узел входит и в области дополнительных фракций.
  * Стили/layout проверены спайками S1/S3 (docs/architecture.md §10).
  */
 
 import cytoscape from "cytoscape";
 import fcose from "cytoscape-fcose";
 import { factionName } from "../core/edit";
+import { factionAreas } from "../core/faction-areas";
 import { imageAlignPosition } from "../core/image-align";
 import type { GraphData } from "../core/model";
 import { cytoscapeImageFit, normalizeImageFit, type Size } from "../core/node-image";
@@ -23,6 +25,7 @@ import { parseDash } from "../core/relationship-types";
 import { isMasked } from "../core/visibility";
 import { ZOOM_MAX, ZOOM_MIN } from "../core/zoom";
 import { MODULE_ID } from "../foundry/settings";
+import { setFactionAreas } from "./faction-areas";
 
 let fcoseRegistered = false;
 function ensureFcoseRegistered(): void {
@@ -51,8 +54,6 @@ export const LINK_SOURCE_CLASS = "link-source";
 const NEUTRAL_COLOR = "#64748b";
 /** Пунктир gmOnly-связи, у типа которой линия сплошная. */
 const GM_ONLY_DASH = [6, 3];
-/** Класс выбранной области — ставится в interaction.ts, подсвечивает faction-blobs.ts. */
-export const FACTION_SELECTED_CLASS = "faction-selected";
 
 export interface RenderOptions {
   /** false — режим просмотра: узлы не перетаскиваются вовсе. */
@@ -308,5 +309,18 @@ export function renderGraph(container: HTMLElement, data: GraphData, options: Re
     layout,
   });
   provideNaturalSizes(cy);
+  const factionById = new Map(data.factions.map((f) => [f.id, f]));
+  setFactionAreas(
+    cy,
+    factionAreas(data).map((area) => {
+      const faction = factionById.get(area.factionId);
+      return {
+        id: factionElementId(area.factionId),
+        label: faction ? factionName(faction) : "",
+        color: faction?.color ?? "",
+        nodeIds: area.nodeIds,
+      };
+    }),
+  );
   return cy;
 }

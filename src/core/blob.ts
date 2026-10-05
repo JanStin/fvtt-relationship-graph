@@ -269,19 +269,18 @@ export function shapeIslands(shape: BlobShape): number[][] {
 }
 
 /**
- * Область под точкой или null. Попадание — внутри контура полной формы (SDF ≤ 0), в том
- * числе в залитом пространстве между узлами. Если точка внутри нескольких областей —
- * выбирается та, в которую она погружена глубже.
+ * Все области под точкой — от той, в которую она погружена глубже, к менее глубокой. Попадание —
+ * внутри контура полной формы (SDF ≤ 0), в том числе в залитом пространстве между узлами.
  */
+export function findBlobsAt(groups: readonly BlobGroup[], point: Point): string[] {
+  return groups
+    .map((group) => ({ id: group.id, distance: shapeSdf(point, blobShape(group.circles)) }))
+    .filter((hit) => hit.distance <= 0)
+    .sort((a, b) => a.distance - b.distance)
+    .map((hit) => hit.id);
+}
+
+/** Область под точкой или null; если точка внутри нескольких — та, в которую она погружена глубже. */
 export function findBlobAt(groups: readonly BlobGroup[], point: Point): string | null {
-  let best: string | null = null;
-  let bestDistance = 0;
-  for (const group of groups) {
-    const distance = shapeSdf(point, blobShape(group.circles));
-    if (distance <= bestDistance) {
-      best = group.id;
-      bestDistance = distance;
-    }
-  }
-  return best;
+  return findBlobsAt(groups, point)[0] ?? null;
 }

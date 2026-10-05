@@ -25,6 +25,7 @@ import {
 } from "../foundry/storage";
 import {
   backgroundFromEdit,
+  appliedFactionBlend,
   graphFontFamily,
   SYSTEM_FONTS,
   coverVisibleArea,
@@ -531,7 +532,7 @@ export class GraphApp extends ApplicationV2 {
     this.#edgeLabels = setupEdgeLabels(this.#cy);
     // Оба слоя встают в начало контейнера — под канвас Cytoscape (см. background-layer.ts).
     // Фон создаётся последним, чтобы оказаться первым в DOM — под областями фракций.
-    this.#factionBlobs = createFactionBlobLayer(this.#cyHost, this.#cy);
+    this.#factionBlobs = createFactionBlobLayer(this.#cyHost, this.#cy, appliedFactionBlend(hydrated.background));
     this.#background = createBackgroundLayer(this.#cyHost, this.#cy, hydrated.background);
 
     this.#resizeObserver = new ResizeObserver(() => this.#cy?.resize());

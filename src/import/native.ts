@@ -6,7 +6,7 @@
  * Свой формат проходит те же нормализации, что и загрузка из хранилища.
  */
 
-import { BACKGROUND_IMAGE_MODES, defaultBackground, setBackground } from "../core/background";
+import { BACKGROUND_IMAGE_MODES, defaultBackground, parseFactionBlend, parseFactionDisplay, setBackground } from "../core/background";
 import { ensureConditionDefs, isBuiltinCondition } from "../core/conditions";
 import { normalizeFactions } from "../core/edit";
 import { t } from "../core/i18n";
@@ -125,6 +125,8 @@ function parseBackground(raw: unknown): GraphBackground | null {
     imageWidth: Math.max(0, num(raw.imageWidth)),
     imageOpacity: Math.min(1, Math.max(0, num(raw.imageOpacity, defaults.imageOpacity))),
     font: str(raw.font),
+    factionDisplay: parseFactionDisplay(raw.factionDisplay),
+    factionBlend: parseFactionBlend(raw.factionBlend),
   };
 }
 

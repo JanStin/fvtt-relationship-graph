@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  appliedFactionBlend,
   backgroundColor,
   backgroundFromEdit,
   backgroundImageRect,
   coverVisibleArea,
   DEFAULT_BACKGROUND_COLOR,
   defaultBackground,
+  factionBlendOf,
+  factionDisplayOf,
   graphFontFamily,
   isDefaultBackground,
   setBackground,
@@ -26,6 +29,8 @@ function values(overrides: Partial<BackgroundEditValues> = {}): BackgroundEditVa
     imageWidth: "0",
     imageOpacityPercent: "100",
     font: "",
+    factionDisplay: "badges",
+    factionBlend: "overlay",
     ...overrides,
   };
 }
@@ -45,6 +50,8 @@ describe("backgroundFromEdit", () => {
       imageWidth: 300,
       imageOpacity: 0.4,
       font: "",
+      factionDisplay: "badges",
+      factionBlend: "overlay",
     });
   });
 
@@ -66,6 +73,45 @@ describe("backgroundFromEdit", () => {
   it("неположительная ширина — натуральный размер (0)", () => {
     expect(backgroundFromEdit(values({ imageWidth: "-50" })).imageWidth).toBe(0);
   });
+
+  it("вид дополнительных фракций: «областями» сохраняется, неизвестное значение — ромбики", () => {
+    expect(backgroundFromEdit(values({ factionDisplay: "areas" })).factionDisplay).toBe("areas");
+    expect(backgroundFromEdit(values({ factionDisplay: "weird" as never })).factionDisplay).toBe("badges");
+  });
+});
+
+describe("factionBlendOf", () => {
+  it("нет фона или поля (графы до 1.2.1) — наложение", () => {
+    expect(factionBlendOf(null)).toBe("overlay");
+    expect(factionBlendOf({ ...defaultBackground(), factionBlend: undefined })).toBe("overlay");
+    expect(factionBlendOf({ ...defaultBackground(), factionBlend: "mix" })).toBe("mix");
+  });
+
+  it("форма: смешение сохраняется, неизвестное значение — наложение", () => {
+    expect(backgroundFromEdit(values({ factionBlend: "mix" })).factionBlend).toBe("mix");
+    expect(backgroundFromEdit(values({ factionBlend: "weird" as never })).factionBlend).toBe("overlay");
+  });
+
+  it("фон, у которого изменён только цвет перекрытия, не стандартный", () => {
+    expect(isDefaultBackground({ ...defaultBackground(), factionBlend: "mix" })).toBe(false);
+  });
+});
+
+describe("appliedFactionBlend", () => {
+  it("смешение действует только при дополнительных фракциях областями", () => {
+    const mix = { ...defaultBackground(), factionBlend: "mix" as const };
+    expect(appliedFactionBlend({ ...mix, factionDisplay: "areas" })).toBe("mix");
+    expect(appliedFactionBlend({ ...mix, factionDisplay: "badges" })).toBe("overlay");
+    expect(appliedFactionBlend(null)).toBe("overlay");
+  });
+});
+
+describe("factionDisplayOf", () => {
+  it("нет фона или поля (графы до 1.2.1) — ромбики", () => {
+    expect(factionDisplayOf(null)).toBe("badges");
+    expect(factionDisplayOf({ ...defaultBackground(), factionDisplay: undefined })).toBe("badges");
+    expect(factionDisplayOf({ ...defaultBackground(), factionDisplay: "areas" })).toBe("areas");
+  });
 });
 
 describe("setBackground", () => {
@@ -77,6 +123,11 @@ describe("setBackground", () => {
   it("сброс и пустой фон хранятся как null — иначе setFlag оставил бы старый", () => {
     expect(setBackground(empty, null).background).toBeNull();
     expect(setBackground(empty, defaultBackground()).background).toBeNull();
+  });
+
+  it("фон, у которого изменён только вид фракций, не стандартный", () => {
+    const background = { ...defaultBackground(), factionDisplay: "areas" as const };
+    expect(setBackground(empty, background).background).toEqual(background);
   });
 });
 

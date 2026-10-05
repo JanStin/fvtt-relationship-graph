@@ -113,6 +113,8 @@ describe("экспорт → импорт", () => {
         imageWidth: 256,
         imageOpacity: 0.5,
         font: "Tahoma",
+        factionDisplay: "areas",
+        factionBlend: "mix",
       },
     };
     expect(parseGraphFileJson(roundTrip(withBackground)).data).toEqual(withBackground);
@@ -231,7 +233,14 @@ describe("импорт своего формата: фон", () => {
       imageWidth: 0,
       imageOpacity: 1,
       font: "",
+      factionDisplay: "badges",
+      factionBlend: "overlay",
     });
+  });
+
+  it("вид дополнительных фракций: нет поля (файлы до 1.2.1) — ромбики", () => {
+    expect(parseGraphFileJson(file({ color: "#111111" })).data.background?.factionDisplay).toBe("badges");
+    expect(parseGraphFileJson(file({ factionDisplay: "areas" })).data.background?.factionDisplay).toBe("areas");
   });
 
   it("режим «на весь экран» читается", () => {
