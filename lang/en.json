@@ -219,6 +219,12 @@
       "Conditions": "Conditions…",
       "ClearSelection": "Clear selection"
     },
+    "Search": {
+      "Panel": "Search",
+      "Placeholder": "Name, role or relationship label",
+      "Empty": "Type to find nodes by name and role and relationships by label.",
+      "NothingFound": "Nothing found"
+    },
     "Import": {
       "Title": "Import graph (module export file or FANG JSON)",
       "TitleDisabled": "{title} — available in edit mode",

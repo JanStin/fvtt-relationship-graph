@@ -13,6 +13,7 @@
 import type cytoscape from "cytoscape";
 import { t, tn } from "../core/i18n";
 import type { GraphData, GraphEdge, GraphNode } from "../core/model";
+import { isEmptyQuery, searchGraph } from "../core/search";
 import { syncNodesWithActors } from "../foundry/actors";
 import { acquireEditLock, currentEditor, LOCK_FLAG_KEY, releaseEditLock, userName } from "../foundry/edit-lock";
 import {
@@ -76,7 +77,7 @@ import { displayName, isMasked, nodeName } from "../core/visibility";
 import { createBackgroundLayer, type BackgroundLayer } from "./background-layer";
 import { setupEdgeLabels, type EdgeLabelsHandle } from "./edge-labels";
 import { createFactionBlobLayer, type FactionBlobLayer } from "./faction-blobs";
-import { renderGraph } from "./graph-renderer";
+import { DIMMED_CLASS, renderGraph } from "./graph-renderer";
 import { setupInteraction, type GraphTarget, type InteractionHandle, type NodeSnapshot } from "./interaction";
 import { startIdleTimer, type IdleTimer } from "./idle-timer";
 import { createNodeDecorLayer, type NodeDecorLayer } from "./node-decor";
@@ -90,6 +91,7 @@ import { iconButton } from "./panels/form";
 import { createImportControl, type ImportControl } from "./panels/ImportDialog";
 import { createNodePanel, type ActorOption } from "./panels/NodePanel";
 import { createRelationshipTypeListPanel, createRelationshipTypePanel } from "./panels/RelationshipTypePanel";
+import { createSearchPanel, type SearchTarget } from "./panels/SearchPanel";
 
 declare const foundry: any;
 declare const game: any;
@@ -148,6 +150,8 @@ export class GraphApp extends ApplicationV2 {
   #panel: HTMLElement | null = null;
   /** Как заново открыть текущую панель после перерисовки чужим изменением (только списки). */
   #reopenPanel: (() => void) | null = null;
+  /** Запрос открытой панели поиска; null — панель закрыта. Переживает перерисовку графа. */
+  #searchQuery: string | null = null;
   /** Последняя открытая карточка информации — чтобы обновить её после чужого изменения. */
   #lastInfo: { target: GraphTarget; client: Point } | null = null;
   #cyHost: HTMLElement | null = null;
@@ -161,11 +165,14 @@ export class GraphApp extends ApplicationV2 {
   #undoButton: HTMLButtonElement | null = null;
   #redoButton: HTMLButtonElement | null = null;
   #backgroundButton: HTMLButtonElement | null = null;
+  #searchButton: HTMLButtonElement | null = null;
   #importControl: ImportControl | null = null;
   /** История отмены/повтора — только на время сеанса редактирования. */
   #history = new GraphHistory();
   /** Следующее сохранение позиций — часть предыдущего шага истории (см. #settle). */
   #mergeNextStep = false;
+  /** Ctrl+F — панель поиска вместо поиска браузера; снимается в close(). */
+  #onFindKey: ((e: KeyboardEvent) => void) | null = null;
   /** Зарегистрированные хуки Foundry — снимаются в close(). */
   #hooks: Array<[string, number]> = [];
 
@@ -201,6 +208,10 @@ export class GraphApp extends ApplicationV2 {
     this.#undoButton = button("fa-rotate-left", t("RELGRAPH.Graph.Undo"), () => void this.#undo());
     this.#redoButton = button("fa-rotate-right", t("RELGRAPH.Graph.Redo"), () => void this.#redo());
     toolbar.append(group(this.#undoButton, this.#redoButton));
+
+    // Поиск — всем и в любом режиме; повторный клик закрывает панель.
+    this.#searchButton = button("fa-magnifying-glass", t("RELGRAPH.Search.Panel"), () => this.#toggleSearch());
+    toolbar.append(group(this.#searchButton));
 
     // Справочники — всем и в любом режиме; что в них можно менять, решают сами списки.
     toolbar.append(
@@ -247,6 +258,7 @@ export class GraphApp extends ApplicationV2 {
     content.replaceChildren(result);
     this.#cyHost = (result as unknown as { _cyHost: HTMLElement })._cyHost;
     this.#registerHooks();
+    this.#registerFindKey();
 
     // Ждём кадр, чтобы элемент реально встроился в DOM окна до того, как
     // Cytoscape попытается измерить его размеры (см. находки S4).
@@ -480,6 +492,8 @@ export class GraphApp extends ApplicationV2 {
     if (!this.#cyHost) return;
 
     const viewport = keepViewport && this.#cy ? { zoom: this.#cy.zoom(), pan: { ...this.#cy.pan() } } : null;
+    // Поиск переживает перерисовку (смена режима, отмена, чужое изменение) — с тем же запросом.
+    const searchQuery = this.#searchQuery;
     this.#closePanel();
 
     const hydrated: GraphData = { ...data, nodes: syncNodesWithActors(data.nodes) };
@@ -537,6 +551,8 @@ export class GraphApp extends ApplicationV2 {
 
     this.#resizeObserver = new ResizeObserver(() => this.#cy?.resize());
     this.#resizeObserver.observe(this.#cyHost);
+
+    if (searchQuery !== null) this.#openSearch(searchQuery, false);
   }
 
   /**
@@ -599,6 +615,97 @@ export class GraphApp extends ApplicationV2 {
     this.#panel?.remove();
     this.#panel = null;
     this.#reopenPanel = null;
+    if (this.#searchQuery !== null) this.#dimBySearch("");
+    this.#searchQuery = null;
+    this.#searchButton?.classList.remove("frg-toolbar-active");
+  }
+
+  // ---------------------------------------------------------------------------------------
+  // Поиск
+
+  /**
+   * Ctrl+F (Cmd+F), пока окно графа открыто и не свёрнуто: открывает панель поиска или
+   * переводит фокус в её поле. По e.code — в любой раскладке; поиск браузера не открывается.
+   */
+  #registerFindKey(): void {
+    if (this.#onFindKey) return;
+    this.#onFindKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.code !== "KeyF") return;
+      if (!this.rendered || this.minimized) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (this.#searchQuery === null) {
+        this.#openSearch("", true);
+        return;
+      }
+      const input = this.#panel?.querySelector<HTMLInputElement>(".frg-search-input");
+      input?.focus();
+      input?.select();
+    };
+    document.addEventListener("keydown", this.#onFindKey, { capture: true });
+  }
+
+  #toggleSearch(): void {
+    if (this.#searchQuery !== null) this.#closePanel();
+    else this.#openSearch("", true);
+  }
+
+  /**
+   * Панель поиска. Открытие любой другой панели (#mountPanel) закрывает её — вернуться можно
+   * только заново кнопкой. focus — поставить курсор в поле (открыл пользователь).
+   */
+  #openSearch(query: string, focus: boolean): void {
+    const data = this.#currentData;
+    if (!data) return;
+    const panel = createSearchPanel(
+      data,
+      query,
+      {
+        onQuery: (value) => {
+          this.#searchQuery = value;
+          this.#dimBySearch(value);
+        },
+        onPick: (target) => this.#showSearchTarget(target),
+        onClose: () => this.#closePanel(),
+      },
+      { isGM: this.#isGM, focus },
+    );
+    this.#mountPanel(panel);
+    this.#searchQuery = query;
+    this.#searchButton?.classList.add("frg-toolbar-active");
+    this.#dimBySearch(query);
+  }
+
+  /** Приглушает всё, что не подходит под запрос; пустой запрос — приглушение снято. */
+  #dimBySearch(query: string): void {
+    const cy = this.#cy;
+    const data = this.#currentData;
+    if (!cy || !data) return;
+    const elements = cy.elements("node[!isFaction], edge");
+    if (isEmptyQuery(query)) {
+      elements.removeClass(DIMMED_CLASS);
+      return;
+    }
+    const result = searchGraph(data, query, this.#isGM);
+    const matched = new Set([...result.nodeIds, ...result.edgeIds]);
+    cy.batch(() => {
+      elements.forEach((element) => {
+        if (matched.has(element.id())) element.removeClass(DIMMED_CLASS);
+        else element.addClass(DIMMED_CLASS);
+      });
+    });
+  }
+
+  /** Выделяет найденный элемент (вместо прежнего выделения) и плавно центрирует на нём вид. */
+  #showSearchTarget(target: SearchTarget): void {
+    const cy = this.#cy;
+    if (!cy) return;
+    const element = cy.getElementById(target.id);
+    if (element.empty()) return;
+    cy.$(":selected").unselect();
+    element.select();
+    cy.stop();
+    cy.animate({ center: { eles: element } }, { duration: 300 });
   }
 
   /** reopen — как открыть панель заново после перерисовки чужим изменением (у списков). */
@@ -1113,12 +1220,15 @@ export class GraphApp extends ApplicationV2 {
         });
       }
     }
+    if (this.#onFindKey) document.removeEventListener("keydown", this.#onFindKey, { capture: true });
+    this.#onFindKey = null;
     this.#hooks.forEach(([name, id]) => Hooks.off(name, id));
     this.#hooks = [];
     this.#editButton = null;
     this.#undoButton = null;
     this.#redoButton = null;
     this.#backgroundButton = null;
+    this.#searchButton = null;
     this.#importControl = null;
     this.#history.clear();
     this.#lastInfo = null;

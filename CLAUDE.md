@@ -9,8 +9,7 @@
 Репозиторий: https://github.com/JanStin/fvtt-relationship-graph (ветка `master`).
 
 ## Current state
-- Версия 1.2.0, всё из исходных требований реализовано. Что сделано — `CHANGELOG.md`,
-  планы — `docs/tasks.md`.
+- Что сделано — `CHANGELOG.md`, планы — `docs/tasks.md`.
 - Интерфейс на русском и английском (`lang/ru.json`, `lang/en.json`); язык — из настроек Foundry
   у каждого клиента. Введённое пользователем не переводится.
 

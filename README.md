@@ -26,6 +26,8 @@ their Foundry settings.
 - **Collaboration**: the graph opens in view mode, one person edits at a time, and their changes
   appear for everyone immediately.
 - **Undo and redo** — up to 30 steps (`Ctrl` + `Z` / `Ctrl` + `Y`).
+- **Search** (`Ctrl` + `F`) — one field finds nodes by name and role and relationships by label;
+  everything else on the graph is dimmed. Clicking a result selects it and centres the view on it.
 - **Import from FANG**, plus lossless export/import in the module's own format.
 - **Two interface languages.** Everything the module itself displays (panels, menus, built-in
   conditions and relationship types, default names) follows each client's language; everything

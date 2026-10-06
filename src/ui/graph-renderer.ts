@@ -50,6 +50,8 @@ export function factionIdFromElement(elementId: string): string {
 }
 /** Класс узла-источника, пока выбирается второй узел новой связи — ставится в interaction.ts. */
 export const LINK_SOURCE_CLASS = "link-source";
+/** Элемент не подходит под запрос открытой панели поиска — приглушён (GraphApp). */
+export const DIMMED_CLASS = "frg-dimmed";
 /** Рамка узла без фракции (и линия связи без типа). */
 const NEUTRAL_COLOR = "#64748b";
 /** Пунктир gmOnly-связи, у типа которой линия сплошная. */
@@ -261,6 +263,13 @@ const STYLE = [
       width: 4,
       "line-color": "#facc15",
       "target-arrow-color": "#facc15",
+    },
+  },
+  {
+    // последним — приглушает узел или связь вместе с подписью поверх остальных стилей
+    selector: `.${DIMMED_CLASS}`,
+    style: {
+      opacity: 0.2,
     },
   },
 ] as unknown as cytoscape.StylesheetStyle[];

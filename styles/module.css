@@ -229,6 +229,11 @@
   --frg-badge: calc(var(--frg-size) * 0.28);
 }
 
+/* Узел не подходит под запрос поиска — приглушён вместе с узлом Cytoscape (DIMMED_CLASS). */
+.frg-node-decor.frg-dimmed {
+  opacity: 0.2;
+}
+
 /* Верхняя панель окна графа (GraphApp). */
 .frg-toolbar {
   flex: 0 0 auto;
@@ -586,4 +591,46 @@
   width: 100%;
   height: 100%;
   pointer-events: none;
+}
+
+/* Панель поиска (panels/SearchPanel.ts): поле под заголовком, список совпадений ниже. */
+.frg-search-field {
+  flex: 0 0 auto;
+  padding: 0 12px 8px;
+}
+
+.frg-panel .frg-search-input {
+  width: 100%;
+  background: #1e293b;
+  color: #e2e8f0;
+  border: 1px solid #475569;
+}
+
+/* flex: none — в переполненном списке строки не сжимаются, а прокручиваются. */
+.frg-panel .frg-search-row {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: auto;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.frg-search-thumb {
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border: 1px solid #475569;
+  border-radius: 50%;
+}
+
+.frg-search-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-wrap: anywhere;
 }

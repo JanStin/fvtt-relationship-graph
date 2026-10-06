@@ -12,6 +12,7 @@
 import type cytoscape from "cytoscape";
 import { buildNodeDecor, type DecorOptions, type NodeDecor } from "../core/decor";
 import type { GraphData } from "../core/model";
+import { DIMMED_CLASS } from "./graph-renderer";
 
 export interface NodeDecorLayer {
   destroy(): void;
@@ -109,9 +110,15 @@ export function createNodeDecorLayer(
   };
   // position — drag/раскладка/сепарация, data — resize (interaction.ts меняет data.size).
   const onNodeChanged = (evt: cytoscape.EventObject) => syncNode(evt.target as cytoscape.NodeSingular);
+  // приглушение поиском (DIMMED_CLASS на узле Cytoscape) — и подписи со значками тоже
+  const onClassChanged = (evt: cytoscape.EventObject) => {
+    const node = evt.target as cytoscape.NodeSingular;
+    elementById.get(node.id())?.classList.toggle(DIMMED_CLASS, node.hasClass(DIMMED_CLASS));
+  };
 
   cy.on("viewport", syncViewport);
   cy.on("position data", "node[!isFaction]", onNodeChanged);
+  cy.on("class", "node[!isFaction]", onClassChanged);
   syncViewport();
   cy.nodes("[!isFaction]").forEach(syncNode);
 
@@ -119,6 +126,7 @@ export function createNodeDecorLayer(
     destroy(): void {
       cy.off("viewport", syncViewport);
       cy.off("position data", "node[!isFaction]", onNodeChanged);
+      cy.off("class", "node[!isFaction]", onClassChanged);
       layer.remove();
     },
   };
