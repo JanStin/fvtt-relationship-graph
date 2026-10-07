@@ -46,10 +46,12 @@ function relayout(cy: cytoscape.Core): void {
 
 /** Вызывать после cytoscape(...). Пересчёт — не чаще раза за кадр. */
 export function setupEdgeLabels(cy: cytoscape.Core): EdgeLabelsHandle {
+  // кадры — окна графа (главного или отдельного, см. popout.ts): у скрытого окна они стоят
+  const win = cy.container()?.ownerDocument.defaultView ?? window;
   let frame: number | null = null;
   const schedule = () => {
     if (frame !== null) return;
-    frame = requestAnimationFrame(() => {
+    frame = win.requestAnimationFrame(() => {
       frame = null;
       relayout(cy);
     });
@@ -62,7 +64,7 @@ export function setupEdgeLabels(cy: cytoscape.Core): EdgeLabelsHandle {
   return {
     destroy(): void {
       cy.off("position data", "node[!isFaction]", schedule);
-      if (frame !== null) cancelAnimationFrame(frame);
+      if (frame !== null) win.cancelAnimationFrame(frame);
       frame = null;
     },
   };

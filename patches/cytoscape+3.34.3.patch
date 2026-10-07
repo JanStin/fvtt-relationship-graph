@@ -1,5 +1,5 @@
 diff --git a/node_modules/cytoscape/dist/cytoscape.esm.mjs b/node_modules/cytoscape/dist/cytoscape.esm.mjs
-index c3af47e..5778f79 100644
+index c3af47e..4bf2ee4 100644
 --- a/node_modules/cytoscape/dist/cytoscape.esm.mjs
 +++ b/node_modules/cytoscape/dist/cytoscape.esm.mjs
 @@ -334,7 +334,13 @@ var descending = function descending(a, b) {
@@ -31,3 +31,70 @@ index c3af47e..5778f79 100644
      }
    }
    return tgt;
+@@ -1337,34 +1348,29 @@ var pnow = performance$1 && performance$1.now ? function () {
+ } : function () {
+   return Date.now();
+ };
+-var raf = function () {
+-  if (_window) {
+-    if (_window.requestAnimationFrame) {
+-      return function (fn) {
+-        _window.requestAnimationFrame(fn);
+-      };
+-    } else if (_window.mozRequestAnimationFrame) {
+-      return function (fn) {
+-        _window.mozRequestAnimationFrame(fn);
+-      };
+-    } else if (_window.webkitRequestAnimationFrame) {
+-      return function (fn) {
+-        _window.webkitRequestAnimationFrame(fn);
+-      };
+-    } else if (_window.msRequestAnimationFrame) {
+-      return function (fn) {
+-        _window.msRequestAnimationFrame(fn);
+-      };
+-    }
++// Patched (see patches/cytoscape+*.patch): the frame loop runs on a switchable window
++// (cytoscape.setAnimationWindow) instead of the window the bundle was loaded in. A graph moved
++// into a pop-out browser window keeps rendering even when the opener is hidden or minimized
++// (its frames are paused there). The callback gets pnow() rather than the frame timestamp, as
++// another window's timestamp has a different time origin than performance.now() here.
++var animationWindow = _window;
++var setAnimationWindow = function setAnimationWindow(win) {
++  animationWindow = win || _window;
++};
++var raf = function raf(fn) {
++  var win = animationWindow;
++  if (win && !win.closed && win.requestAnimationFrame) {
++    win.requestAnimationFrame(function () {
++      fn(pnow());
++    });
++    return;
+   }
+-  return function (fn) {
+-    if (fn) {
+-      setTimeout(function () {
+-        fn(pnow());
+-      }, 1000 / 60);
+-    }
+-  };
+-}();
++  if (fn) {
++    setTimeout(function () {
++      fn(pnow());
++    }, 1000 / 60);
++  }
++};
+ var requestAnimationFrame = function requestAnimationFrame(fn) {
+   return raf(fn);
+ };
+@@ -35700,6 +35706,9 @@ cytoscape.warnings = function (bool) {
+ // replaced by build system
+ cytoscape.version = version;
+ 
++// Patched: see setAnimationWindow above.
++cytoscape.setAnimationWindow = setAnimationWindow;
++
+ // expose public apis (mostly for extensions)
+ cytoscape.stylesheet = cytoscape.Stylesheet = _Stylesheet;
+ 

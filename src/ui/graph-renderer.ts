@@ -289,8 +289,18 @@ function hasStoredPositions(data: GraphData): boolean {
  * для графа без сохранённой раскладки (первый импорт без позиций, пустой граф).
  * Не занимается overlap-сепарацией — см. core/layout.ts.
  */
+/**
+ * Кадры анимации Cytoscape — у окна контейнера (патч patches/cytoscape+*.patch): граф может
+ * жить в отдельном окне (popout.ts), а у скрытого главного окна кадры стоят.
+ */
+function useAnimationWindow(container: HTMLElement): void {
+  const setAnimationWindow = (cytoscape as unknown as { setAnimationWindow?: (win: Window) => void }).setAnimationWindow;
+  setAnimationWindow?.(container.ownerDocument.defaultView ?? window);
+}
+
 export function renderGraph(container: HTMLElement, data: GraphData, options: RenderOptions): cytoscape.Core {
   ensureFcoseRegistered();
+  useAnimationWindow(container);
 
   const layout = hasStoredPositions(data)
     ? { name: "preset" }

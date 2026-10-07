@@ -204,7 +204,10 @@
       "ZoomIn": "Zoom in",
       "ZoomOut": "Zoom out",
       "Zoom": "Zoom",
-      "FitAll": "Fit whole graph"
+      "FitAll": "Fit whole graph",
+      "Popout": "Open in a separate window",
+      "PopIn": "Return to the Foundry window",
+      "PopoutBlocked": "The browser blocked the separate window — allow pop-ups for this site."
     },
     "Menu": {
       "CreateEdge": "Create relationship",

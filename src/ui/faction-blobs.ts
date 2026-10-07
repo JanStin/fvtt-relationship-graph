@@ -39,6 +39,7 @@ import {
 } from "../core/blob";
 import { mixOklab, parseHexColor, rgbToOklab, type Oklab, type Rgb } from "../core/color";
 import type { FactionBlend } from "../core/model";
+import { windowOf } from "./popout";
 import { AREA_SELECTION_EVENT, areaMembers, factionAreaList, isAreaSelected, type FactionArea } from "./faction-areas";
 
 /** Размер клетки сетки SDF в экранных px: меньше — точнее край, но дороже. */
@@ -143,6 +144,8 @@ function unionBounds(areas: readonly PreparedArea[]): Bounds {
 type CellPainter = (x: number, y: number, pixels: Uint8ClampedArray, i: number) => void;
 
 export function createFactionBlobLayer(container: HTMLElement, cy: cytoscape.Core, blend: FactionBlend): FactionBlobLayer {
+  // кадры и плотность пикселей — окна графа (главного или отдельного, см. popout.ts)
+  const win = windowOf(container);
   const canvas = document.createElement("canvas");
   canvas.className = "frg-blobs";
   container.prepend(canvas);
@@ -271,7 +274,7 @@ export function createFactionBlobLayer(container: HTMLElement, cy: cytoscape.Cor
     frame = null;
     if (!context) return;
     // размер канваса — по контейнеру, с учётом плотности пикселей экрана
-    const ratio = window.devicePixelRatio || 1;
+    const ratio = win.devicePixelRatio || 1;
     const width = Math.max(1, Math.round(canvas.clientWidth * ratio));
     const height = Math.max(1, Math.round(canvas.clientHeight * ratio));
     if (canvas.width !== width || canvas.height !== height) {
@@ -292,7 +295,7 @@ export function createFactionBlobLayer(container: HTMLElement, cy: cytoscape.Cor
   }
 
   const schedule = () => {
-    if (frame === null) frame = requestAnimationFrame(draw);
+    if (frame === null) frame = win.requestAnimationFrame(draw);
   };
   const nodesChanged = () => {
     labelSpots = null;
@@ -311,7 +314,7 @@ export function createFactionBlobLayer(container: HTMLElement, cy: cytoscape.Cor
       cy.off("viewport resize", schedule);
       cy.off("position data", "node[!isFaction]", nodesChanged);
       cy.off(AREA_SELECTION_EVENT, schedule);
-      if (frame !== null) cancelAnimationFrame(frame);
+      if (frame !== null) win.cancelAnimationFrame(frame);
       frame = null;
       canvas.remove();
     },

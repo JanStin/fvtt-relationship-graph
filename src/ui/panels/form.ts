@@ -1,4 +1,5 @@
 import { t } from "../../core/i18n";
+import { adoptIntoPopout } from "../popout";
 /**
  * Общие DOM-кирпичики боковых панелей редактирования (NodePanel, EdgePanel).
  * Панель — обычный <form> в wrapper окна графа (см. GraphApp), без отдельного ApplicationV2.
@@ -166,14 +167,16 @@ export function colorField(current: string): { element: HTMLElement; value(): st
 /** Штатный FilePicker Foundry для выбора изображения; путь попадает в input (с событием input). */
 export function browseImage(input: HTMLInputElement): void {
   const FilePicker = foundry.applications.apps.FilePicker.implementation;
-  new FilePicker({
+  const picker = new FilePicker({
     type: "image",
     current: input.value,
     callback: (path: string) => {
       input.value = path;
       input.dispatchEvent(new Event("input", { bubbles: true }));
     },
-  }).browse();
+  });
+  // граф в отдельном окне — выбор файла там же, а не на другом мониторе
+  void Promise.resolve(picker.browse()).then(() => adoptIntoPopout(picker));
 }
 
 export interface PanelTab {

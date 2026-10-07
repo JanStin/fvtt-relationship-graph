@@ -48,6 +48,7 @@ import {
 } from "./graph-renderer";
 import { areaMembers, refreshAreaSelection } from "./faction-areas";
 import { factionBlobGroups } from "./faction-blobs";
+import { windowOf } from "./popout";
 
 const SCALE_STEP = 0.1;
 const SEPARATION_GAP = 8;
@@ -169,6 +170,9 @@ export function setupInteraction(
   options: InteractionOptions,
 ): InteractionHandle {
   const { editable } = options;
+  // окно графа — главное или отдельное (popout.ts): клавиши и мышь слушаем там
+  const win = windowOf(container);
+  const doc = win.document;
   let cy: cytoscape.Core | null = null;
   let hoveredNodeId: string | null = null;
   let pointerInside = false;
@@ -320,8 +324,8 @@ export function setupInteraction(
   };
   const onPanEnd = () => {
     panLast = null;
-    window.removeEventListener("mousemove", onPanMove);
-    window.removeEventListener("mouseup", onPanEnd);
+    win.removeEventListener("mousemove", onPanMove);
+    win.removeEventListener("mouseup", onPanEnd);
   };
 
   // Жесты, которые забираем у Cytoscape целиком (она не должна увидеть mousedown, иначе
@@ -355,8 +359,8 @@ export function setupInteraction(
 
     if (isPan) {
       panLast = { x: e.clientX, y: e.clientY };
-      window.addEventListener("mousemove", onPanMove);
-      window.addEventListener("mouseup", onPanEnd);
+      win.addEventListener("mousemove", onPanMove);
+      win.addEventListener("mouseup", onPanEnd);
       return;
     }
 
@@ -394,9 +398,9 @@ export function setupInteraction(
   const onWindowBlur = () => {
     sKeyDown = false; // keyup в другом окне мы не увидим
   };
-  document.addEventListener("keydown", onSKeyDown);
-  document.addEventListener("keyup", onSKeyUp);
-  window.addEventListener("blur", onWindowBlur);
+  doc.addEventListener("keydown", onSKeyDown);
+  doc.addEventListener("keyup", onSKeyUp);
+  win.addEventListener("blur", onWindowBlur);
 
   // Delete и Ctrl+Z/Ctrl+Y — только в режиме редактирования, пока курсор над графом и фокус не в
   // поле ввода (там это обычная правка текста). Ловим по e.code — в любой раскладке; событие
@@ -424,7 +428,7 @@ export function setupInteraction(
       e.stopPropagation();
     }
   };
-  document.addEventListener("keydown", onEditKeyDown, { capture: true });
+  doc.addEventListener("keydown", onEditKeyDown, { capture: true });
 
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key !== "Escape" || !cy) return;
@@ -442,7 +446,7 @@ export function setupInteraction(
     e.preventDefault();
     e.stopPropagation();
   };
-  document.addEventListener("keydown", onKeyDown, { capture: true });
+  doc.addEventListener("keydown", onKeyDown, { capture: true });
 
   const onMouseOver = (evt: cytoscape.EventObject) => {
     hoveredNodeId = (evt.target as cytoscape.NodeSingular).id();
@@ -528,11 +532,11 @@ export function setupInteraction(
       container.removeEventListener("contextmenu", onDomContextMenu);
       container.removeEventListener("mouseenter", onMouseEnter);
       container.removeEventListener("mouseleave", onMouseLeave);
-      document.removeEventListener("keydown", onKeyDown, { capture: true });
-      document.removeEventListener("keydown", onEditKeyDown, { capture: true });
-      document.removeEventListener("keydown", onSKeyDown);
-      document.removeEventListener("keyup", onSKeyUp);
-      window.removeEventListener("blur", onWindowBlur);
+      doc.removeEventListener("keydown", onKeyDown, { capture: true });
+      doc.removeEventListener("keydown", onEditKeyDown, { capture: true });
+      doc.removeEventListener("keydown", onSKeyDown);
+      doc.removeEventListener("keyup", onSKeyUp);
+      win.removeEventListener("blur", onWindowBlur);
       cy?.off("mouseover", "node[!isFaction]", onMouseOver);
       cy?.off("mouseout", "node[!isFaction]", onMouseOut);
       cy?.off("dragfreeon", "node[!isFaction]", onDragFreeOn);

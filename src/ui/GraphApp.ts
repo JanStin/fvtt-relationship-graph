@@ -8,6 +8,9 @@
  * «Редактировать» берёт блокировку (foundry/edit-lock.ts) — редактор один на всех. Каждое его
  * сохранение приходит остальным хуком updateJournalEntry, и их граф перерисовывается с
  * сохранением вида, выделения, карточки и открытого списка.
+ *
+ * Отдельное окно: кнопка в заголовке рядом с крестиком переносит окно графа в отдельное окно
+ * браузера (popout.ts) — его можно вынести на другой монитор; та же кнопка возвращает обратно.
  */
 
 import type cytoscape from "cytoscape";
@@ -82,6 +85,7 @@ import { setupInteraction, type GraphTarget, type InteractionHandle, type NodeSn
 import { startIdleTimer, type IdleTimer } from "./idle-timer";
 import { createNodeDecorLayer, type NodeDecorLayer } from "./node-decor";
 import { createOverlays, type MenuItem, type Overlays } from "./overlays";
+import { adoptIntoPopout, canPopout, openPopout, windowOf, type Popout } from "./popout";
 import { createZoomControl, type ZoomControl } from "./zoom-control";
 import { createBackgroundPanel } from "./panels/BackgroundPanel";
 import { createConditionListPanel, createConditionPanel } from "./panels/ConditionPanel";
@@ -135,6 +139,12 @@ export class GraphApp extends ApplicationV2 {
       width: 1000,
       height: 700,
     },
+    actions: {
+      // кнопка в заголовке рядом с крестиком (см. _renderFrame)
+      popout(this: GraphApp) {
+        this.#togglePopout();
+      },
+    },
   };
 
   #cy: cytoscape.Core | null = null;
@@ -173,8 +183,35 @@ export class GraphApp extends ApplicationV2 {
   #mergeNextStep = false;
   /** Ctrl+F — панель поиска вместо поиска браузера; снимается в close(). */
   #onFindKey: ((e: KeyboardEvent) => void) | null = null;
+  /** Документ, где слушается Ctrl+F: главный или отдельного окна. */
+  #findKeyDocument: Document | null = null;
   /** Зарегистрированные хуки Foundry — снимаются в close(). */
   #hooks: Array<[string, number]> = [];
+  /** Отдельное окно браузера, в котором сейчас граф; null — граф в окне Foundry. */
+  #popout: Popout | null = null;
+  #popoutButton: HTMLButtonElement | null = null;
+
+  /** Рамка окна Foundry плюс кнопка «Отдельное окно» перед крестиком. */
+  async _renderFrame(options: unknown): Promise<HTMLElement> {
+    const frame: HTMLElement = await super._renderFrame(options);
+    const close = frame.querySelector(".window-header [data-action='close']");
+    if (close && canPopout()) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "header-control icon fa-solid";
+      button.dataset.action = "popout";
+      close.before(button);
+      this.#popoutButton = button;
+      this.#updatePopoutButton();
+    }
+    return frame;
+  }
+
+  /** В отдельном окне свернуть нечего — окно графа занимает его целиком. */
+  async minimize(): Promise<void> {
+    if (this.#popout) return;
+    await super.minimize();
+  }
 
   async _renderHTML(): Promise<HTMLElement> {
     const wrapper = document.createElement("div");
@@ -259,10 +296,13 @@ export class GraphApp extends ApplicationV2 {
     this.#cyHost = (result as unknown as { _cyHost: HTMLElement })._cyHost;
     this.#registerHooks();
     this.#registerFindKey();
+    // граф открыли ещё раз, а он в отдельном окне — показываем то окно
+    this.#popout?.window.focus();
 
     // Ждём кадр, чтобы элемент реально встроился в DOM окна до того, как
-    // Cytoscape попытается измерить его размеры (см. находки S4).
-    requestAnimationFrame(() => {
+    // Cytoscape попытается измерить его размеры (см. находки S4). Кадр — окна графа: у
+    // скрытого главного окна кадры стоят.
+    windowOf(content).requestAnimationFrame(() => {
       this.#loadAndDisplay().catch((err: unknown) => {
         console.error("fvtt-relationship-graph | GraphApp mount failed", err);
       });
@@ -549,7 +589,8 @@ export class GraphApp extends ApplicationV2 {
     this.#factionBlobs = createFactionBlobLayer(this.#cyHost, this.#cy, appliedFactionBlend(hydrated.background));
     this.#background = createBackgroundLayer(this.#cyHost, this.#cy, hydrated.background);
 
-    this.#resizeObserver = new ResizeObserver(() => this.#cy?.resize());
+    // наблюдатель из окна графа: чужой не видит изменений размера в отдельном окне
+    this.#resizeObserver = new (windowOf(this.#cyHost).ResizeObserver)(() => this.#cy?.resize());
     this.#resizeObserver.observe(this.#cyHost);
 
     if (searchQuery !== null) this.#openSearch(searchQuery, false);
@@ -628,7 +669,9 @@ export class GraphApp extends ApplicationV2 {
    * переводит фокус в её поле. По e.code — в любой раскладке; поиск браузера не открывается.
    */
   #registerFindKey(): void {
-    if (this.#onFindKey) return;
+    const doc = (this.element as HTMLElement | null)?.ownerDocument ?? document;
+    if (this.#onFindKey && this.#findKeyDocument === doc) return;
+    this.#unregisterFindKey();
     this.#onFindKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.code !== "KeyF") return;
       if (!this.rendered || this.minimized) return;
@@ -642,7 +685,14 @@ export class GraphApp extends ApplicationV2 {
       input?.focus();
       input?.select();
     };
-    document.addEventListener("keydown", this.#onFindKey, { capture: true });
+    doc.addEventListener("keydown", this.#onFindKey, { capture: true });
+    this.#findKeyDocument = doc;
+  }
+
+  #unregisterFindKey(): void {
+    if (this.#onFindKey) this.#findKeyDocument?.removeEventListener("keydown", this.#onFindKey, { capture: true });
+    this.#onFindKey = null;
+    this.#findKeyDocument = null;
   }
 
   #toggleSearch(): void {
@@ -742,6 +792,8 @@ export class GraphApp extends ApplicationV2 {
     const result = await foundry.applications.api.DialogV2.confirm({
       window: { title },
       content: paragraph.outerHTML,
+      // граф в отдельном окне — вопрос там же, а не на другом мониторе
+      render: (_event: unknown, dialog: { element?: HTMLElement | null }) => adoptIntoPopout(dialog),
     });
     return result === true;
   }
@@ -1209,6 +1261,100 @@ export class GraphApp extends ApplicationV2 {
     await saveGraphData(this.#currentData);
   }
 
+  // ---------------------------------------------------------------------------------------
+  // Отдельное окно браузера
+
+  #togglePopout(): void {
+    if (this.#popout) this.#popIn();
+    else this.#popOut();
+  }
+
+  #updatePopoutButton(): void {
+    const button = this.#popoutButton;
+    if (!button) return;
+    const popped = this.#popout !== null;
+    const label = popped ? t("RELGRAPH.Graph.PopIn") : t("RELGRAPH.Graph.Popout");
+    button.classList.toggle("fa-arrow-up-right-from-square", !popped);
+    button.classList.toggle("fa-down-left-and-up-right-to-center", popped);
+    button.setAttribute("aria-label", label);
+    // подсказки Foundry (data-tooltip) работают только в главном окне — в отдельном обычный title
+    if (popped) {
+      delete button.dataset.tooltip;
+      button.title = label;
+    } else {
+      button.dataset.tooltip = label;
+      button.removeAttribute("title");
+    }
+  }
+
+  /** Переносит окно графа в отдельное окно браузера того же размера. */
+  #popOut(): void {
+    const element = this.element as HTMLElement | null;
+    if (!element || this.#popout) return;
+    const { width, height } = element.getBoundingClientRect();
+    const popout = openPopout({
+      title: t("RELGRAPH.Title"),
+      width,
+      height,
+      onClosed: () => this.#popIn(),
+    });
+    if (!popout) {
+      ui.notifications?.warn(t("RELGRAPH.Graph.PopoutBlocked"));
+      return;
+    }
+    this.#popout = popout;
+    element.classList.add("frg-popped-out");
+    this.#moveTo(popout.window.document);
+  }
+
+  /** Возвращает окно графа в окно Foundry; отдельное окно закрывается. */
+  #popIn(): void {
+    const popout = this.#popout;
+    if (!popout) return;
+    this.#popout = null;
+    popout.close();
+    this.#leavePopoutDocument();
+    this.#moveTo(document);
+  }
+
+  /** Элемент окна графа — обратно в главный документ, без перерисовки (её делает вызывающий). */
+  #leavePopoutDocument(): void {
+    const element = this.element as HTMLElement | null;
+    if (!element) return;
+    element.classList.remove("frg-popped-out");
+    if (element.ownerDocument !== document) document.body.append(element);
+  }
+
+  /**
+   * Переносит окно графа в документ target (отдельного окна или главный). Cytoscape и всё, что
+   * слушает окно, создаются заново (#display) — в новом окне; вид, выделение и открытая панель
+   * сохраняются: панель — тот же элемент, он переезжает вместе с окном.
+   */
+  #moveTo(target: Document): void {
+    const element = this.element as HTMLElement | null;
+    if (!element) return;
+    if (element.ownerDocument !== target) target.body.append(element);
+    this.#updatePopoutButton();
+    this.#registerFindKey();
+    const data = this.#currentData;
+    if (!data || !this.#cy) return;
+
+    const selectedIds = this.#cy.$(":selected").map((el) => el.id());
+    // панель поиска #display откроет заново сама, остальные — оставляем как есть
+    const keepPanel = this.#searchQuery === null ? { panel: this.#panel, reopen: this.#reopenPanel } : null;
+    if (keepPanel) {
+      this.#panel = null;
+      this.#reopenPanel = null;
+    }
+    this.#display(data, true);
+    if (keepPanel?.panel) {
+      this.#panel = keepPanel.panel;
+      this.#reopenPanel = keepPanel.reopen;
+    }
+    const cy = this.#cy as cytoscape.Core | null;
+    selectedIds.forEach((id) => cy?.getElementById(id).select());
+  }
+
   async close(options?: unknown): Promise<this> {
     // Закрыл окно в режиме редактирования — вышел из режима.
     if (this.#editing) {
@@ -1220,8 +1366,14 @@ export class GraphApp extends ApplicationV2 {
         });
       }
     }
-    if (this.#onFindKey) document.removeEventListener("keydown", this.#onFindKey, { capture: true });
-    this.#onFindKey = null;
+    this.#unregisterFindKey();
+    // окно Foundry закрывается в главном документе; отдельное окно браузера закрываем
+    if (this.#popout) {
+      this.#popout.close();
+      this.#popout = null;
+      this.#leavePopoutDocument();
+    }
+    this.#popoutButton = null;
     this.#hooks.forEach(([name, id]) => Hooks.off(name, id));
     this.#hooks = [];
     this.#editButton = null;

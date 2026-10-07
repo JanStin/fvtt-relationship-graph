@@ -634,3 +634,33 @@
   flex-direction: column;
   overflow-wrap: anywhere;
 }
+
+/*
+ * Отдельное окно браузера (src/ui/popout.ts): окно графа занимает его целиком. !important —
+ * поверх inline-позиции, которую ставит Foundry; z-index ниже окон Foundry, перенесённых туда же
+ * (подтверждение, выбор файла), — иначе они оказались бы под графом.
+ */
+body.frg-popout-body {
+  margin: 0;
+  overflow: hidden;
+}
+
+.application.frg-popped-out {
+  position: fixed !important;
+  inset: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  max-width: none !important;
+  max-height: none !important;
+  transform: none !important;
+  z-index: 1 !important;
+  border-radius: 0;
+}
+
+.application.frg-popped-out .window-header {
+  cursor: default;
+}
+
+.application.frg-popped-out .window-resize-handle {
+  display: none;
+}

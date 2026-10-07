@@ -113,6 +113,6 @@ export function createSearchPanel(
 
   element.append(panelHeader(t("RELGRAPH.Search.Panel"), callbacks.onClose), search, body);
   renderResults();
-  if (options.focus) requestAnimationFrame(() => input.focus());
+  if (options.focus) setTimeout(() => input.focus());
   return element;
 }

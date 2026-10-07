@@ -334,6 +334,7 @@ src/
     ├── background-layer.ts # фон графа под канвасом Cytoscape
     ├── zoom-control.ts     # ползунок масштаба в углу графа
     ├── overlays.ts         # контекстное меню, карточка информации
+    ├── popout.ts           # отдельное окно браузера для графа
     ├── idle-timer.ts       # таймаут бездействия редактора
     └── panels/             # боковые панели: узел, связь, фракции, типы связей,
                             # состояния, фон, поиск, импорт/экспорт; form.ts — общие элементы форм
@@ -357,6 +358,26 @@ tests/                      # Vitest: core/, import/, foundry/ (с моками)
 Изначально кнопка была в Scene Controls (`getSceneControlButtons`), но в реальном Foundry v13
 окно не открывалось без ошибок в консоли; `renderActorDirectory` надёжнее — `html` там всегда
 конкретный `HTMLElement`.
+
+### Отдельное окно
+
+Кнопка в заголовке окна графа (рядом с крестиком) переносит элемент окна приложения в новое окно
+браузера того же источника (`ui/popout.ts`, `window.open`): JS, данные, хуки и сокет Foundry
+общие с главным окном, новое окно выносится на другой монитор. Стили (`<link>`, `<style>`),
+классы темы на `html`/`body` и шрифты FontFace API копируются из главного документа; `<base>` —
+адрес Foundry, чтобы работали относительные пути картинок. Окно графа там занимает всё окно
+(`.frg-popped-out`).
+
+Всё, что привязано к окну, берётся у окна своего элемента (`windowOf`): слушатели клавиш и мыши
+(`interaction.ts`, `overlays.ts`, Ctrl+F), `requestAnimationFrame`, `devicePixelRatio`,
+`ResizeObserver`. После переноса граф перестраивается (`#display`) — Cytoscape берёт окно у
+`ownerDocument` контейнера; вид, выделение и открытая панель сохраняются. Кадры анимации
+Cytoscape — у окна контейнера (`cytoscape.setAnimationWindow`, патч R7): кадры скрытого главного
+окна стоят, и граф в отдельном окне застыл бы.
+
+Подтверждение удаления и выбор файла переносятся в отдельное окно (`adoptIntoPopout`). Закрытие
+отдельного окна возвращает граф в окно Foundry; закрытие окна графа или перезагрузка главного
+окна закрывает отдельное. В приложении Foundry (Electron) `window.open` запрещён — кнопки нет.
 
 ### Почему такое разделение
 
@@ -473,7 +494,9 @@ Cytoscape расширяет `Collection.prototype` (наследник `Array.p
 на non-writable унаследованном свойстве (`TypeError: Cannot assign to read only property 'equals'`).
 
 Исправлено патчем через `patch-package` (`patches/cytoscape+3.34.3.patch`): `extend()` в
-`node_modules/cytoscape/dist/cytoscape.esm.mjs` переписана на `Object.defineProperty`.
+`node_modules/cytoscape/dist/cytoscape.esm.mjs` переписана на `Object.defineProperty`. Тот же
+патч делает окно кадров анимации переключаемым (`cytoscape.setAnimationWindow`) — для
+отдельного окна (§8, «Отдельное окно»).
 `postinstall: patch-package` переустанавливает патч после `npm install`. Патч привязан к версии
 cytoscape — при обновлении его нужно перегенерировать (`npx patch-package cytoscape`).
 

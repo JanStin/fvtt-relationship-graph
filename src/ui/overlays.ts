@@ -38,6 +38,8 @@ export interface Overlays {
 const EDGE_MARGIN = 4; // px, отступ от краёв host при прижатии
 
 export function createOverlays(host: HTMLElement): Overlays {
+  // документ окна графа — главного или отдельного (popout.ts)
+  const doc = host.ownerDocument;
   let current: HTMLElement | null = null;
 
   function close(): void {
@@ -70,9 +72,9 @@ export function createOverlays(host: HTMLElement): Overlays {
     e.preventDefault();
     e.stopPropagation(); // иначе Foundry тем же Esc закроет всё окно графа
   };
-  document.addEventListener("mousedown", onOutsidePointer, { capture: true });
-  document.addEventListener("wheel", onOutsidePointer, { capture: true, passive: true });
-  document.addEventListener("keydown", onKeyDown, { capture: true });
+  doc.addEventListener("mousedown", onOutsidePointer, { capture: true });
+  doc.addEventListener("wheel", onOutsidePointer, { capture: true, passive: true });
+  doc.addEventListener("keydown", onKeyDown, { capture: true });
 
   return {
     showMenu(client, items) {
@@ -134,9 +136,9 @@ export function createOverlays(host: HTMLElement): Overlays {
 
     destroy() {
       close();
-      document.removeEventListener("mousedown", onOutsidePointer, { capture: true });
-      document.removeEventListener("wheel", onOutsidePointer, { capture: true });
-      document.removeEventListener("keydown", onKeyDown, { capture: true });
+      doc.removeEventListener("mousedown", onOutsidePointer, { capture: true });
+      doc.removeEventListener("wheel", onOutsidePointer, { capture: true });
+      doc.removeEventListener("keydown", onKeyDown, { capture: true });
     },
   };
 }
