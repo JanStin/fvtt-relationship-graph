@@ -148,12 +148,6 @@ export function blobBounds(circles: readonly BlobCircle[], margin = 0): Bounds {
   return bounds;
 }
 
-/** Точка под названием фракции: по центру острова по горизонтали, у его нижнего края. */
-export function islandLabelAnchor(circles: readonly BlobCircle[]): Point {
-  const bounds = blobBounds(circles);
-  return { x: (bounds.x1 + bounds.x2) / 2, y: bounds.y2 };
-}
-
 /** Наибольшая длина отрезка между двумя кругами, который ещё замыкает фигуру («стена»). */
 export function alphaEdgeLimit(a: BlobCircle, b: BlobCircle): number {
   return (ALPHA_EDGE_FACTOR * (a.radius + b.radius)) / 2;
@@ -266,6 +260,59 @@ export function shapeIslands(shape: BlobShape): number[][] {
   const links: Array<[number, number]> = [];
   for (const { vertices: [i, j, k] } of shape.triangles) links.push([i, j], [j, k]);
   return blobIslands(shape.circles, shape.smoothing, links);
+}
+
+/** Меньше стольких узлов в острове — название фракции на нём не пишем: тексту негде встать. */
+export const LABEL_MIN_NODES = 3;
+
+/**
+ * Точка для названия фракции на острове (индексы кругов island в shape) или null, если ему
+ * негде встать. Название — внутри формы, в стороне от узлов: кандидаты — центры залитых
+ * треугольников острова и середины отрезков между слившимися кругами. Из них берётся точка,
+ * наиболее удалённая от препятствий obstacles (узлы графа с подписями, любой фракции), но не
+ * ближе minClearance. Точки вне других областей others предпочтительнее — чтобы в перекрытии
+ * названия не накладывались; если таких нет — лучшая из остальных.
+ */
+export function islandLabelSpot(
+  shape: BlobShape,
+  island: readonly number[],
+  obstacles: readonly BlobCircle[],
+  others: readonly BlobShape[] = [],
+  minClearance = 0,
+): Point | null {
+  if (island.length < LABEL_MIN_NODES) return null;
+  const { circles } = shape;
+  const members = new Set(island);
+  const candidates: Point[] = [];
+  for (const { vertices: [i, j, k] } of shape.triangles) {
+    if (!members.has(i) || !members.has(j) || !members.has(k)) continue;
+    candidates.push({
+      x: (circles[i].x + circles[j].x + circles[k].x) / 3,
+      y: (circles[i].y + circles[j].y + circles[k].y) / 3,
+    });
+  }
+  for (let a = 0; a < island.length; a++) {
+    for (let b = a + 1; b < island.length; b++) {
+      const p = circles[island[a]];
+      const q = circles[island[b]];
+      const gap = Math.hypot(p.x - q.x, p.y - q.y) - p.radius - q.radius;
+      if (gap <= shape.smoothing / 2) candidates.push({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 });
+    }
+  }
+
+  let best: { point: Point; clearance: number; free: boolean } | null = null;
+  for (const point of candidates) {
+    const clearance = obstacles.reduce(
+      (min, o) => Math.min(min, Math.hypot(point.x - o.x, point.y - o.y) - o.radius),
+      Infinity,
+    );
+    if (clearance < minClearance || shapeSdf(point, shape) > 0) continue;
+    const free = others.every((other) => shapeSdf(point, other) > 0);
+    if (!best || (free && !best.free) || (free === best.free && clearance > best.clearance)) {
+      best = { point, clearance, free };
+    }
+  }
+  return best?.point ?? null;
 }
 
 /**

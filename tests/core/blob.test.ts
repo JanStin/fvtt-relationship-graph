@@ -14,7 +14,7 @@ import {
   shapeIslands,
   shapeSdf,
   triangleSdf,
-  islandLabelAnchor,
+  islandLabelSpot,
   smoothMin,
   type BlobCircle,
 } from "../../src/core/blob";
@@ -110,13 +110,68 @@ describe("blobIslands", () => {
   });
 });
 
-describe("blobBounds / islandLabelAnchor", () => {
+describe("blobBounds", () => {
   it("рамка с запасом", () => {
     expect(blobBounds([circle(0, 0), circle(30, 10)], 5)).toEqual({ x1: -15, y1: -15, x2: 45, y2: 25 });
   });
+});
 
-  it("название — по центру острова у нижнего края", () => {
-    expect(islandLabelAnchor([circle(0, 0), circle(30, 10)])).toEqual({ x: 15, y: 20 });
+describe("islandLabelSpot", () => {
+  // узлы обычного размера: круг области ≈ 118, препятствие (узел с подписью) — половина
+  const r = 118;
+  const obstacleOf = (c: BlobCircle): BlobCircle => ({ ...c, radius: c.radius / 2 });
+  const spotFor = (circles: BlobCircle[], others: BlobCircle[][] = [], minClearance = 0) => {
+    const shape = blobShape(circles);
+    // самый крупный остров
+    const [island] = shapeIslands(shape).sort((a, b) => b.length - a.length);
+    return islandLabelSpot(shape, island, circles.map(obstacleOf), others.map(blobShape), minClearance);
+  };
+
+  it("у острова из 1–2 узлов названия нет", () => {
+    expect(spotFor([circle(0, 0, r)])).toBeNull();
+    expect(spotFor([circle(0, 0, r), circle(150, 0, r)])).toBeNull();
+  });
+
+  it("у треугольника из узлов — в центре между ними", () => {
+    const spot = spotFor([circle(0, 0, r), circle(300, 0, r), circle(150, 260, r)]);
+    expect(spot?.x).toBeCloseTo(150);
+    expect(spot?.y).toBeCloseTo(260 / 3);
+  });
+
+  it("у вогнутой фигуры — внутри формы, а не в центре рамки", () => {
+    // «уголок» L: центр рамки (300, 300) вне формы
+    const corner = [
+      circle(0, 0, r), circle(0, 200, r), circle(0, 400, r), circle(0, 600, r),
+      circle(200, 600, r), circle(400, 600, r), circle(600, 600, r),
+    ];
+    const shape = blobShape(corner);
+    const spot = spotFor(corner);
+    expect(spot).not.toBeNull();
+    expect(shapeSdf(spot!, shape)).toBeLessThan(0);
+    expect(shapeSdf({ x: 300, y: 300 }, shape)).toBeGreaterThan(0);
+  });
+
+  it("у цепочки узлов без залитых треугольников — между соседними узлами", () => {
+    const spot = spotFor([circle(0, 0, r), circle(200, 0, r), circle(400, 0, r)]);
+    expect(spot?.y).toBeCloseTo(0);
+    expect([100, 300]).toContain(spot?.x);
+  });
+
+  it("слишком тесно — без названия", () => {
+    const tight = [circle(0, 0, r), circle(120, 0, r), circle(60, 104, r)];
+    expect(spotFor(tight, [], 50)).toBeNull();
+  });
+
+  it("предпочитает место вне других областей", () => {
+    // цепочка: середины (100, 0) и (300, 0); другая фракция накрывает левую
+    const chain = [circle(0, 0, r), circle(200, 0, r), circle(400, 0, r)];
+    expect(spotFor(chain, [[circle(100, -40, 60)]])?.x).toBe(300);
+    expect(spotFor(chain, [[circle(300, -40, 60)]])?.x).toBe(100);
+  });
+
+  it("всё занято другими областями — всё равно лучшее место", () => {
+    const chain = [circle(0, 0, r), circle(200, 0, r), circle(400, 0, r)];
+    expect(spotFor(chain, [[circle(200, 0, 400)]])).not.toBeNull();
   });
 });
 

@@ -10,7 +10,9 @@
  * клетки с мягким порогом (blobCoverage). Форма полная (core/blob.blobShape): круги узлов
  * и залитое пространство внутри фигур из узлов фракции. Сетка кладётся в маленький ImageData и растягивается на канвас со
  * сглаживанием — так край получается размытым и без лесенки, а расчёт остаётся дешёвым.
- * Под каждым островом — название фракции.
+ * Название фракции — полупрозрачным «водяным знаком» внутри острова из LABEL_MIN_NODES+ узлов,
+ * в стороне от узлов и вне других областей (core/blob.islandLabelSpot); места нет — без названия.
+ * Названия рисуются после заливки всех областей, чтобы следующая область их не закрасила.
  *
  * Перекрытие областей (GraphBackground.factionBlend): «наложение» — каждая область своей сеткой
  * поверх предыдущих; «смешение» — одна сетка на все области, цвет клетки — среднее цветов
@@ -30,7 +32,7 @@ import {
   shapeIslands,
   shapeSdf,
   type BlobShape,
-  islandLabelAnchor,
+  islandLabelSpot,
   type BlobCircle,
   type BlobGroup,
   type Bounds,
@@ -46,9 +48,12 @@ const FILL_OPACITY = 0.2;
 const SELECTED_FILL_OPACITY = 0.36;
 /** Лёгкое уплотнение у самого края — чтобы форма читалась и без контура. */
 const RIM_OPACITY = 0.18;
-/** Шрифт названия фракции в единицах графа (как был у подписи compound-узла). */
-const LABEL_FONT_SIZE = 11;
-const LABEL_COLOR = "#cccccc";
+/** Шрифт названия фракции в единицах графа — крупный, это «водяной знак» области. */
+const LABEL_FONT_SIZE = 28;
+const LABEL_COLOR = "#e5e5e5";
+const LABEL_OPACITY = 0.35;
+/** Свободное место вокруг точки названия (в единицах графа): не ближе к узлу, чем на полстроки. */
+const LABEL_CLEARANCE = LABEL_FONT_SIZE * 0.6;
 /** Мельче этого (в экранных px) название не рисуем — всё равно не прочесть. */
 const MIN_LABEL_SCREEN_SIZE = 5;
 
@@ -61,6 +66,17 @@ function circlesOf(cy: cytoscape.Core, areaId: string): BlobCircle[] {
   return areaMembers(cy, areaId).map((node) => {
     const position = node.position();
     return { x: position.x, y: position.y, radius: blobRadius(node.data("size") as number) };
+  });
+}
+
+/**
+ * Узлы графа как препятствия для названия: круг вокруг узла с его подписью — половина круга
+ * области (blobRadius закладывает место и под узел, и под подпись).
+ */
+function labelObstacles(cy: cytoscape.Core): BlobCircle[] {
+  return cy.nodes("[!isFaction]").map((node) => {
+    const position = node.position();
+    return { x: position.x, y: position.y, radius: blobRadius(node.data("size") as number) / 2 };
   });
 }
 
@@ -214,17 +230,41 @@ export function createFactionBlobLayer(container: HTMLElement, cy: cytoscape.Cor
     });
   }
 
-  function drawLabel(ctx: CanvasRenderingContext2D, circles: BlobCircle[], text: string) {
+  /**
+   * Места названий в координатах графа. Зависят только от положения и размера узлов — при
+   * панорамировании и зуме не пересчитываются.
+   */
+  let labelSpots: Array<{ label: string; x: number; y: number }> | null = null;
+
+  function findLabelSpots(areas: readonly PreparedArea[]): Array<{ label: string; x: number; y: number }> {
+    const obstacles = labelObstacles(cy);
+    const spots: Array<{ label: string; x: number; y: number }> = [];
+    for (const area of areas) {
+      if (!area.label) continue;
+      const others = areas.filter((other) => other !== area).map((other) => other.shape);
+      for (const island of shapeIslands(area.shape)) {
+        const spot = islandLabelSpot(area.shape, island, obstacles, others, LABEL_CLEARANCE);
+        if (spot) spots.push({ label: area.label, ...spot });
+      }
+    }
+    return spots;
+  }
+
+  /** Названия фракций — по одному на остров, где тексту есть место. */
+  function drawLabels(ctx: CanvasRenderingContext2D, areas: readonly PreparedArea[]): void {
     const zoom = cy.zoom();
     const fontSize = LABEL_FONT_SIZE * zoom;
-    if (!text || fontSize < MIN_LABEL_SCREEN_SIZE) return;
+    if (fontSize < MIN_LABEL_SCREEN_SIZE) return;
+    labelSpots ??= findLabelSpots(areas);
     const pan = cy.pan();
-    const anchor = islandLabelAnchor(circles);
-    ctx.font = `${fontSize}px sans-serif`;
+    ctx.save();
+    ctx.font = `600 ${fontSize}px sans-serif`;
     ctx.fillStyle = LABEL_COLOR;
+    ctx.globalAlpha = LABEL_OPACITY;
     ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    ctx.fillText(text, pan.x + anchor.x * zoom, pan.y + anchor.y * zoom + 2 * zoom);
+    ctx.textBaseline = "middle";
+    for (const spot of labelSpots) ctx.fillText(spot.label, pan.x + spot.x * zoom, pan.y + spot.y * zoom);
+    ctx.restore();
   }
 
   function draw(): void {
@@ -246,43 +286,30 @@ export function createFactionBlobLayer(container: HTMLElement, cy: cytoscape.Cor
     const areas = factionAreaList(cy)
       .map((area) => prepareArea(cy, area))
       .filter((area): area is PreparedArea => area !== null);
-    const ctx = context;
-    const drawLabels = (area: PreparedArea) => {
-      for (const island of shapeIslands(area.shape)) {
-        drawLabel(
-          ctx,
-          island.map((i) => area.circles[i]),
-          area.label,
-        );
-      }
-    };
-    if (blend === "mix") {
-      // названия — поверх общей заливки
-      drawMixed(ctx, areas, softness);
-      areas.forEach(drawLabels);
-    } else {
-      areas.forEach((area) => {
-        drawArea(ctx, area, softness);
-        drawLabels(area);
-      });
-    }
+    if (blend === "mix") drawMixed(context, areas, softness);
+    else areas.forEach((area) => drawArea(context, area, softness));
+    drawLabels(context, areas);
   }
 
   const schedule = () => {
     if (frame === null) frame = requestAnimationFrame(draw);
   };
+  const nodesChanged = () => {
+    labelSpots = null;
+    schedule();
+  };
 
   // position — drag/раскладка/сепарация, data — resize узла, AREA_SELECTION_EVENT — подсветка
   // выбранной области
   cy.on("viewport resize", schedule);
-  cy.on("position data", "node[!isFaction]", schedule);
+  cy.on("position data", "node[!isFaction]", nodesChanged);
   cy.on(AREA_SELECTION_EVENT, schedule);
   draw();
 
   return {
     destroy(): void {
       cy.off("viewport resize", schedule);
-      cy.off("position data", "node[!isFaction]", schedule);
+      cy.off("position data", "node[!isFaction]", nodesChanged);
       cy.off(AREA_SELECTION_EVENT, schedule);
       if (frame !== null) cancelAnimationFrame(frame);
       frame = null;
