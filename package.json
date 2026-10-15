@@ -1,7 +1,7 @@
 {
   "name": "fvtt-relationship-graph",
-  "version": "1.4.1",
-  "description": "Foundry VTT module: relationship graph between actors (FANG alternative)",
+  "version": "1.4.2",
+  "description": "Foundry VTT module: relationship graph between actors",
   "private": true,
   "license": "MIT",
   "author": "MiniMalMod_RedFox",
