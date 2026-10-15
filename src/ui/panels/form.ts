@@ -215,3 +215,61 @@ export function addPanelTabs(shell: PanelShell, tabs: readonly PanelTab[]): void
   shell.body.append(...panes);
   select(0);
 }
+
+/** Счётчики уникальных id подписей групп и name радиокнопок сегментов. */
+let groupCounter = 0;
+let segmentCounter = 0;
+
+/**
+ * Группа под общей подписью — для контролов, в которых своих <label> несколько (сегменты):
+ * вложенные <label> в HTML недопустимы, поэтому обёртка — <div role="group">.
+ */
+export function group(label: string, ...controls: HTMLElement[]): HTMLElement {
+  const wrapper = document.createElement("div");
+  wrapper.className = "frg-field";
+  wrapper.setAttribute("role", "group");
+  const caption = document.createElement("span");
+  caption.className = "frg-field-label";
+  caption.textContent = label;
+  caption.id = `frg-group-${++groupCounter}`;
+  wrapper.setAttribute("aria-labelledby", caption.id);
+  wrapper.append(caption, ...controls);
+  return wrapper;
+}
+
+export interface Segmented<T extends string> {
+  element: HTMLElement;
+  value(): T;
+}
+
+/**
+ * Сегменты вместо <select> для 2–3 вариантов: радиокнопки (стрелки переключают штатно),
+ * у каждой — кнопка-подпись. Событие change всплывает с выбранного input.
+ */
+export function segmented<T extends string>(
+  options: ReadonlyArray<{ value: T; label: string }>,
+  current: T,
+): Segmented<T> {
+  const name = `frg-segment-${++segmentCounter}`;
+  const element = document.createElement("div");
+  element.className = "frg-segmented";
+  element.setAttribute("role", "radiogroup");
+  const inputs = options.map((option) => {
+    const item = document.createElement("label");
+    item.className = "frg-segment";
+    const input = document.createElement("input");
+    input.type = "radio";
+    input.name = name;
+    input.value = option.value;
+    input.checked = option.value === current;
+    const caption = document.createElement("span");
+    caption.textContent = option.label;
+    item.append(input, caption);
+    element.append(item);
+    return input;
+  });
+  return {
+    element,
+    value: () => (inputs.find((input) => input.checked)?.value ?? current) as T,
+  };
+}

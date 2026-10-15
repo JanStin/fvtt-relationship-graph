@@ -16,7 +16,7 @@
 
 import type cytoscape from "cytoscape";
 import { t, tn } from "../core/i18n";
-import type { GraphData, GraphEdge, GraphNode } from "../core/model";
+import type { FactionBlend, GraphBackground, GraphData, GraphEdge, GraphNode } from "../core/model";
 import { isEmptyQuery, searchGraph } from "../core/search";
 import { syncNodesWithActors } from "../foundry/actors";
 import { acquireEditLock, currentEditor, LOCK_FLAG_KEY, releaseEditLock, userName } from "../foundry/edit-lock";
@@ -31,6 +31,7 @@ import {
 import {
   backgroundFromEdit,
   appliedFactionBlend,
+  factionDisplayOf,
   graphFontFamily,
   SYSTEM_FONTS,
   coverVisibleArea,
@@ -158,6 +159,10 @@ export class GraphApp extends ApplicationV2 {
   #zoomControl: ZoomControl | null = null;
   #background: BackgroundLayer | null = null;
   #factionBlobs: FactionBlobLayer | null = null;
+  /** С каким смешением построен #factionBlobs — предпросмотр пересоздаёт слой, только если оно другое. */
+  #factionBlobsBlend: FactionBlend = "overlay";
+  /** Слои фона показывают несохранённые значения панели «Настройки графа». */
+  #backgroundPreview = false;
   /** Открытая боковая панель (узел, связь, списки) — максимум одна. */
   #panel: HTMLElement | null = null;
   /** Как заново открыть текущую панель после перерисовки чужим изменением (только списки). */
@@ -546,6 +551,8 @@ export class GraphApp extends ApplicationV2 {
     const viewport = keepViewport && this.#cy ? { zoom: this.#cy.zoom(), pan: { ...this.#cy.pan() } } : null;
     // Поиск переживает перерисовку (смена режима, отмена, чужое изменение) — с тем же запросом.
     const searchQuery = this.#searchQuery;
+    // слои фона всё равно строятся заново — откатывать предпросмотр при закрытии панели незачем
+    this.#backgroundPreview = false;
     this.#closePanel();
 
     const hydrated: GraphData = { ...data, nodes: syncNodesWithActors(data.nodes) };
@@ -599,7 +606,8 @@ export class GraphApp extends ApplicationV2 {
     this.#edgeLabels = setupEdgeLabels(this.#cy);
     // Оба слоя встают в начало контейнера — под канвас Cytoscape (см. background-layer.ts).
     // Фон создаётся последним, чтобы оказаться первым в DOM — под областями фракций.
-    this.#factionBlobs = createFactionBlobLayer(this.#cyHost, this.#cy, appliedFactionBlend(hydrated.background));
+    this.#factionBlobsBlend = appliedFactionBlend(hydrated.background);
+    this.#factionBlobs = createFactionBlobLayer(this.#cyHost, this.#cy, this.#factionBlobsBlend);
     this.#background = createBackgroundLayer(this.#cyHost, this.#cy, hydrated.background);
 
     // наблюдатель из окна графа: чужой не видит изменений размера в отдельном окне
@@ -666,6 +674,11 @@ export class GraphApp extends ApplicationV2 {
   }
 
   #closePanel(): void {
+    // панель настроек закрыта без сохранения — вернуть сохранённый фон
+    if (this.#backgroundPreview) {
+      this.#backgroundPreview = false;
+      this.#showBackground(this.#currentData?.background ?? null);
+    }
     this.#panel?.remove();
     this.#panel = null;
     this.#reopenPanel = null;
@@ -1092,9 +1105,33 @@ export class GraphApp extends ApplicationV2 {
         if (this.#currentData) void this.#commit(setBackground(this.#currentData, null));
       },
       onClose: () => this.#closePanel(),
+      onPreview: (values) => {
+        const saved = this.#currentData?.background ?? null;
+        // вид фракций меняет сам граф (renderGraph) — в предпросмотре остаётся сохранённый
+        this.#backgroundPreview = true;
+        this.#showBackground({ ...backgroundFromEdit(values), factionDisplay: factionDisplayOf(saved) });
+      },
       fitToView: (image) => this.#fitBackgroundToView(image),
     });
     this.#mountPanel(panel);
+  }
+
+  /**
+   * Перестраивает слои фона и цвет панели инструментов без перерисовки графа — для предпросмотра
+   * и отката. Шрифт и вид фракций не трогает: они в стиле Cytoscape.
+   */
+  #showBackground(background: GraphBackground | null): void {
+    if (!this.#cyHost || !this.#cy || !this.#background) return;
+    this.#toolbar?.style.setProperty("--frg-toolbar-color", toolbarColor(background));
+    const blend = appliedFactionBlend(background);
+    if (blend !== this.#factionBlobsBlend) {
+      this.#factionBlobs?.destroy();
+      this.#factionBlobsBlend = blend;
+      this.#factionBlobs = createFactionBlobLayer(this.#cyHost, this.#cy, blend);
+    }
+    // фон — после областей фракций: слой встаёт первым в контейнер и оказывается под ними
+    this.#background.destroy();
+    this.#background = createBackgroundLayer(this.#cyHost, this.#cy, background);
   }
 
   async #saveBackground(values: BackgroundEditValues): Promise<void> {

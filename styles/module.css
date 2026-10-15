@@ -195,6 +195,73 @@
   min-height: 3em;
 }
 
+/* Сегменты (form.ts, segmented): радиокнопки спрятаны, видны подписи-кнопки. */
+.frg-segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.frg-segment {
+  flex: 1 1 0;
+  position: relative;
+}
+
+.frg-segment input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.frg-segment span {
+  display: block;
+  padding: 3px 6px;
+  border: 1px solid #334155;
+  border-radius: 3px;
+  color: #94a3b8;
+  text-align: center;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.frg-segment input:checked + span {
+  background: #1e293b;
+  color: #f8fafc;
+  border-color: #64748b;
+}
+
+.frg-segment input:focus-visible + span {
+  outline: 2px solid #60a5fa;
+  outline-offset: 1px;
+}
+
+/* Ползунок с числом (панель «Настройки графа»: непрозрачность). */
+.frg-range {
+  align-items: center;
+}
+
+.frg-range input[type="range"] {
+  flex: 1 1 auto;
+}
+
+.frg-range-value {
+  flex: 0 0 3.5em;
+  text-align: right;
+}
+
+.frg-width-row {
+  align-items: center;
+}
+
+.frg-width-row .frg-check {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.frg-field-row button.frg-icon-button {
+  width: 2.2em;
+}
+
 .frg-check {
   display: flex;
   align-items: center;
