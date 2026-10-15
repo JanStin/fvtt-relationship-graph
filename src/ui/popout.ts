@@ -1,8 +1,9 @@
 /**
- * Отдельное окно браузера для графа (pop-out). Элемент окна приложения переносится в новое
- * окно того же источника: JS, данные, хуки и сокет Foundry остаются общими с главным окном,
- * а новое окно можно вынести на другой монитор. Стили, тема и шрифты копируются из главного
- * документа.
+ * Отдельная вкладка браузера для графа (pop-out). Элемент окна приложения переносится в новую
+ * вкладку того же источника: JS, данные, хуки и сокет Foundry остаются общими с главным окном,
+ * а вкладку можно перетащить в своё окно на другом мониторе. Стили, тема и шрифты копируются из
+ * главного документа. Заголовок окна Foundry там скрыт — вернуть граф можно кнопкой на панели
+ * инструментов или закрытием вкладки.
  *
  * Что должен учитывать код графа: всё, что привязано к окну (слушатели клавиш и мыши на
  * document/window, requestAnimationFrame, devicePixelRatio, ResizeObserver), берётся у окна
@@ -35,8 +36,6 @@ export interface Popout {
 
 export interface PopoutOptions {
   title: string;
-  width: number;
-  height: number;
   /** Пользователь закрыл окно (или перезагрузил его) — элемент надо вернуть в главное окно. */
   onClosed(): void;
 }
@@ -87,10 +86,10 @@ function returnAdopted(adopted: Set<HTMLElement>): void {
   adopted.clear();
 }
 
-/** Открывает отдельное окно; null — браузер не дал его открыть (блокировщик всплывающих окон). */
+/** Открывает новую вкладку; null — браузер не дал её открыть (блокировщик всплывающих окон). */
 export function openPopout(options: PopoutOptions): Popout | null {
-  const features = `popup,width=${Math.round(options.width)},height=${Math.round(options.height)}`;
-  const win = window.open("", WINDOW_NAME, features);
+  // без списка features (popup, width, height) браузер открывает вкладку, а не отдельное окно
+  const win = window.open("", WINDOW_NAME);
   if (!win) return null;
   prepareDocument(win.document, options.title);
 

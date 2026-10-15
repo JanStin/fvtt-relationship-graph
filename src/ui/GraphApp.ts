@@ -9,8 +9,9 @@
  * сохранение приходит остальным хуком updateJournalEntry, и их граф перерисовывается с
  * сохранением вида, выделения, карточки и открытого списка.
  *
- * Отдельное окно: кнопка в заголовке рядом с крестиком переносит окно графа в отдельное окно
- * браузера (popout.ts) — его можно вынести на другой монитор; та же кнопка возвращает обратно.
+ * Отдельная вкладка: кнопка в заголовке рядом с крестиком переносит окно графа в новую вкладку
+ * браузера (popout.ts) — её можно вынести на другой монитор. Заголовка окна там нет; вернуть
+ * граф — кнопкой на панели инструментов или закрытием вкладки.
  */
 
 import type cytoscape from "cytoscape";
@@ -35,6 +36,7 @@ import {
   coverVisibleArea,
   DEFAULT_BACKGROUND_COLOR,
   setBackground,
+  toolbarColor,
   type BackgroundEditValues,
 } from "../core/background";
 import {
@@ -190,6 +192,9 @@ export class GraphApp extends ApplicationV2 {
   /** Отдельное окно браузера, в котором сейчас граф; null — граф в окне Foundry. */
   #popout: Popout | null = null;
   #popoutButton: HTMLButtonElement | null = null;
+  /** «Вернуть в окно Foundry» на панели инструментов — видна только во вкладке (заголовок там скрыт). */
+  #popInButton: HTMLButtonElement | null = null;
+  #toolbar: HTMLElement | null = null;
 
   /** Рамка окна Foundry плюс кнопка «Отдельное окно» перед крестиком. */
   async _renderFrame(options: unknown): Promise<HTMLElement> {
@@ -220,6 +225,7 @@ export class GraphApp extends ApplicationV2 {
 
     const toolbar = document.createElement("div");
     toolbar.className = "frg-toolbar";
+    this.#toolbar = toolbar;
 
     const editButton = document.createElement("button");
     editButton.type = "button";
@@ -276,6 +282,12 @@ export class GraphApp extends ApplicationV2 {
       this.#importControl.element.classList.add("frg-toolbar-end");
       toolbar.append(this.#importControl.element);
     }
+
+    // Во вкладке заголовка окна нет — возврат в окно Foundry здесь, справа.
+    this.#popInButton = button("fa-down-left-and-up-right-to-center", t("RELGRAPH.Graph.PopIn"), () => this.#popIn());
+    this.#popInButton.classList.add("frg-toolbar-popin");
+    toolbar.append(this.#popInButton);
+    this.#updatePopoutButton();
     this.#updateToolbar();
 
     const cyHost = document.createElement("div");
@@ -578,6 +590,7 @@ export class GraphApp extends ApplicationV2 {
     // шрифт подписей: HTML-слою (node-decor.ts) — через CSS-переменную, Cytoscape — в стиле связей
     const fontFamily = graphFontFamily(hydrated.background);
     this.#cyHost.style.setProperty("--frg-font", fontFamily);
+    this.#toolbar?.style.setProperty("--frg-toolbar-color", toolbarColor(hydrated.background));
     this.#cy = renderGraph(this.#cyHost, hydrated, { isGM: this.#isGM, editable: this.#editing, fontFamily });
     if (viewport) this.#cy.viewport(viewport);
     this.#interaction.bind(this.#cy);
@@ -1270,9 +1283,10 @@ export class GraphApp extends ApplicationV2 {
   }
 
   #updatePopoutButton(): void {
+    const popped = this.#popout !== null;
+    if (this.#popInButton) this.#popInButton.hidden = !popped;
     const button = this.#popoutButton;
     if (!button) return;
-    const popped = this.#popout !== null;
     const label = popped ? t("RELGRAPH.Graph.PopIn") : t("RELGRAPH.Graph.Popout");
     button.classList.toggle("fa-arrow-up-right-from-square", !popped);
     button.classList.toggle("fa-down-left-and-up-right-to-center", popped);
@@ -1287,15 +1301,12 @@ export class GraphApp extends ApplicationV2 {
     }
   }
 
-  /** Переносит окно графа в отдельное окно браузера того же размера. */
+  /** Переносит окно графа в новую вкладку браузера. */
   #popOut(): void {
     const element = this.element as HTMLElement | null;
     if (!element || this.#popout) return;
-    const { width, height } = element.getBoundingClientRect();
     const popout = openPopout({
       title: t("RELGRAPH.Title"),
-      width,
-      height,
       onClosed: () => this.#popIn(),
     });
     if (!popout) {
@@ -1374,6 +1385,8 @@ export class GraphApp extends ApplicationV2 {
       this.#leavePopoutDocument();
     }
     this.#popoutButton = null;
+    this.#popInButton = null;
+    this.#toolbar = null;
     this.#hooks.forEach(([name, id]) => Hooks.off(name, id));
     this.#hooks = [];
     this.#editButton = null;

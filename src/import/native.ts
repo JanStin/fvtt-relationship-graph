@@ -127,6 +127,7 @@ function parseBackground(raw: unknown): GraphBackground | null {
     font: str(raw.font),
     factionDisplay: parseFactionDisplay(raw.factionDisplay),
     factionBlend: parseFactionBlend(raw.factionBlend),
+    toolbarColor: str(raw.toolbarColor),
   };
 }
 

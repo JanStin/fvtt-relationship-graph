@@ -12,6 +12,8 @@ import type { BackgroundImageMode, FactionBlend, FactionDisplay, GraphBackground
 
 /** Стандартный цвет фона графа (без настроек). */
 export const DEFAULT_BACKGROUND_COLOR = "#16213e";
+/** Стандартный цвет панели инструментов окна графа. */
+export const DEFAULT_TOOLBAR_COLOR = "#0f172a";
 const MIN_OPACITY = 0.05;
 /** Меньше — плитки текстуры превращаются в рябь, а браузер — в печку. */
 const MIN_IMAGE_WIDTH = 16;
@@ -53,6 +55,7 @@ export function defaultBackground(): GraphBackground {
     font: "",
     factionDisplay: "badges",
     factionBlend: "overlay",
+    toolbarColor: "",
   };
 }
 
@@ -70,6 +73,8 @@ export interface BackgroundEditValues {
   font: string;
   factionDisplay: FactionDisplay;
   factionBlend: FactionBlend;
+  /** '' — стандартный цвет панели инструментов. */
+  toolbarColor: string;
 }
 
 function parseNumber(text: string, fallback: number): number {
@@ -93,6 +98,7 @@ export function backgroundFromEdit(values: BackgroundEditValues): GraphBackgroun
     font: values.font.trim(),
     factionDisplay: parseFactionDisplay(values.factionDisplay),
     factionBlend: parseFactionBlend(values.factionBlend),
+    toolbarColor: values.toolbarColor.trim(),
   };
 }
 
@@ -124,14 +130,18 @@ export function factionDisplayOf(background: GraphBackground | null | undefined)
   return parseFactionDisplay(background?.factionDisplay);
 }
 
-/** Фон без цвета, картинки, своего шрифта и с видом фракций по умолчанию ничем не отличается от стандартного. */
+/**
+ * Фон без цвета, картинки, своего шрифта, цвета панели и с видом фракций по умолчанию ничем не
+ * отличается от стандартного.
+ */
 export function isDefaultBackground(background: GraphBackground): boolean {
   return (
     background.color === "" &&
     background.image === "" &&
     !background.font &&
     factionDisplayOf(background) === "badges" &&
-    factionBlendOf(background) === "overlay"
+    factionBlendOf(background) === "overlay" &&
+    !background.toolbarColor
   );
 }
 
@@ -143,6 +153,11 @@ export function setBackground(data: GraphData, background: GraphBackground | nul
 /** Цвет, которым заливается фон графа. */
 export function backgroundColor(background: GraphBackground | null | undefined): string {
   return background?.color || DEFAULT_BACKGROUND_COLOR;
+}
+
+/** Цвет панели инструментов окна графа. */
+export function toolbarColor(background: GraphBackground | null | undefined): string {
+  return background?.toolbarColor || DEFAULT_TOOLBAR_COLOR;
 }
 
 /**

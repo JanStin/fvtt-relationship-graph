@@ -1,7 +1,7 @@
 /**
  * Панель фона графа (только GM, в режиме редактирования): цвет, картинка и как её показывать —
- * текстурой или одним изображением в координатах графа; шрифт подписей и вид дополнительных
- * фракций. Как и остальные панели — только DOM; применение значений — core/background.ts,
+ * текстурой или одним изображением в координатах графа; шрифт подписей, вид дополнительных
+ * фракций и цвет панели инструментов. Как и остальные панели — только DOM; применение значений — core/background.ts,
  * сохранение — GraphApp.
  */
 
@@ -85,6 +85,7 @@ export function createBackgroundPanel(
   const factionBlend = select(factionBlendOptions(), factionBlendOf(current));
 
   const color = colorField(current.color);
+  const toolbarColor = colorField(current.toolbarColor ?? "");
 
   const image = textInput(current.image);
   image.placeholder = t("RELGRAPH.Background.NoImage");
@@ -139,6 +140,7 @@ export function createBackgroundPanel(
         font: font.value,
         factionDisplay: factionDisplay.value as FactionDisplay,
         factionBlend: factionBlend.value as FactionBlend,
+        toolbarColor: toolbarColor.value(),
       }),
     onDelete: callbacks.onReset,
     onClose: callbacks.onClose,
@@ -197,6 +199,7 @@ export function createBackgroundPanel(
       hint(t("RELGRAPH.Background.FactionDisplayHint")),
     ),
     factionBlendField,
+    field(t("RELGRAPH.Background.ToolbarColor"), toolbarColor.element, hint(t("RELGRAPH.Background.ColorHint"))),
   );
   sync();
   return shell.element;

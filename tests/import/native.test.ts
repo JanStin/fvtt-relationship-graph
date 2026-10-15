@@ -115,6 +115,7 @@ describe("экспорт → импорт", () => {
         font: "Tahoma",
         factionDisplay: "areas",
         factionBlend: "mix",
+        toolbarColor: "#334455",
       },
     };
     expect(parseGraphFileJson(roundTrip(withBackground)).data).toEqual(withBackground);
@@ -235,6 +236,7 @@ describe("импорт своего формата: фон", () => {
       font: "",
       factionDisplay: "badges",
       factionBlend: "overlay",
+      toolbarColor: "",
     });
   });
 

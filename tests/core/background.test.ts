@@ -13,6 +13,8 @@ import {
   isDefaultBackground,
   setBackground,
   tileScreenLayout,
+  toolbarColor,
+  DEFAULT_TOOLBAR_COLOR,
   type BackgroundEditValues,
 } from "../../src/core/background";
 import type { GraphData } from "../../src/core/model";
@@ -31,6 +33,7 @@ function values(overrides: Partial<BackgroundEditValues> = {}): BackgroundEditVa
     font: "",
     factionDisplay: "badges",
     factionBlend: "overlay",
+    toolbarColor: "",
     ...overrides,
   };
 }
@@ -52,6 +55,7 @@ describe("backgroundFromEdit", () => {
       font: "",
       factionDisplay: "badges",
       factionBlend: "overlay",
+      toolbarColor: "",
     });
   });
 
@@ -128,6 +132,22 @@ describe("setBackground", () => {
   it("фон, у которого изменён только вид фракций, не стандартный", () => {
     const background = { ...defaultBackground(), factionDisplay: "areas" as const };
     expect(setBackground(empty, background).background).toEqual(background);
+  });
+});
+
+describe("toolbarColor", () => {
+  it("нет фона или поля (графы до 1.4.2) — стандартный цвет панели", () => {
+    expect(toolbarColor(null)).toBe(DEFAULT_TOOLBAR_COLOR);
+    expect(toolbarColor({ ...defaultBackground(), toolbarColor: undefined })).toBe(DEFAULT_TOOLBAR_COLOR);
+    expect(toolbarColor({ ...defaultBackground(), toolbarColor: "#334455" })).toBe("#334455");
+  });
+
+  it("цвет из формы обрезается от пробелов", () => {
+    expect(backgroundFromEdit(values({ toolbarColor: " #334455 " })).toolbarColor).toBe("#334455");
+  });
+
+  it("фон, у которого изменён только цвет панели, не стандартный", () => {
+    expect(isDefaultBackground({ ...defaultBackground(), toolbarColor: "#334455" })).toBe(false);
   });
 });
 

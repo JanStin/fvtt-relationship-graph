@@ -98,6 +98,7 @@ export interface GraphBackground {
   font?: string; // шрифт подписей узлов и связей; '' или нет (графы до 1.0.4) — Signika
   factionDisplay?: FactionDisplay; // нет (графы до 1.2.1) — "badges"
   factionBlend?: FactionBlend; // нет (графы до 1.2.1) — "overlay"
+  toolbarColor?: string; // hex цвет панели инструментов окна графа; '' или нет (графы до 1.4.2) — стандартный
 }
 
 export interface GraphData {

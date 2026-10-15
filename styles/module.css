@@ -234,14 +234,19 @@
   opacity: 0.2;
 }
 
-/* Верхняя панель окна графа (GraphApp). */
+/* Рамка вокруг графа тоньше стандартной (1rem у Foundry). */
+#fvtt-relationship-graph-app > section.window-content {
+  padding: 8px;
+}
+
+/* Верхняя панель окна графа (GraphApp); цвет задаёт GM в «Настройках графа» (toolbarColor). */
 .frg-toolbar {
   flex: 0 0 auto;
   display: flex;
   gap: 8px;
   align-items: center;
   padding: 6px 10px;
-  background: #0f172a;
+  background: var(--frg-toolbar-color, #0f172a);
 }
 
 .frg-toolbar button {
@@ -264,6 +269,20 @@
 /* Группа, прижатая к правому краю панели (импорт/экспорт). */
 .frg-toolbar-end {
   margin-left: auto;
+}
+
+/* «Вернуть в окно Foundry» — справа; после импорта/экспорта — сразу за ними. */
+.frg-toolbar .frg-toolbar-popin {
+  margin-left: auto;
+}
+
+.frg-toolbar .frg-toolbar-end + .frg-toolbar-popin {
+  margin-left: 0;
+}
+
+/* стиль кнопок Foundry задаёт display — [hidden] сам по себе кнопку не спрячет */
+.frg-toolbar .frg-toolbar-popin[hidden] {
+  display: none;
 }
 
 /* Кнопка «Редактировать», пока этот пользователь — редактор. */
@@ -636,7 +655,8 @@
 }
 
 /*
- * Отдельное окно браузера (src/ui/popout.ts): окно графа занимает его целиком. !important —
+ * Отдельная вкладка браузера (src/ui/popout.ts): окно графа занимает её целиком, заголовок окна
+ * Foundry скрыт — он лишний, возврат в окно Foundry есть на панели инструментов. !important —
  * поверх inline-позиции, которую ставит Foundry; z-index ниже окон Foundry, перенесённых туда же
  * (подтверждение, выбор файла), — иначе они оказались бы под графом.
  */
@@ -658,7 +678,7 @@ body.frg-popout-body {
 }
 
 .application.frg-popped-out .window-header {
-  cursor: default;
+  display: none;
 }
 
 .application.frg-popped-out .window-resize-handle {
