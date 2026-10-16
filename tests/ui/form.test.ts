@@ -127,7 +127,7 @@ describe("контекстное меню", () => {
 });
 
 describe("панель сведений", () => {
-  const silent = { onClose() {}, onOpen() {}, onHover() {} };
+  const silent = { onClose() {}, onOpen() {}, onHover() {}, onExpand() {} };
 
   it("шапка, текстовый блок, значок видимости; крестик закрывает", () => {
     let closed = false;
@@ -137,7 +137,7 @@ describe("панель сведений", () => {
         subtitle: "Актёр",
         header: { kind: "node", portrait: { img: "", fit: "contain", align: "top", border: "#ff0000" }, role: "Кузнец" },
         visibility: { icon: "fa-eye-slash", label: "Скрыт от игроков" },
-        blocks: [{ kind: "text", label: "Описание", text: "Высокая" }],
+        blocks: [{ kind: "text", id: "description", label: "Описание", text: "Высокая" }],
       },
       { ...silent, onClose: () => (closed = true) },
     );
@@ -188,9 +188,9 @@ describe("панель сведений", () => {
       {
         title: "Анна",
         header: { kind: "faction", color: "#000000" },
-        blocks: [{ kind: "links", label: "Связи (1)", links: [link] }],
+        blocks: [{ kind: "links", id: "connections", label: "Связи (1)", links: [link] }],
       },
-      { onClose() {}, onOpen: (target) => opened.push(target), onHover: (value) => hovered.push(value) },
+      { onClose() {}, onOpen: (target) => opened.push(target), onHover: (value) => hovered.push(value), onExpand() {} },
     );
     const row = panel.querySelector<HTMLButtonElement>(".frg-info-link")!;
     expect(row.querySelector(".frg-info-link-direction")!.getAttribute("aria-label")).toBe("Исходящая");
@@ -215,7 +215,7 @@ describe("панель сведений", () => {
       portrait: { img: "", fit: "cover", align: "top", border: null },
     } as const;
     const panel = createInfoPanel(
-      { title: "Стража", header: { kind: "faction", color: "#000000" }, blocks: [{ kind: "links", label: "Участники (1)", links: [link] }] },
+      { title: "Стража", header: { kind: "faction", color: "#000000" }, blocks: [{ kind: "links", id: "members", label: "Участники (1)", links: [link] }] },
       { ...silent, onOpen: (target) => opened.push(target) },
     );
     const row = panel.querySelector<HTMLButtonElement>(".frg-info-link-member")!;
@@ -235,7 +235,7 @@ describe("панель сведений", () => {
       {
         title: "Анна",
         header: { kind: "faction", color: "#000000" },
-        blocks: [{ kind: "links", label: "Связи (1)", links: [link], groups: [{ label: "друг", color: "#00ff00", links: [link] }] }],
+        blocks: [{ kind: "links", id: "connections", label: "Связи (1)", links: [link], groups: [{ label: "друг", color: "#00ff00", links: [link] }] }],
       },
       silent,
     );
@@ -256,10 +256,11 @@ describe("панель сведений", () => {
         blocks: [
           {
             kind: "chips",
+            id: "factions",
             label: "Фракции",
             chips: [{ label: "Стража", color: "#ff0000", primary: true, target: { kind: "faction", id: "f1" } }],
           },
-          { kind: "chips", label: "Состояния", chips: [{ label: "Мёртв", icon: "fa-solid fa-skull" }] },
+          { kind: "chips", id: "conditions", label: "Состояния", chips: [{ label: "Мёртв", icon: "fa-solid fa-skull" }] },
         ],
       },
       { ...silent, onOpen: (target) => opened.push(target) },

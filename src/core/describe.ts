@@ -88,11 +88,15 @@ export interface InfoLinkGroup {
   links: InfoLink[];
 }
 
+/**
+ * Блок сведений. id — постоянный ключ блока (не зависит от языка): по нему панель запоминает,
+ * какие блоки свёрнуты.
+ */
 export type DescriptionBlock =
-  | { kind: "text"; label: string; text: string }
-  | { kind: "chips"; label: string; chips: InfoChip[] }
+  | { kind: "text"; id: string; label: string; text: string }
+  | { kind: "chips"; id: string; label: string; chips: InfoChip[] }
   /** groups — связей больше LINK_GROUP_THRESHOLD: те же links, разложенные по типам. */
-  | { kind: "links"; label: string; links: InfoLink[]; groups?: InfoLinkGroup[] };
+  | { kind: "links"; id: string; label: string; links: InfoLink[]; groups?: InfoLinkGroup[] };
 
 /** Значок видимости в шапке (только GM). */
 export interface VisibilityBadge {
@@ -134,8 +138,8 @@ function portraitOf(data: GraphData, node: GraphNode | undefined, isGM: boolean)
   };
 }
 
-function pushText(blocks: DescriptionBlock[], label: string, text: string): void {
-  if (text.trim() !== "") blocks.push({ kind: "text", label, text });
+function pushText(blocks: DescriptionBlock[], id: string, label: string, text: string): void {
+  if (text.trim() !== "") blocks.push({ kind: "text", id, label, text });
 }
 
 /** Ссылка на узел без связи: участник фракции, конец связи — с миниатюрой, как в поиске. */
@@ -173,7 +177,12 @@ function connectionsBlock(data: GraphData, nodeId: string, isGM: boolean): Descr
     };
   };
   const links = edges.map(linkOf);
-  const block: DescriptionBlock = { kind: "links", label: t("RELGRAPH.Node.Connections", { count: links.length }), links };
+  const block: DescriptionBlock = {
+    kind: "links",
+    id: "connections",
+    label: t("RELGRAPH.Node.Connections", { count: links.length }),
+    links,
+  };
   if (links.length <= LINK_GROUP_THRESHOLD) return block;
 
   // Группы — в порядке справочника типов, связи без типа (или удалённого) — последними.
@@ -208,9 +217,9 @@ export function describeNode(data: GraphData, nodeId: string, options: DescribeO
   // Порядок — по важности: текст о персонаже, затем принадлежность, затем длинный список связей.
   // Роль — в шапке, под именем и типом.
   const blocks: DescriptionBlock[] = [];
-  pushText(blocks, t("RELGRAPH.Common.Description"), node.lore);
-  pushText(blocks, t("RELGRAPH.Node.Notes"), node.playerNotes);
-  if (options.isGM) pushText(blocks, t("RELGRAPH.Node.GmNotes"), node.gmNotes);
+  pushText(blocks, "description", t("RELGRAPH.Common.Description"), node.lore);
+  pushText(blocks, "notes", t("RELGRAPH.Node.Notes"), node.playerNotes);
+  if (options.isGM) pushText(blocks, "gmNotes", t("RELGRAPH.Node.GmNotes"), node.gmNotes);
 
   const factions = node.factionIds
     .map((id) => data.factions.find((f) => f.id === id))
@@ -218,6 +227,7 @@ export function describeNode(data: GraphData, nodeId: string, options: DescribeO
   if (factions.length > 0) {
     blocks.push({
       kind: "chips",
+      id: "factions",
       label: t("RELGRAPH.Common.Factions"),
       chips: factions.map((f) => ({
         label: factionName(f),
@@ -233,6 +243,7 @@ export function describeNode(data: GraphData, nodeId: string, options: DescribeO
   if (node.conditions.length > 0) {
     blocks.push({
       kind: "chips",
+      id: "conditions",
       label: t("RELGRAPH.Common.Conditions"),
       chips: node.conditions.map((id) => {
         const condition = conditionById.get(id);
@@ -272,11 +283,12 @@ export function describeEdge(data: GraphData, edgeId: string, options: DescribeO
 
   const blocks: DescriptionBlock[] = [];
   if (ends.length > 0) {
-    blocks.push({ kind: "links", label: t("RELGRAPH.Edge.Ends"), links: ends.map((n) => nodeLink(data, n, options.isGM)) });
+    blocks.push({ kind: "links", id: "ends", label: t("RELGRAPH.Edge.Ends"), links: ends.map((n) => nodeLink(data, n, options.isGM)) });
   }
   if (type) {
     blocks.push({
       kind: "chips",
+      id: "type",
       label: t("RELGRAPH.Edge.TypeShort"),
       chips: [{ label: relationshipTypeLabel(type), color: type.color || undefined }],
     });
@@ -307,14 +319,19 @@ export function describeFaction(data: GraphData, factionId: string, options: Des
   if (!faction) return null;
 
   const blocks: DescriptionBlock[] = [];
-  pushText(blocks, t("RELGRAPH.Common.Description"), faction.description);
+  pushText(blocks, "description", t("RELGRAPH.Common.Description"), faction.description);
 
   // У скрытого узла игрок видит только основную фракцию (область) — остальные не выдаём.
   const members = data.nodes
     .filter((n) => (isMasked(n, options.isGM) ? n.primaryFactionId === factionId : n.factionIds.includes(factionId)))
     .map((n) => nodeLink(data, n, options.isGM));
   if (members.length > 0) {
-    blocks.push({ kind: "links", label: t("RELGRAPH.Faction.Members", { count: members.length }), links: members });
+    blocks.push({
+      kind: "links",
+      id: "members",
+      label: t("RELGRAPH.Faction.Members", { count: members.length }),
+      links: members,
+    });
   }
 
   return {

@@ -4,6 +4,8 @@
  * Пока панель открыта, одиночный клик по другому элементу графа показывает его сведения
  * (решает GraphApp). Связи, участники фракции и фракции узла — кнопки: клик открывает сведения
  * о них, наведение на связь подсвечивает её и узел на графе.
+ * Блоки сворачиваются заголовком, ширина панели меняется перетаскиванием левого края — и то и
+ * другое запоминается у клиента (info-prefs.ts).
  */
 
 import type {
@@ -19,6 +21,13 @@ import type {
 import { imageAlignPosition } from "../../core/image-align";
 import { t } from "../../core/i18n";
 import { DEFAULT_NODE_IMG, GM_ONLY_DASH, NEUTRAL_COLOR } from "../graph-renderer";
+import {
+  clampInfoPanelWidth,
+  loadCollapsedBlocks,
+  loadInfoPanelWidth,
+  saveInfoPanelWidth,
+  setBlockCollapsed,
+} from "./info-prefs";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -28,6 +37,40 @@ export interface InfoPanelActions {
   onOpen(target: InfoTarget): void;
   /** Наведение на строку-ссылку: подсветить узел и связь; null — снять подсветку. */
   onHover(link: { nodeId: string; edgeId: string | null } | null): void;
+  /** «Развернуть» у длинного текста — показать его в отдельном окне. */
+  onExpand(title: string, text: string): void;
+}
+
+/** Длинный текст — больше стольких строк в панели — получает кнопку «Развернуть». */
+export const LONG_TEXT_LINES = 15;
+/** Знаков в строке панели по умолчанию — для оценки числа строк. */
+const CHARS_PER_LINE = 50;
+
+/** Абзацы текста — по пустым строкам; одиночные переносы остаются внутри абзаца. */
+export function textParagraphs(text: string): string[] {
+  return text
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.replace(/^\s*\n/, "").trimEnd())
+    .filter((paragraph) => paragraph.trim() !== "");
+}
+
+/** Оценка: текст займёт больше LONG_TEXT_LINES строк в панели. */
+export function isLongText(text: string): boolean {
+  let lines = 0;
+  for (const line of text.split("\n")) lines += Math.max(1, Math.ceil(line.length / CHARS_PER_LINE));
+  return lines > LONG_TEXT_LINES;
+}
+
+/** Текст абзацами: <p> на каждый (переносы внутри абзаца сохраняет white-space: pre-wrap). */
+export function paragraphsElement(text: string, className: string): HTMLElement {
+  const value = document.createElement("div");
+  value.className = className;
+  for (const paragraph of textParagraphs(text)) {
+    const p = document.createElement("p");
+    p.textContent = paragraph;
+    value.append(p);
+  }
+  return value;
 }
 
 /** Миниатюра узла: та же картинка, вписывание и выравнивание, что на графе; рамка — цвет основной фракции. */
@@ -293,39 +336,119 @@ function chip(item: InfoChip, actions: InfoPanelActions): HTMLElement {
   return element;
 }
 
-function block(item: DescriptionBlock, actions: InfoPanelActions): HTMLElement {
-  const wrapper = document.createElement("div");
-  wrapper.className = `frg-field frg-info-block frg-info-block-${item.kind}`;
-  const label = document.createElement("div");
-  label.className = "frg-field-label";
-  label.textContent = item.label;
-  wrapper.append(label);
-
+/** Содержимое блока под заголовком; title — чьи сведения (для окна «Развернуть»). */
+function blockContent(item: DescriptionBlock, title: string, actions: InfoPanelActions): HTMLElement {
+  const content = document.createElement("div");
+  content.className = "frg-info-section-content";
   if (item.kind === "text") {
-    const value = document.createElement("div");
-    value.className = "frg-info-value";
-    value.textContent = item.text;
-    wrapper.append(value);
+    content.append(paragraphsElement(item.text, "frg-info-value frg-info-text"));
+    if (isLongText(item.text)) {
+      const expand = document.createElement("button");
+      expand.type = "button";
+      expand.className = "frg-info-expand";
+      expand.append(icon("fa-solid fa-up-right-and-down-left-from-center"), ` ${t("RELGRAPH.Info.Expand")}`);
+      expand.addEventListener("click", () => actions.onExpand(`${title} — ${item.label}`, item.text));
+      content.append(expand);
+    }
   } else if (item.kind === "chips") {
     const chips = document.createElement("div");
     chips.className = "frg-info-chips";
     chips.append(...item.chips.map((c) => chip(c, actions)));
-    wrapper.append(chips);
+    content.append(chips);
   } else if (item.groups) {
-    wrapper.append(...item.groups.map((group) => linkGroup(group, actions)));
+    content.append(...item.groups.map((group) => linkGroup(group, actions)));
   } else {
-    wrapper.append(linkList(item.links, actions));
+    content.append(linkList(item.links, actions));
   }
+  return content;
+}
+
+/** Блок — секция: заголовок-кнопка сворачивает содержимое, состояние запоминается по id блока. */
+function block(item: DescriptionBlock, title: string, collapsed: boolean, actions: InfoPanelActions): HTMLElement {
+  const wrapper = document.createElement("section");
+  wrapper.className = `frg-field frg-info-block frg-info-block-${item.kind}`;
+  wrapper.dataset.block = item.id;
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "frg-info-section-toggle";
+  toggle.setAttribute("aria-expanded", String(!collapsed));
+  const label = document.createElement("span");
+  label.className = "frg-field-label";
+  label.textContent = item.label;
+  toggle.append(icon("fa-solid fa-chevron-down frg-info-caret"), label);
+
+  const content = blockContent(item, title, actions);
+  content.hidden = collapsed;
+  toggle.addEventListener("click", () => {
+    const expanded = toggle.getAttribute("aria-expanded") === "true";
+    toggle.setAttribute("aria-expanded", String(!expanded));
+    content.hidden = expanded;
+    setBlockCollapsed(item.id, expanded);
+  });
+  wrapper.append(toggle, content);
   return wrapper;
+}
+
+/**
+ * Левый край панели: перетаскивание меняет ширину (в пределах clampInfoPanelWidth), стрелки
+ * влево/вправо — то же с клавиатуры. Ширина запоминается по окончании.
+ */
+function resizeHandle(panel: HTMLElement): HTMLElement {
+  const handle = document.createElement("div");
+  handle.className = "frg-info-resize";
+  handle.tabIndex = 0;
+  handle.setAttribute("role", "separator");
+  handle.setAttribute("aria-orientation", "vertical");
+  handle.setAttribute("aria-label", t("RELGRAPH.Info.Resize"));
+  handle.title = t("RELGRAPH.Info.Resize");
+
+  const hostWidth = () => panel.parentElement?.clientWidth ?? Number.POSITIVE_INFINITY;
+  const apply = (width: number) => {
+    const clamped = clampInfoPanelWidth(width, hostWidth());
+    panel.style.width = `${clamped}px`;
+    return clamped;
+  };
+
+  let drag: { startX: number; startWidth: number } | null = null;
+  handle.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    drag = { startX: e.clientX, startWidth: panel.getBoundingClientRect().width };
+    handle.setPointerCapture(e.pointerId);
+    panel.classList.add("frg-info-resizing");
+  });
+  handle.addEventListener("pointermove", (e) => {
+    // панель у правого края: тянем влево — шире
+    if (drag) apply(drag.startWidth + drag.startX - e.clientX);
+  });
+  const finish = () => {
+    if (!drag) return;
+    drag = null;
+    panel.classList.remove("frg-info-resizing");
+    saveInfoPanelWidth(panel.getBoundingClientRect().width);
+  };
+  handle.addEventListener("pointerup", finish);
+  handle.addEventListener("pointercancel", finish);
+  handle.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    const step = e.key === "ArrowLeft" ? 20 : -20;
+    saveInfoPanelWidth(apply(panel.getBoundingClientRect().width + step));
+  });
+  return handle;
 }
 
 export function createInfoPanel(description: Description, actions: InfoPanelActions): HTMLElement {
   const element = document.createElement("div");
   element.className = "frg-panel frg-info-panel";
+  // пределы окна графа — max-width в CSS
+  element.style.width = `${loadInfoPanelWidth()}px`;
 
+  const collapsed = loadCollapsedBlocks();
   const body = document.createElement("div");
   body.className = "frg-panel-body";
-  body.append(...description.blocks.map((item) => block(item, actions)));
+  body.append(...description.blocks.map((item) => block(item, description.title, collapsed.has(item.id), actions)));
 
   if (description.empty) {
     const empty = document.createElement("div");
@@ -342,6 +465,7 @@ export function createInfoPanel(description: Description, actions: InfoPanelActi
     body.append(empty);
   }
 
-  element.append(infoHeader(description, actions.onClose), body);
+  // шапка — вне прокручиваемого тела: при прокрутке видно, чьи это сведения
+  element.append(resizeHandle(element), infoHeader(description, actions.onClose), body);
   return element;
 }

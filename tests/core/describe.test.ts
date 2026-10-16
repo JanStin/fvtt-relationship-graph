@@ -108,6 +108,7 @@ describe("describeNode", () => {
     const block = blockOf(d, "Фракции");
     expect(block).toEqual({
       kind: "chips",
+      id: "factions",
       label: "Фракции",
       chips: [{ label: "Стража", color: "#ff0000", primary: false, target: { kind: "faction", id: "f1" } }],
     });
@@ -278,7 +279,7 @@ describe("describeEdge", () => {
       ["c", null],
       ["a", null],
     ]);
-    expect(blockOf(d, "Тип")).toEqual({ kind: "chips", label: "Тип", chips: [{ label: "враг", color: "#000000" }] });
+    expect(blockOf(d, "Тип")).toEqual({ kind: "chips", id: "type", label: "Тип", chips: [{ label: "враг", color: "#000000" }] });
     expect(d.header).toMatchObject({ kind: "edge", directional: true, color: "#000000", dash: null, gmOnly: false });
 
     expect(describeEdge(data, "e1", { isGM: false })!.title).toBe("командует");

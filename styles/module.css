@@ -337,6 +337,102 @@ body.theme-light #fvtt-relationship-graph-app:not(.theme-dark),
   overflow-wrap: anywhere;
 }
 
+/* Проза (описание, заметки): крупнее и просторнее полей формы, абзацы с отступом. */
+.frg-info-text {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.frg-info-text p {
+  margin: 0 0 0.6em;
+}
+
+.frg-info-text p:last-child {
+  margin-bottom: 0;
+}
+
+/* Сведения шире панелей редактирования; ширина — inline (info-prefs.ts), предел — доля окна. */
+.frg-panel.frg-info-panel {
+  max-width: 60%;
+}
+
+/* Левый край панели сведений — перетаскивание меняет ширину. */
+.frg-info-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  z-index: 1;
+  width: 6px;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.frg-info-resize:hover,
+.frg-info-resize:focus-visible,
+.frg-info-resizing .frg-info-resize {
+  background: var(--frg-focus);
+  outline: none;
+}
+
+/* во время перетаскивания текст не выделяется */
+.frg-info-resizing {
+  user-select: none;
+}
+
+/* Блок сведений — секция: заголовок-кнопка сворачивает содержимое. */
+.frg-panel .frg-info-section-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: auto;
+  margin: 0;
+  padding: 2px 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.frg-panel .frg-info-section-toggle:hover,
+.frg-panel .frg-info-section-toggle:focus-visible {
+  box-shadow: none;
+}
+
+.frg-info-section-toggle:hover .frg-field-label,
+.frg-info-section-toggle:focus-visible .frg-field-label {
+  color: var(--frg-text);
+}
+
+.frg-info-section-toggle[aria-expanded="false"] .frg-info-caret {
+  transform: rotate(-90deg);
+}
+
+.frg-panel .frg-info-expand {
+  align-self: flex-start;
+  width: auto;
+  height: auto;
+  margin-top: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+/* Окно «Развернуть» (DialogV2): текст для чтения нормальной ширины. */
+.frg-info-dialog-text {
+  max-height: 70vh;
+  overflow-y: auto;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.frg-info-dialog-text p {
+  margin: 0 0 0.8em;
+}
+
 /* Боковая панель редактирования узла/связи (src/ui/panels/). */
 .frg-panel {
   position: absolute;

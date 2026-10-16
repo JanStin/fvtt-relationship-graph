@@ -98,7 +98,7 @@ import { createEdgePanel } from "./panels/EdgePanel";
 import { createFactionListPanel, createFactionPanel } from "./panels/FactionPanel";
 import { iconButton } from "./panels/form";
 import { createImportControl, type ImportControl } from "./panels/ImportDialog";
-import { createInfoPanel } from "./panels/InfoPanel";
+import { createInfoPanel, paragraphsElement } from "./panels/InfoPanel";
 import { createNodePanel, type ActorOption } from "./panels/NodePanel";
 import { createRelationshipTypeListPanel, createRelationshipTypePanel } from "./panels/RelationshipTypePanel";
 import { createSearchPanel, type SearchTarget } from "./panels/SearchPanel";
@@ -111,6 +111,9 @@ declare const CONFIG: any;
 
 /** Через сколько минут полного бездействия редактор выходит из режима. */
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+
+/** Ближе стольких пикселей к краю боковой панели элемент считается закрытым ею. */
+const REVEAL_MARGIN = 24;
 
 const EMPTY_GRAPH: GraphData = ensureDefaultRelationshipTypes({
   nodes: [],
@@ -710,9 +713,11 @@ export class GraphApp extends ApplicationV2 {
 
   /**
    * Сведения об элементе — боковой панелью вместо открытой. Элемента нет или он не виден
-   * (gmOnly-связь у игрока) — ничего не меняется.
+   * (gmOnly-связь у игрока) — ничего не меняется. reveal — если элемент оказался под панелью или
+   * у её края, сдвинуть вид (не нужно при восстановлении после перерисовки и когда вид двигает
+   * вызывающий).
    */
-  #openInfo(target: GraphTarget): void {
+  #openInfo(target: GraphTarget, { reveal = true } = {}): void {
     if (!this.#currentData || target.kind === "background") return;
     const options = { isGM: this.#isGM };
     const card =
@@ -726,15 +731,67 @@ export class GraphApp extends ApplicationV2 {
       onClose: () => this.#closePanel(),
       onOpen: (next) => this.#openLinkedInfo(next),
       onHover: (link) => this.#highlightInfoLink(link),
+      onExpand: (title, text) => this.#showText(title, text),
     });
-    this.#mountPanel(panel, () => this.#openInfo(target));
+    this.#mountPanel(panel, () => this.#openInfo(target, { reveal: false }));
     this.#infoTarget = target;
+    if (reveal && target.kind !== "faction") this.#revealBesidePanel(target.id);
   }
 
-  /** Переход из сведений по связи, участнику или фракции: узел ещё и выделяется в центре вида. */
+  /**
+   * Переход из сведений по связи, участнику или фракции: узел ещё и выделяется в центре вида.
+   * Сначала панель — центрировать надо по видимой части при её ширине.
+   */
   #openLinkedInfo(target: InfoTarget): void {
+    this.#openInfo(target, { reveal: target.kind !== "node" });
     if (target.kind === "node") this.#showSearchTarget({ kind: "node", id: target.id });
-    this.#openInfo(target);
+  }
+
+  /** «Развернуть» в сведениях: длинный текст в отдельном окне нормальной ширины, только чтение. */
+  #showText(title: string, text: string): void {
+    // outerHTML экранирует текст — разметка из описания не исполняется
+    const content = paragraphsElement(text, "frg-info-dialog-text").outerHTML;
+    void foundry.applications.api.DialogV2.prompt({
+      window: { title },
+      content,
+      ok: { label: t("RELGRAPH.Common.Close") },
+      position: { width: 640 },
+      rejectClose: false,
+      // граф в отдельном окне — текст там же
+      render: (_event: unknown, dialog: { element?: HTMLElement | null }) => adoptIntoPopout(dialog),
+    });
+  }
+
+  /** Центр видимой части графа — без боковой панели справа (в координатах окна графа). */
+  #visibleCenter(): { x: number; y: number } | null {
+    const cy = this.#cy;
+    if (!cy) return null;
+    const panelWidth = this.#panel?.getBoundingClientRect().width ?? 0;
+    return { x: Math.max(0, cy.width() - panelWidth) / 2, y: cy.height() / 2 };
+  }
+
+  /** Плавно переводит вид так, чтобы элемент оказался в центре видимой части графа. */
+  #centerInView(element: cytoscape.CollectionReturnValue): void {
+    const cy = this.#cy;
+    const center = this.#visibleCenter();
+    if (!cy || !center) return;
+    const box = element.renderedBoundingBox();
+    const pan = cy.pan();
+    cy.stop();
+    cy.animate(
+      { pan: { x: pan.x + center.x - (box.x1 + box.x2) / 2, y: pan.y + center.y - (box.y1 + box.y2) / 2 } },
+      { duration: 300 },
+    );
+  }
+
+  /** Элемент под боковой панелью или ближе REVEAL_MARGIN к её краю — центрировать по видимой части. */
+  #revealBesidePanel(id: string): void {
+    const cy = this.#cy;
+    if (!cy || !this.#panel) return;
+    const element = cy.getElementById(id);
+    if (element.empty()) return;
+    const visibleRight = cy.width() - this.#panel.getBoundingClientRect().width;
+    if (element.renderedBoundingBox().x2 > visibleRight - REVEAL_MARGIN) this.#centerInView(element);
   }
 
   /** Подсветка узла и связи на графе при наведении на строку сведений; null — снять. */
@@ -847,8 +904,12 @@ export class GraphApp extends ApplicationV2 {
           this.#dimBySearch(value);
         },
         onPick: (target) => this.#showSearchTarget(target),
-        // сведения заменяют панель поиска — запрос сбрасывается, как при открытии любой панели
-        onOpen: (target) => this.#openInfo(target),
+        // сведения заменяют панель поиска — запрос сбрасывается, как при открытии любой панели;
+        // вид — по центру того, что осталось видно рядом со сведениями
+        onOpen: (target) => {
+          this.#openInfo(target, { reveal: false });
+          this.#showSearchTarget(target);
+        },
         onClose: () => this.#closePanel(),
       },
       { isGM: this.#isGM, focus },
@@ -879,7 +940,10 @@ export class GraphApp extends ApplicationV2 {
     });
   }
 
-  /** Выделяет найденный элемент (вместо прежнего выделения) и плавно центрирует на нём вид. */
+  /**
+   * Выделяет найденный элемент (вместо прежнего выделения) и плавно центрирует на нём вид —
+   * по видимой части графа, без открытой боковой панели.
+   */
   #showSearchTarget(target: SearchTarget): void {
     const cy = this.#cy;
     if (!cy) return;
@@ -887,8 +951,7 @@ export class GraphApp extends ApplicationV2 {
     if (element.empty()) return;
     cy.$(":selected").unselect();
     element.select();
-    cy.stop();
-    cy.animate({ center: { eles: element } }, { duration: 300 });
+    this.#centerInView(element);
   }
 
   /** reopen — как открыть панель заново после перерисовки чужим изменением (у списков). */

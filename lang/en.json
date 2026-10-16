@@ -112,7 +112,9 @@
       "Outgoing": "Outgoing",
       "Incoming": "Incoming",
       "Undirected": "Undirected",
-      "PrimaryFaction": "Primary faction"
+      "PrimaryFaction": "Primary faction",
+      "Expand": "Expand",
+      "Resize": "Panel width: drag the edge or press ← / →"
     },
     "Faction": {
       "Panel": "Faction",
