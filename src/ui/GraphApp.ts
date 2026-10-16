@@ -2,12 +2,12 @@
  * ApplicationV2-оболочка для графа (подход проверен спайком S4, docs/architecture.md). Поток данных:
  * storage.loadGraphData() -> actors.syncNodesWithActors() -> graph-renderer.renderGraph()
  * -> interaction.setupInteraction() (мышь/клавиши, см. interaction.ts и docs/controls.md).
- * Контекстное меню и карточку информации (overlays.ts) наполняет этот класс.
+ * Контекстное меню (overlays.ts) и панели, в том числе сведения, наполняет этот класс.
  *
  * Совместная работа: граф открывается в режиме просмотра. Кнопка
  * «Редактировать» берёт блокировку (foundry/edit-lock.ts) — редактор один на всех. Каждое его
  * сохранение приходит остальным хуком updateJournalEntry, и их граф перерисовывается с
- * сохранением вида, выделения, карточки и открытого списка.
+ * сохранением вида, выделения, сведений и открытого списка.
  *
  * Отдельная вкладка: кнопка в заголовке рядом с крестиком переносит окно графа в новую вкладку
  * браузера (popout.ts) — её можно вынести на другой монитор. Заголовка окна там нет; вернуть
@@ -98,6 +98,7 @@ import { createEdgePanel } from "./panels/EdgePanel";
 import { createFactionListPanel, createFactionPanel } from "./panels/FactionPanel";
 import { iconButton } from "./panels/form";
 import { createImportControl, type ImportControl } from "./panels/ImportDialog";
+import { createInfoPanel } from "./panels/InfoPanel";
 import { createNodePanel, type ActorOption } from "./panels/NodePanel";
 import { createRelationshipTypeListPanel, createRelationshipTypePanel } from "./panels/RelationshipTypePanel";
 import { createSearchPanel, type SearchTarget } from "./panels/SearchPanel";
@@ -118,6 +119,12 @@ const EMPTY_GRAPH: GraphData = ensureDefaultRelationshipTypes({
   relationshipTypes: [],
   conditions: [],
 });
+
+/** Фокус в поле ввода вне панели inside — клавиши там принадлежат полю. */
+function isTypingOutside(target: EventTarget | null, inside: HTMLElement | null): boolean {
+  if (!(target instanceof HTMLElement) || inside?.contains(target)) return false;
+  return target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName);
+}
 
 const ApplicationV2 = foundry.applications.api.ApplicationV2;
 
@@ -171,8 +178,8 @@ export class GraphApp extends ApplicationV2 {
   #reopenPanel: (() => void) | null = null;
   /** Запрос открытой панели поиска; null — панель закрыта. Переживает перерисовку графа. */
   #searchQuery: string | null = null;
-  /** Последняя открытая карточка информации — чтобы обновить её после чужого изменения. */
-  #lastInfo: { target: GraphTarget; client: Point } | null = null;
+  /** Чьи сведения сейчас в боковой панели; null — панель сведений закрыта. */
+  #infoTarget: GraphTarget | null = null;
   #cyHost: HTMLElement | null = null;
   /** Актуальный полный граф (с синхронизированными актёрами) — источник для персиста позиций/scale. */
   #currentData: GraphData | null = null;
@@ -236,7 +243,7 @@ export class GraphApp extends ApplicationV2 {
 
   async _renderHTML(): Promise<HTMLElement> {
     const wrapper = document.createElement("div");
-    // position:relative — контекстное меню/карточка информации позиционируются внутри wrapper.
+    // position:relative — контекстное меню и боковые панели позиционируются внутри wrapper.
     wrapper.style.cssText = "position:relative;width:100%;height:100%;display:flex;flex-direction:column;";
 
     const toolbar = document.createElement("div");
@@ -475,22 +482,20 @@ export class GraphApp extends ApplicationV2 {
     this.#updateToolbar();
   }
 
-  /** Чужое изменение графа: перерисовка без потери вида, выделения, карточки и открытого списка. */
+  /** Чужое изменение графа: перерисовка без потери вида, выделения, сведений и открытого списка. */
   async #reloadFromStorage(): Promise<void> {
     const data = await loadGraphData();
     if (!data || !this.#cy) return;
 
     const selectedIds = this.#cy.$(":selected").map((el) => el.id());
     const reopen = this.#reopenPanel;
-    const info = this.#overlays?.isInfoOpen() ? this.#lastInfo : null;
 
     this.#display(data, true);
 
     const cy = this.#cy as cytoscape.Core | null;
     selectedIds.forEach((id) => cy?.getElementById(id).select());
+    // сведения об удалённом элементе не откроются (describe* вернёт null)
     reopen?.();
-    // карточка по удалённому элементу не откроется (describe* вернёт null)
-    if (info) this.#openInfo(info.target, info.client);
   }
 
   async #toggleEditing(): Promise<void> {
@@ -624,7 +629,11 @@ export class GraphApp extends ApplicationV2 {
         void this.#persistNodeChanges(nodes);
       },
       onContextMenu: (target, client) => this.#openContextMenu(target, client),
-      onInfo: (target, client) => this.#onDoubleClick(target, client),
+      onInfo: (target) => this.#onDoubleClick(target),
+      onClick: (target) => {
+        // открытые сведения «листаются» кликом; клик по фону их не закрывает
+        if (this.#infoTarget !== null && target.kind !== "background") this.#openInfo(target);
+      },
       onQuickLink: (nodeId) => {
         this.#interaction?.startLinking(nodeId);
       },
@@ -674,11 +683,11 @@ export class GraphApp extends ApplicationV2 {
   }
 
   /**
-   * Двойной клик ЛКМ: в режиме просмотра — карточка информации, в режиме редактирования —
-   * панель редактирования узла, связи или фракции. Узел «Правит только GM» игроку панель не
-   * откроет — ему показывается карточка.
+   * Двойной клик ЛКМ: в режиме просмотра — сведения, в режиме редактирования — панель
+   * редактирования узла, связи или фракции. Узел «Правит только GM» игроку панель не
+   * откроет — ему показываются сведения.
    */
-  #onDoubleClick(target: GraphTarget, client: Point): void {
+  #onDoubleClick(target: GraphTarget): void {
     const data = this.#currentData;
     if (!data || target.kind === "background") return;
     if (this.#editing) {
@@ -696,10 +705,14 @@ export class GraphApp extends ApplicationV2 {
         return;
       }
     }
-    this.#openInfo(target, client);
+    this.#openInfo(target);
   }
 
-  #openInfo(target: GraphTarget, client: Point): void {
+  /**
+   * Сведения об элементе — боковой панелью вместо открытой. Элемента нет или он не виден
+   * (gmOnly-связь у игрока) — ничего не меняется.
+   */
+  #openInfo(target: GraphTarget): void {
     if (!this.#currentData || target.kind === "background") return;
     const options = { isGM: this.#isGM };
     const card =
@@ -709,8 +722,8 @@ export class GraphApp extends ApplicationV2 {
           ? describeEdge(this.#currentData, target.id, options)
           : describeFaction(this.#currentData, target.id, options);
     if (!card) return;
-    this.#lastInfo = { target, client };
-    this.#overlays?.showInfo(client, card);
+    this.#mountPanel(createInfoPanel(card, () => this.#closePanel()), () => this.#openInfo(target));
+    this.#infoTarget = target;
   }
 
   /** Имя узла для заголовков панелей; скрытый узел у игрока — «Неизвестный». */
@@ -728,6 +741,7 @@ export class GraphApp extends ApplicationV2 {
     this.#panel?.remove();
     this.#panel = null;
     this.#reopenPanel = null;
+    this.#infoTarget = null;
     if (this.#searchQuery !== null) this.#dimBySearch("");
     this.#searchQuery = null;
     this.#searchButton?.classList.remove("frg-toolbar-active");
@@ -739,16 +753,26 @@ export class GraphApp extends ApplicationV2 {
   // Поиск
 
   /**
-   * Ctrl+F (Cmd+F), пока окно графа открыто и не свёрнуто: открывает панель поиска или
-   * переводит фокус в её поле. По e.code — в любой раскладке; поиск браузера не открывается.
+   * Клавиши окна графа, пока оно открыто и не свёрнуто.
+   * Ctrl+F (Cmd+F) открывает панель поиска или переводит фокус в её поле. По e.code — в любой
+   * раскладке; поиск браузера не открывается.
+   * Esc закрывает сведения — раньше снятия выделения и закрытия окна Foundry; открытое меню
+   * закрывается первым (overlays.ts), набор текста в чужом поле не трогаем.
    */
   #registerFindKey(): void {
     const doc = (this.element as HTMLElement | null)?.ownerDocument ?? document;
     if (this.#onFindKey && this.#findKeyDocument === doc) return;
     this.#unregisterFindKey();
     this.#onFindKey = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.code !== "KeyF") return;
       if (!this.rendered || this.minimized) return;
+      if (e.key === "Escape") {
+        if (this.#infoTarget === null || this.#overlays?.isOpen() || isTypingOutside(e.target, this.#panel)) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        this.#closePanel();
+        return;
+      }
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.code !== "KeyF") return;
       e.preventDefault();
       e.stopPropagation();
       if (this.#searchQuery === null) {
@@ -1306,7 +1330,7 @@ export class GraphApp extends ApplicationV2 {
       const node = this.#currentData?.nodes.find((n) => n.id === nodeId);
       // gmOnly-узел игрок не правит и не ресайзит
       const editable = editing && node !== undefined && canEditNode(node, this.#isGM);
-      items.push({ label: t("RELGRAPH.Common.Info"), onSelect: () => this.#openInfo(target, client) });
+      items.push({ label: t("RELGRAPH.Common.Info"), onSelect: () => this.#openInfo(target) });
       if (editable) items.push({ label: t("RELGRAPH.Common.Edit"), onSelect: () => this.#openNodePanel(nodeId) });
       if (editing) {
         items.push({
@@ -1332,11 +1356,11 @@ export class GraphApp extends ApplicationV2 {
           },
         });
       } else {
-        items.push({ label: t("RELGRAPH.Common.Info"), onSelect: () => this.#openInfo(target, client) });
+        items.push({ label: t("RELGRAPH.Common.Info"), onSelect: () => this.#openInfo(target) });
       }
     } else if (target.kind === "faction") {
       const factionId = target.id;
-      items.push({ label: t("RELGRAPH.Common.Info"), onSelect: () => this.#openInfo(target, client) });
+      items.push({ label: t("RELGRAPH.Common.Info"), onSelect: () => this.#openInfo(target) });
       items.push({ label: t("RELGRAPH.Menu.SelectArea"), onSelect: () => this.#interaction?.selectFaction(factionId) });
       // игроку форма фракции открывается с правкой только описания
       if (editing) items.push({ label: t("RELGRAPH.Menu.EditFaction"), onSelect: () => this.#openFactionPanel(factionId) });
@@ -1470,7 +1494,8 @@ export class GraphApp extends ApplicationV2 {
 
     const selectedIds = this.#cy.$(":selected").map((el) => el.id());
     // панель поиска #display откроет заново сама, остальные — оставляем как есть
-    const keepPanel = this.#searchQuery === null ? { panel: this.#panel, reopen: this.#reopenPanel } : null;
+    const keepPanel =
+      this.#searchQuery === null ? { panel: this.#panel, reopen: this.#reopenPanel, infoTarget: this.#infoTarget } : null;
     if (keepPanel) {
       this.#panel = null;
       this.#reopenPanel = null;
@@ -1479,6 +1504,7 @@ export class GraphApp extends ApplicationV2 {
     if (keepPanel?.panel) {
       this.#panel = keepPanel.panel;
       this.#reopenPanel = keepPanel.reopen;
+      this.#infoTarget = keepPanel.infoTarget;
     }
     const cy = this.#cy as cytoscape.Core | null;
     selectedIds.forEach((id) => cy?.getElementById(id).select());
@@ -1519,7 +1545,6 @@ export class GraphApp extends ApplicationV2 {
     this.#emptyHint = null;
     this.#importControl = null;
     this.#history.clear();
-    this.#lastInfo = null;
     this.#interaction?.teardown();
     this.#interaction = null;
     this.#overlays?.destroy();

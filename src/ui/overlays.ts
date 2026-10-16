@@ -1,8 +1,8 @@
 /**
- * Всплывающие элементы поверх графа: контекстное меню (ПКМ) и карточка информации
- * (двойной клик). Обычный DOM, без Cytoscape — что показывать, решает GraphApp.
+ * Всплывающее контекстное меню (ПКМ) поверх графа. Обычный DOM, без Cytoscape — что
+ * показывать, решает GraphApp. Сведения об элементе — боковой панелью (panels/InfoPanel.ts).
  *
- * Одновременно открыт максимум один элемент. Закрывается по клику/прокрутке вне себя и по Esc.
+ * Одновременно открыто максимум одно меню. Закрывается по клику/прокрутке вне себя и по Esc.
  * host должен быть position:relative и НЕ быть контейнером Cytoscape (иначе клики по меню
  * доходили бы до графа).
  */
@@ -16,23 +16,11 @@ export interface MenuItem {
   onSelect(): void;
 }
 
-export interface InfoRow {
-  label: string;
-  value: string;
-}
-
-export interface InfoCard {
-  title: string;
-  subtitle?: string;
-  rows: InfoRow[];
-}
-
 export interface Overlays {
   /** client — clientX/clientY события мыши. Пустой список пунктов ничего не открывает. */
   showMenu(client: Point, items: MenuItem[]): void;
-  showInfo(client: Point, card: InfoCard): void;
-  /** Открыта ли сейчас карточка информации (не меню). */
-  isInfoOpen(): boolean;
+  /** Открыто ли сейчас меню. */
+  isOpen(): boolean;
   close(): void;
   destroy(): void;
 }
@@ -132,36 +120,8 @@ export function createOverlays(host: HTMLElement): Overlays {
       buttons[0].focus({ preventScroll: true });
     },
 
-    showInfo(client, card) {
-      const panel = document.createElement("div");
-      panel.className = "frg-overlay frg-info";
-
-      const title = document.createElement("div");
-      title.className = "frg-info-title";
-      title.textContent = card.title;
-      panel.append(title);
-
-      if (card.subtitle) {
-        const subtitle = document.createElement("div");
-        subtitle.className = "frg-info-subtitle";
-        subtitle.textContent = card.subtitle;
-        panel.append(subtitle);
-      }
-
-      for (const row of card.rows) {
-        const label = document.createElement("div");
-        label.className = "frg-info-label";
-        label.textContent = row.label;
-        const value = document.createElement("div");
-        value.className = "frg-info-value";
-        value.textContent = row.value;
-        panel.append(label, value);
-      }
-      open(panel, client);
-    },
-
-    isInfoOpen() {
-      return current?.classList.contains("frg-info") === true;
+    isOpen() {
+      return current !== null;
     },
 
     close,

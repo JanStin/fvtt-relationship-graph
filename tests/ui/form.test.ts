@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { addPanelTabs, colorField, createPanelShell, field, group, hint, segmented, textInput } from "../../src/ui/panels/form";
 import { createOverlays } from "../../src/ui/overlays";
+import { createInfoPanel } from "../../src/ui/panels/InfoPanel";
 
 const noop = { onSave() {}, onDelete() {}, onClose() {} };
 
@@ -106,6 +107,7 @@ describe("контекстное меню", () => {
     ]);
     const menu = host.querySelector("[role='menu']")!;
     const items = [...menu.querySelectorAll<HTMLButtonElement>("[role='menuitem']")];
+    expect(overlays.isOpen()).toBe(true);
     expect(document.activeElement).toBe(items[0]);
     expect(items[1].querySelector("kbd")!.textContent).toBe("Delete");
 
@@ -117,7 +119,25 @@ describe("контекстное меню", () => {
     items[0].click();
     expect(picked).toBe("1");
     expect(host.querySelector("[role='menu']")).toBeNull();
+    expect(overlays.isOpen()).toBe(false);
     overlays.destroy();
     host.remove();
+  });
+});
+
+describe("панель сведений", () => {
+  it("заголовок, подзаголовок и поля; крестик закрывает", () => {
+    let closed = false;
+    const panel = createInfoPanel(
+      { title: "Анна", subtitle: "Актёр", rows: [{ label: "Роль", value: "Кузнец" }] },
+      () => (closed = true),
+    );
+    expect(panel.classList.contains("frg-panel")).toBe(true);
+    expect(panel.querySelector(".frg-panel-title")!.textContent).toBe("Анна");
+    expect(panel.querySelector(".frg-info-subtitle")!.textContent).toBe("Актёр");
+    expect(panel.querySelector(".frg-field-label")!.textContent).toBe("Роль");
+    expect(panel.querySelector(".frg-info-value")!.textContent).toBe("Кузнец");
+    panel.querySelector<HTMLButtonElement>(".frg-panel-close")!.click();
+    expect(closed).toBe(true);
   });
 });

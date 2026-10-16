@@ -8,7 +8,7 @@
 import { t } from "./i18n";
 import type { GraphData, GraphNode } from "./model";
 
-/** Как скрытый узел называется у игроков там, где нужен текст (карточки, списки, панели). */
+/** Как скрытый узел называется у игроков там, где нужен текст (сведения, списки, панели). */
 export function unknownNodeName(): string {
   return t("RELGRAPH.Node.Unknown");
 }

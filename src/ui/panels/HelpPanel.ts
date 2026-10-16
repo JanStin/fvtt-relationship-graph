@@ -19,6 +19,7 @@ const MOUSE_ROWS = [
   "AltWheel",
   "SClick",
   "DoubleClick",
+  "InfoClick",
   "RightClick",
 ] as const;
 

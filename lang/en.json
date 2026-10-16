@@ -317,7 +317,11 @@
         },
         "DoubleClick": {
           "Keys": "Double-click",
-          "Text": "Info card; in edit mode — the edit panel"
+          "Text": "Details; in edit mode — the edit panel"
+        },
+        "InfoClick": {
+          "Keys": "LMB with details open",
+          "Text": "Details of the clicked node, edge or area"
         },
         "RightClick": {
           "Keys": "RMB",
@@ -328,7 +332,7 @@
         "Title": "Keyboard",
         "Esc": {
           "Keys": "Esc",
-          "Text": "Close the menu or card; clear the selection"
+          "Text": "Close the menu or details; clear the selection"
         },
         "Delete": {
           "Keys": "Delete",

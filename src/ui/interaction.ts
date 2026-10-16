@@ -17,7 +17,9 @@
  *   Shift+ЛКМ            — добавить узел к выделению / рамка выделения (нативно)
  *   Ctrl+ЛКМ             — панорамирование независимо от того, что под курсором (здесь)
  *   Alt+ЛКМ              — выбор области: выделяются все узлы фракции (здесь)
- *   двойной клик ЛКМ     — по узлу/связи/области (callback onInfo): в просмотре — информация,
+ *   клик ЛКМ             — по узлу/связи/области/фону (callback onClick): пока открыты
+ *                          сведения, они переключаются на нажатый элемент (решает GraphApp)
+ *   двойной клик ЛКМ     — по узлу/связи/области (callback onInfo): в просмотре — сведения,
  *                          в режиме редактирования — панель редактирования (решает GraphApp)
  *   ПКМ                  — контекстное меню (callback onContextMenu)
  *   S+ЛКМ по узлу        — быстрое создание связи: начать от узла / завершить на узле; если
@@ -29,8 +31,8 @@
  * Создание связи (startLinking): пока режим активен, клик по другому узлу завершает выбор
  * (callback onLinkPicked), Esc или ПКМ — отменяют; сверху висит подсказка.
  *
- * Сами меню и карточка информации — в overlays.ts, наполняет их GraphApp: этот файл
- * ничего не знает про GraphData.
+ * Само меню — в overlays.ts, сведения — в panels/InfoPanel.ts, наполняет их GraphApp: этот
+ * файл ничего не знает про GraphData.
  */
 
 import type cytoscape from "cytoscape";
@@ -76,6 +78,8 @@ export interface InteractionCallbacks {
   onContextMenu(target: GraphTarget, client: Point): void;
   /** Двойной клик ЛКМ по узлу, связи или области. */
   onInfo(target: GraphTarget, client: Point): void;
+  /** Одиночный клик ЛКМ (кроме выбора второго узла в режиме создания связи). */
+  onClick(target: GraphTarget): void;
   /** S+ЛКМ по узлу вне режима создания связи. Начинать ли режим (startLinking) — решает получатель. */
   onQuickLink(nodeId: string): void;
   /** В режиме создания связи выбран второй узел. */
@@ -91,7 +95,7 @@ export interface InteractionOptions {
   /**
    * false — режим просмотра: без resize, создания связей и перетаскивания (последнее
    * отключает graph-renderer.ts через autoungrabify). Выделение, панорамирование, меню и
-   * карточки работают.
+   * сведения работают.
    */
   editable: boolean;
 }
@@ -471,8 +475,14 @@ export function setupInteraction(
     if (cy) refreshAreaSelection(cy, (evt.target as cytoscape.NodeSingular).id());
   };
 
-  const onNodeTap = (evt: cytoscape.EventObject) => {
-    pickLinkTarget((evt.target as cytoscape.NodeSingular).id());
+  const onTap = (evt: cytoscape.EventObject) => {
+    const target = resolveTarget(evt);
+    // в режиме создания связи клик по узлу — выбор второго конца
+    if (linkSourceId !== null && target.kind === "node") {
+      pickLinkTarget(target.id);
+      return;
+    }
+    callbacks.onClick(target);
   };
 
   const onCxtTap = (evt: cytoscape.EventObject) => {
@@ -495,7 +505,7 @@ export function setupInteraction(
       cy.on("mouseout", "node[!isFaction]", onMouseOut);
       cy.on("dragfreeon", "node[!isFaction]", onDragFreeOn);
       cy.on("select unselect", "node[!isFaction]", onSelectionChanged);
-      cy.on("tap", "node[!isFaction]", onNodeTap);
+      cy.on("tap", onTap);
       cy.on("cxttap", onCxtTap);
       cy.on("dbltap", onDblTap);
     },
@@ -541,7 +551,7 @@ export function setupInteraction(
       cy?.off("mouseout", "node[!isFaction]", onMouseOut);
       cy?.off("dragfreeon", "node[!isFaction]", onDragFreeOn);
       cy?.off("select unselect", "node[!isFaction]", onSelectionChanged);
-      cy?.off("tap", "node[!isFaction]", onNodeTap);
+      cy?.off("tap", onTap);
       cy?.off("cxttap", onCxtTap);
       cy?.off("dbltap", onDblTap);
       cy = null;

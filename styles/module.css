@@ -43,7 +43,7 @@ body.theme-light #fvtt-relationship-graph-app:not(.theme-dark),
   --frg-toolbar-bg: #e2e8f0;
 }
 
-/* Всплывающие элементы поверх графа: контекстное меню и карточка информации (src/ui/overlays.ts). */
+/* Контекстное меню поверх графа (src/ui/overlays.ts). */
 .frg-overlay {
   position: absolute;
   z-index: 10;
@@ -99,31 +99,9 @@ body.theme-light #fvtt-relationship-graph-app:not(.theme-dark),
   outline: none;
 }
 
-.frg-info {
-  width: 280px;
-  max-height: 70%;
-  overflow-y: auto;
-  /* прокрутка колесом до края карточки не уходит дальше — в окно или граф */
-  overscroll-behavior: contain;
-  padding: 10px 12px;
-}
-
-.frg-info-title {
-  font-size: 15px;
-  font-weight: 600;
-}
-
+/* Панель сведений (src/ui/panels/InfoPanel.ts): подзаголовок и значения полей. */
 .frg-info-subtitle {
-  margin-top: 2px;
   color: var(--frg-text-muted);
-}
-
-.frg-info-label {
-  margin-top: 8px;
-  color: var(--frg-text-muted);
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .frg-info-value {
