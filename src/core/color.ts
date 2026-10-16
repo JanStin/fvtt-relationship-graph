@@ -1,7 +1,8 @@
 /**
  * Цвета областей фракций: разбор hex и смешение нескольких цветов в Oklab — перцептивно
  * равномерном пространстве, где середина между двумя цветами не уходит в грязно-серый.
- * Используется заливкой областей в режиме «смешение» (ui/faction-blobs.ts).
+ * Используется заливкой областей в режиме «смешение» (ui/faction-blobs.ts) и подбором цвета
+ * кнопок под цвет панели инструментов (isLightColor).
  */
 
 export type Rgb = [number, number, number];
@@ -27,6 +28,20 @@ function fromLinear(value: number): number {
   const c = value <= 0.0031308 ? 12.92 * value : 1.055 * value ** (1 / 2.4) - 0.055;
   return Math.round(Math.min(1, Math.max(0, c)) * 255);
 }
+
+/**
+ * Светлый ли цвет — тёмный текст на нём контрастнее белого (относительная яркость WCAG выше
+ * точки, где контраст с чёрным и белым равен). null — не "#rgb" / "#rrggbb".
+ */
+export function isLightColor(color: string): boolean | null {
+  const hex = color.trim().replace(/^#/, "");
+  if (!/^([0-9a-f]{3}|[0-9a-f]{6})$/i.test(hex)) return null;
+  const [r, g, b] = parseHexColor(color).map(toLinear);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > LIGHT_LUMINANCE;
+}
+
+/** Яркость, при которой контраст с чёрным и с белым одинаков: (L + 0.05)² = 1.05 · 0.05. */
+const LIGHT_LUMINANCE = Math.sqrt(1.05 * 0.05) - 0.05;
 
 /** sRGB (0–255) → Oklab. */
 export function rgbToOklab([r8, g8, b8]: Rgb): Oklab {

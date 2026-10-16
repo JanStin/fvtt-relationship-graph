@@ -5,7 +5,15 @@
  * DOM; применение значений — core/background.ts, сохранение и предпросмотр — GraphApp.
  */
 
-import { DEFAULT_GRAPH_FONT, defaultBackground, factionBlendOf, factionDisplayOf, type BackgroundEditValues } from "../../core/background";
+import {
+  DEFAULT_BACKGROUND_COLOR,
+  DEFAULT_GRAPH_FONT,
+  DEFAULT_TOOLBAR_COLOR,
+  defaultBackground,
+  factionBlendOf,
+  factionDisplayOf,
+  type BackgroundEditValues,
+} from "../../core/background";
 import { t } from "../../core/i18n";
 import type { BackgroundImageMode, FactionBlend, FactionDisplay, GraphBackground } from "../../core/model";
 import { addPanelTabs, browseImage, checkbox, colorField, createPanelShell, field, group, hint, segmented, select, textInput } from "./form";
@@ -111,8 +119,8 @@ export function createBackgroundPanel(
   const factionDisplay = segmented(factionDisplayOptions(), factionDisplayOf(current));
   const factionBlend = segmented(factionBlendOptions(), factionBlendOf(current));
 
-  const color = colorField(current.color);
-  const toolbarColor = colorField(current.toolbarColor ?? "");
+  const color = colorField(current.color, DEFAULT_BACKGROUND_COLOR);
+  const toolbarColor = colorField(current.toolbarColor ?? "", DEFAULT_TOOLBAR_COLOR);
 
   const image = textInput(current.image);
   image.placeholder = t("RELGRAPH.Background.NoImage");

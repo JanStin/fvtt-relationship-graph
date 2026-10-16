@@ -30,8 +30,9 @@ GM». Поэтому кнопка экспорта есть только у GM.
 - `nodes[]` — узлы: `id`, `type` (`actor` / `placeholder` / `image`), `actorId`, `name`,
   `originalName`, `img` (пустая строка — картинка по умолчанию), `imageSource` (`portrait` / `token`, у узла с актёром;
   нет — `portrait`), `imageFit` (`cover` / `contain` / `fill` / `scale-down`; нет — `cover`),
-  `imageAlign` (`top-left`, `top-right`,
-  `center`, `bottom-left`, `bottom-right`; нет или неизвестное — `center`), `x`, `y`, `scale`,
+  `imageAlign` (`top-left`, `top`, `top-right`, `left`,
+  `center`, `right`, `bottom-left`, `bottom`, `bottom-right`; нет или неизвестное — `center`;
+  `top`, `left`, `right`, `bottom` — с 1.5.0, версии раньше читают их как `center`), `x`, `y`, `scale`,
   `primaryFactionId`, `factionIds`, `role`, `lore`, `playerNotes`, `gmNotes`, `conditions`
   (id состояний), `hidden`, `gmOnly`.
 - `edges[]` — связи: `id`, `source`, `target`, `label`, `directional`, `relationshipTypeId`

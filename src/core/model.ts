@@ -7,7 +7,16 @@ export type ImageSource = "portrait" | "token";
 export type ImageFit = "cover" | "fill" | "contain" | "scale-down";
 
 /** Выравнивание картинки в узле (core/image-align.ts). */
-export type ImageAlign = "top-left" | "top-right" | "center" | "bottom-left" | "bottom-right";
+export type ImageAlign =
+  | "top-left"
+  | "top"
+  | "top-right"
+  | "left"
+  | "center"
+  | "right"
+  | "bottom-left"
+  | "bottom"
+  | "bottom-right";
 
 export interface GraphNode {
   id: string;

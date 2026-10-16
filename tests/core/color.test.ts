@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mixOklab, oklabToRgb, parseHexColor, rgbToOklab, type Rgb } from "../../src/core/color";
+import { isLightColor, mixOklab, oklabToRgb, parseHexColor, rgbToOklab, type Rgb } from "../../src/core/color";
 
 describe("parseHexColor", () => {
   it("читает #rrggbb и #rgb", () => {
@@ -68,5 +68,22 @@ describe("mixOklab", () => {
     const mixed = mixOklab([red, green, blue], [1, 1, 1]);
     expect(mixed).not.toBeNull();
     expect(mixed?.every((channel) => channel > 0)).toBe(true);
+  });
+});
+
+describe("isLightColor", () => {
+  it("светлые и тёмные цвета", () => {
+    expect(isLightColor("#ffffff")).toBe(true);
+    expect(isLightColor("#facc15")).toBe(true);
+    expect(isLightColor("#fff")).toBe(true);
+    expect(isLightColor("#0f172a")).toBe(false);
+    expect(isLightColor("#000")).toBe(false);
+    expect(isLightColor("#1e3a8a")).toBe(false);
+  });
+
+  it("не hex — null", () => {
+    expect(isLightColor("")).toBeNull();
+    expect(isLightColor("red")).toBeNull();
+    expect(isLightColor("#12345")).toBeNull();
   });
 });

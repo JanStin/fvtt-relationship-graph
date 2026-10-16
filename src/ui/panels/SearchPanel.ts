@@ -107,6 +107,31 @@ export function createSearchPanel(
     callbacks.onQuery(input.value);
   });
 
+  // Клавиатура: Enter в поле — к первому совпадению; стрелка вниз — в список, по строкам —
+  // стрелками, вверх с первой строки — обратно в поле. Enter на строке нажимает её штатно.
+  const rows = () => [...body.querySelectorAll<HTMLButtonElement>(".frg-search-row")];
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      rows()[0]?.click();
+    } else if (e.key === "ArrowDown") {
+      const first = rows()[0];
+      if (!first) return;
+      e.preventDefault();
+      first.focus();
+    }
+  });
+  body.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    const list = rows();
+    const index = list.indexOf(e.target as HTMLButtonElement);
+    if (index < 0) return;
+    e.preventDefault();
+    if (e.key === "ArrowDown") list[Math.min(index + 1, list.length - 1)].focus();
+    else if (index === 0) input.focus();
+    else list[index - 1].focus();
+  });
+
   const search = document.createElement("div");
   search.className = "frg-search-field";
   search.append(input);

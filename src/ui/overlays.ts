@@ -11,6 +11,8 @@ import type { Point } from "../core/hit-test";
 
 export interface MenuItem {
   label: string;
+  /** Клавиши того же действия — справа от пункта (например, `Delete`). */
+  shortcut?: string;
   onSelect(): void;
 }
 
@@ -84,20 +86,50 @@ export function createOverlays(host: HTMLElement): Overlays {
       }
       const menu = document.createElement("div");
       menu.className = "frg-overlay frg-menu";
-      for (const item of items) {
+      menu.setAttribute("role", "menu");
+      const buttons = items.map((item) => {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "frg-menu-item";
-        button.textContent = item.label;
+        button.setAttribute("role", "menuitem");
+        // фокус ходит стрелками, Tab из меню не уводит на каждый пункт
+        button.tabIndex = -1;
+        const label = document.createElement("span");
+        label.textContent = item.label;
+        button.append(label);
+        if (item.shortcut) {
+          const keys = document.createElement("kbd");
+          keys.className = "frg-menu-shortcut";
+          keys.textContent = item.shortcut;
+          button.append(keys);
+          button.setAttribute("aria-keyshortcuts", item.shortcut.replace(/ \+ /g, "+"));
+        }
         button.addEventListener("click", () => {
           close();
           item.onSelect();
         });
-        menu.append(button);
-      }
+        return button;
+      });
+      menu.append(...buttons);
+      // Стрелки — по пунктам по кругу, Home/End — к первому/последнему; Enter и пробел нажимают
+      // кнопку штатно, Esc закрывает меню (onKeyDown выше).
+      menu.addEventListener("keydown", (e) => {
+        const current = buttons.indexOf(doc.activeElement as HTMLButtonElement);
+        const last = buttons.length - 1;
+        let next: number;
+        if (e.key === "ArrowDown") next = current < 0 || current === last ? 0 : current + 1;
+        else if (e.key === "ArrowUp") next = current <= 0 ? last : current - 1;
+        else if (e.key === "Home") next = 0;
+        else if (e.key === "End") next = last;
+        else return;
+        e.preventDefault();
+        e.stopPropagation();
+        buttons[next].focus();
+      });
       // ПКМ по самому меню не должен открывать браузерное.
       menu.addEventListener("contextmenu", (e) => e.preventDefault());
       open(menu, client);
+      buttons[0].focus({ preventScroll: true });
     },
 
     showInfo(client, card) {

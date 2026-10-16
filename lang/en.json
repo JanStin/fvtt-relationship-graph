@@ -38,7 +38,8 @@
         "few": "{count} factions",
         "many": "{count} factions",
         "other": "{count} factions"
-      }
+      },
+      "ColorDefault": "Default"
     },
     "NodeType": {
       "Actor": "Actor",
@@ -86,7 +87,11 @@
       "PrimaryMark": "{name} (primary)",
       "Connections": "Connections ({count})",
       "DeleteConfirm": "Delete node “{name}”?",
-      "DeleteConfirmEdges": "Delete node “{name}” and its relationships ({count})?"
+      "DeleteConfirmEdges": "Delete node “{name}” and its relationships ({count})?",
+      "AlignTop": "Top",
+      "AlignBottom": "Bottom",
+      "AlignLeft": "Left",
+      "AlignRight": "Right"
     },
     "Edge": {
       "New": "New relationship",
@@ -211,7 +216,10 @@
       "FitAll": "Fit whole graph",
       "Popout": "Open in a new tab",
       "PopIn": "Return to the Foundry window",
-      "PopoutBlocked": "The browser blocked the new tab — allow pop-ups for this site."
+      "PopoutBlocked": "The browser blocked the new tab — allow pop-ups for this site.",
+      "EditingBadge": "Editing",
+      "EmptyHint": "The graph is empty. Click \"Edit\", then right-click an empty spot — \"Add node\".",
+      "EmptyHintEditing": "The graph is empty: right-click an empty spot — \"Add node\"."
     },
     "Menu": {
       "CreateEdge": "Create relationship",
@@ -224,7 +232,8 @@
       "Factions": "Factions…",
       "RelationshipTypes": "Relationship types…",
       "Conditions": "Conditions…",
-      "ClearSelection": "Clear selection"
+      "ClearSelection": "Clear selection",
+      "ShortcutLink": "S + LMB"
     },
     "Search": {
       "Panel": "Search",
@@ -259,6 +268,84 @@
         "NoVersion": "parseGraphFileJson: format version not specified",
         "NewerVersion": "parseGraphFileJson: file version {version}, module supports up to {supported} — update the module",
         "NoNodes": "parseGraphFileJson: missing or invalid data.nodes array"
+      }
+    },
+    "Help": {
+      "Panel": "Controls",
+      "EditOnly": "Dragging, Alt + wheel, S + LMB, Delete and Ctrl + Z / Y work only in edit mode.",
+      "Mouse": {
+        "Title": "Mouse",
+        "Wheel": {
+          "Keys": "Wheel",
+          "Text": "Zoom the view"
+        },
+        "MiddleDrag": {
+          "Keys": "Hold wheel",
+          "Text": "Pan the view"
+        },
+        "Click": {
+          "Keys": "LMB on a node",
+          "Text": "Select; drag to move it (the whole selected group)"
+        },
+        "DragEmpty": {
+          "Keys": "LMB off a node",
+          "Text": "Drag to pan the view; without moving — clear the selection"
+        },
+        "ShiftClick": {
+          "Keys": "Shift + LMB",
+          "Text": "Add a node to the selection or remove it"
+        },
+        "ShiftDrag": {
+          "Keys": "Shift + LMB + drag",
+          "Text": "Selection box"
+        },
+        "CtrlDrag": {
+          "Keys": "Ctrl + LMB + drag",
+          "Text": "Pan the view whatever is under the cursor"
+        },
+        "AltClickArea": {
+          "Keys": "Alt + LMB on an area",
+          "Text": "Select all nodes of the faction"
+        },
+        "AltWheel": {
+          "Keys": "Alt + wheel",
+          "Text": "Resize the selected nodes (or the node under the cursor)"
+        },
+        "SClick": {
+          "Keys": "S + LMB on a node",
+          "Text": "Create a relationship"
+        },
+        "DoubleClick": {
+          "Keys": "Double-click",
+          "Text": "Info card; in edit mode — the edit panel"
+        },
+        "RightClick": {
+          "Keys": "RMB",
+          "Text": "Context menu"
+        }
+      },
+      "Keyboard": {
+        "Title": "Keyboard",
+        "Esc": {
+          "Keys": "Esc",
+          "Text": "Close the menu or card; clear the selection"
+        },
+        "Delete": {
+          "Keys": "Delete",
+          "Text": "Delete the selection"
+        },
+        "Undo": {
+          "Keys": "Ctrl + Z",
+          "Text": "Undo"
+        },
+        "Redo": {
+          "Keys": "Ctrl + Y",
+          "Text": "Redo"
+        },
+        "Find": {
+          "Keys": "Ctrl + F",
+          "Text": "Search"
+        }
       }
     }
   }

@@ -8,12 +8,26 @@
 import { conditionIconClass, conditionLabel } from "../../core/conditions";
 import { factionName, primaryAfterUncheck, type NodeEditValues } from "../../core/edit";
 import { t } from "../../core/i18n";
-import { normalizeImageAlign } from "../../core/image-align";
+import { IMAGE_ALIGNS, normalizeImageAlign } from "../../core/image-align";
 import type { ConditionDef, Faction, GraphNode, ImageAlign, ImageFit, ImageSource, NodeType } from "../../core/model";
 import { normalizeImageFit, normalizeImageSource } from "../../core/node-image";
 import { SCALE_MAX, SCALE_MIN } from "../../core/selection";
 import { isDefaultNodeName } from "../../core/visibility";
-import { addPanelTabs, browseImage, checkbox, createPanelShell, field, hint, select, textArea, textInput } from "./form";
+import {
+  addPanelTabs,
+  browseImage,
+  checkbox,
+  createPanelShell,
+  field,
+  group,
+  hint,
+  segmented,
+  select,
+  textArea,
+  textInput,
+  type SegmentOption,
+  type Segmented,
+} from "./form";
 
 const NO_ACTOR = ""; // значение <option> «не выбран»; id актёров пустыми не бывают
 
@@ -33,23 +47,38 @@ function imageSourceOptions(): Array<{ value: ImageSource; label: string }> {
   ];
 }
 
-function imageFitOptions(): Array<{ value: ImageFit; label: string }> {
+function imageFitOptions(): Array<SegmentOption<ImageFit>> {
   return [
-    { value: "cover", label: t("RELGRAPH.Node.FitCover") },
-    { value: "contain", label: t("RELGRAPH.Node.FitContain") },
-    { value: "fill", label: t("RELGRAPH.Node.FitFill") },
-    { value: "scale-down", label: t("RELGRAPH.Node.FitScaleDown") },
+    { value: "cover", label: t("RELGRAPH.Node.FitCover"), icon: "fa-crop-simple" },
+    { value: "contain", label: t("RELGRAPH.Node.FitContain"), icon: "fa-compress" },
+    { value: "fill", label: t("RELGRAPH.Node.FitFill"), icon: "fa-up-right-and-down-left-from-center" },
+    { value: "scale-down", label: t("RELGRAPH.Node.FitScaleDown"), icon: "fa-down-left-and-up-right-to-center" },
   ];
 }
 
-function imageAlignOptions(): Array<{ value: ImageAlign; label: string }> {
-  return [
-    { value: "top-left", label: t("RELGRAPH.Node.AlignTopLeft") },
-    { value: "top-right", label: t("RELGRAPH.Node.AlignTopRight") },
-    { value: "center", label: t("RELGRAPH.Node.AlignCenter") },
-    { value: "bottom-left", label: t("RELGRAPH.Node.AlignBottomLeft") },
-    { value: "bottom-right", label: t("RELGRAPH.Node.AlignBottomRight") },
-  ];
+/** Сетка 3×3 построчно (IMAGE_ALIGNS); в каждой клетке — точка, выбранная подсвечена. */
+function imageAlignOptions(): Array<SegmentOption<ImageAlign>> {
+  const labels: Record<ImageAlign, string> = {
+    "top-left": t("RELGRAPH.Node.AlignTopLeft"),
+    top: t("RELGRAPH.Node.AlignTop"),
+    "top-right": t("RELGRAPH.Node.AlignTopRight"),
+    left: t("RELGRAPH.Node.AlignLeft"),
+    center: t("RELGRAPH.Node.AlignCenter"),
+    right: t("RELGRAPH.Node.AlignRight"),
+    "bottom-left": t("RELGRAPH.Node.AlignBottomLeft"),
+    bottom: t("RELGRAPH.Node.AlignBottom"),
+    "bottom-right": t("RELGRAPH.Node.AlignBottomRight"),
+  };
+  return IMAGE_ALIGNS.map((value) => ({ value, label: labels[value], icon: "fa-circle" }));
+}
+
+/** Под сегментами-иконками — подпись выбранного варианта (иконки сами по себе не очевидны). */
+function selectedCaption<T extends string>(control: Segmented<T>, options: ReadonlyArray<SegmentOption<T>>): HTMLElement {
+  const caption = hint("");
+  const sync = () => (caption.textContent = options.find((option) => option.value === control.value())?.label ?? "");
+  control.element.addEventListener("change", sync);
+  sync();
+  return caption;
 }
 
 export interface ActorOption {
@@ -202,8 +231,10 @@ export function createNodePanel(
   );
   const img = textInput(node.img);
   const imageSource = select(imageSourceOptions(), normalizeImageSource(node.imageSource));
-  const imageFit = select(imageFitOptions(), normalizeImageFit(node.imageFit));
-  const imageAlign = select(imageAlignOptions(), normalizeImageAlign(node.imageAlign));
+  const fitOptions = imageFitOptions();
+  const imageFit = segmented(fitOptions, normalizeImageFit(node.imageFit));
+  const alignOptions = imageAlignOptions();
+  const imageAlign = segmented(alignOptions, normalizeImageAlign(node.imageAlign), "frg-align-grid");
   const role = textInput(node.role);
   const factionPicker = createFactionPicker(node, factions, isGM);
   const scale = document.createElement("input");
@@ -234,8 +265,8 @@ export function createNodePanel(
         name: name.value,
         img: img.value,
         imageSource: imageSource.value as ImageSource,
-        imageFit: imageFit.value as ImageFit,
-        imageAlign: imageAlign.value as ImageAlign,
+        imageFit: imageFit.value(),
+        imageAlign: imageAlign.value(),
         role: role.value,
         ...factionPicker.value(),
         scale: scale.valueAsNumber,
@@ -308,10 +339,11 @@ export function createNodePanel(
         actorHint,
         sourceField,
         // у привязанного к актёру узла тоже можно: картинка от актёра, вид — свой
-        field(t("RELGRAPH.Node.ImageFit"), imageFit),
-        field(
+        group(t("RELGRAPH.Node.ImageFit"), imageFit.element, selectedCaption(imageFit, fitOptions)),
+        group(
           t("RELGRAPH.Node.ImageAlign"),
-          imageAlign,
+          imageAlign.element,
+          selectedCaption(imageAlign, alignOptions),
           hint(t("RELGRAPH.Node.ImageAlignHint")),
         ),
         field(t("RELGRAPH.Common.Size"), scale),

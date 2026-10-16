@@ -1,12 +1,57 @@
+/*
+ * Цвета интерфейса модуля (панели, меню, карточка, ползунок масштаба, панель инструментов) — здесь
+ * и только здесь. Тёмные — по умолчанию; светлые — при светлой теме Foundry 13: у окна графа
+ * (.theme-light) или у всего интерфейса (body.theme-light), если окну тема не задана отдельно.
+ * Подписи и значки на самом графе от темы не зависят — их цвета в своих правилах ниже.
+ */
+#fvtt-relationship-graph-app {
+  --frg-surface: #0f172a;
+  --frg-surface-raised: #1e293b;
+  --frg-hover: #334155;
+  --frg-border-subtle: #334155;
+  --frg-border: #475569;
+  --frg-border-strong: #64748b;
+  --frg-text: #e2e8f0;
+  --frg-text-strong: #f8fafc;
+  --frg-text-muted: #94a3b8;
+  --frg-accent: #facc15;
+  --frg-accent-text: #0f172a;
+  --frg-danger: #fca5a5;
+  --frg-focus: #60a5fa;
+  --frg-condition-icon: #fde68a;
+  --frg-shadow: rgba(0, 0, 0, 0.5);
+  --frg-toolbar-bg: #0f172a;
+}
+
+body.theme-light #fvtt-relationship-graph-app:not(.theme-dark),
+#fvtt-relationship-graph-app.theme-light {
+  --frg-surface: #f8fafc;
+  --frg-surface-raised: #ffffff;
+  --frg-hover: #e2e8f0;
+  --frg-border-subtle: #cbd5e1;
+  --frg-border: #94a3b8;
+  --frg-border-strong: #64748b;
+  --frg-text: #1e293b;
+  --frg-text-strong: #0f172a;
+  --frg-text-muted: #475569;
+  --frg-accent: #facc15;
+  --frg-accent-text: #0f172a;
+  --frg-danger: #b91c1c;
+  --frg-focus: #2563eb;
+  --frg-condition-icon: #b45309;
+  --frg-shadow: rgba(15, 23, 42, 0.25);
+  --frg-toolbar-bg: #e2e8f0;
+}
+
 /* Всплывающие элементы поверх графа: контекстное меню и карточка информации (src/ui/overlays.ts). */
 .frg-overlay {
   position: absolute;
   z-index: 10;
-  background: #0f172a;
-  color: #e2e8f0;
-  border: 1px solid #475569;
+  background: var(--frg-surface);
+  color: var(--frg-text);
+  border: 1px solid var(--frg-border);
   border-radius: 6px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 6px 18px var(--frg-shadow);
   font-size: 13px;
 }
 
@@ -29,13 +74,27 @@
   font-size: inherit;
   line-height: 1.3;
   text-align: left;
-  justify-content: flex-start;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
   cursor: pointer;
+}
+
+/* Клавиши действия справа от пункта меню. */
+.frg-menu .frg-menu-shortcut {
+  flex: 0 0 auto;
+  color: var(--frg-text-muted);
+  font-size: 12px;
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 0;
 }
 
 .frg-menu .frg-menu-item:hover,
 .frg-menu .frg-menu-item:focus-visible {
-  background: #334155;
+  background: var(--frg-hover);
   box-shadow: none;
   outline: none;
 }
@@ -44,6 +103,8 @@
   width: 280px;
   max-height: 70%;
   overflow-y: auto;
+  /* прокрутка колесом до края карточки не уходит дальше — в окно или граф */
+  overscroll-behavior: contain;
   padding: 10px 12px;
 }
 
@@ -54,13 +115,13 @@
 
 .frg-info-subtitle {
   margin-top: 2px;
-  color: #94a3b8;
+  color: var(--frg-text-muted);
 }
 
 .frg-info-label {
   margin-top: 8px;
-  color: #94a3b8;
-  font-size: 11px;
+  color: var(--frg-text-muted);
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -81,10 +142,10 @@
   flex-direction: column;
   width: 300px;
   max-width: 80%;
-  background: #0f172a;
-  color: #e2e8f0;
-  border-left: 1px solid #475569;
-  box-shadow: -6px 0 18px rgba(0, 0, 0, 0.4);
+  background: var(--frg-surface);
+  color: var(--frg-text);
+  border-left: 1px solid var(--frg-border);
+  box-shadow: -6px 0 18px var(--frg-shadow);
   font-size: 13px;
 }
 
@@ -125,20 +186,20 @@
   display: flex;
   gap: 4px;
   padding: 0 12px 8px;
-  border-bottom: 1px solid #334155;
+  border-bottom: 1px solid var(--frg-border-subtle);
 }
 
 .frg-panel .frg-panel-tab {
   flex: 1 1 0;
   background: transparent;
-  color: #94a3b8;
-  border: 1px solid #334155;
+  color: var(--frg-text-muted);
+  border: 1px solid var(--frg-border-subtle);
 }
 
 .frg-panel .frg-panel-tab-active {
-  background: #1e293b;
-  color: #f8fafc;
-  border-color: #64748b;
+  background: var(--frg-surface-raised);
+  color: var(--frg-text-strong);
+  border-color: var(--frg-border-strong);
 }
 
 .frg-panel-pane {
@@ -156,8 +217,8 @@
 
 .frg-field-label,
 .frg-field-hint {
-  color: #94a3b8;
-  font-size: 11px;
+  color: var(--frg-text-muted);
+  font-size: 12px;
 }
 
 .frg-field-label {
@@ -185,9 +246,9 @@
 .frg-panel select,
 .frg-panel textarea {
   width: 100%;
-  background: #1e293b;
-  color: #e2e8f0;
-  border: 1px solid #475569;
+  background: var(--frg-surface-raised);
+  color: var(--frg-text);
+  border: 1px solid var(--frg-border);
 }
 
 .frg-panel textarea {
@@ -216,23 +277,66 @@
 .frg-segment span {
   display: block;
   padding: 3px 6px;
-  border: 1px solid #334155;
+  border: 1px solid var(--frg-border-subtle);
   border-radius: 3px;
-  color: #94a3b8;
+  color: var(--frg-text-muted);
   text-align: center;
   white-space: nowrap;
   cursor: pointer;
 }
 
 .frg-segment input:checked + span {
-  background: #1e293b;
-  color: #f8fafc;
-  border-color: #64748b;
+  background: var(--frg-surface-raised);
+  color: var(--frg-text-strong);
+  border-color: var(--frg-border-strong);
 }
 
 .frg-segment input:focus-visible + span {
-  outline: 2px solid #60a5fa;
+  outline: 2px solid var(--frg-focus);
   outline-offset: 1px;
+}
+
+/* Сетка 3×3 выравнивания картинки узла: точка в клетке, у выбранной — яркая. */
+.frg-segmented.frg-align-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 28px);
+  gap: 3px;
+}
+
+.frg-align-grid .frg-segment span {
+  padding: 4px 0;
+  font-size: 6px;
+  line-height: 12px;
+  color: var(--frg-border-strong);
+}
+
+.frg-align-grid .frg-segment input:checked + span {
+  color: var(--frg-accent);
+}
+
+/* «Не задан» у цвета (colorField с пустым полем): палитра показывает цвет по умолчанию приглушённо. */
+.frg-panel input[type="color"].frg-color-unset {
+  opacity: 0.45;
+}
+
+/* Шпаргалка управления (panels/HelpPanel.ts): клавиши слева, действие справа. */
+.frg-help-list {
+  display: grid;
+  grid-template-columns: minmax(0, 42%) 1fr;
+  gap: 6px 10px;
+  margin: 0 0 6px;
+}
+
+.frg-help-list dt {
+  font-weight: normal;
+}
+
+.frg-help-list dd {
+  margin: 0;
+}
+
+.frg-help-list kbd {
+  white-space: normal;
 }
 
 /* Ползунок с числом (панель «Настройки графа»: непрозрачность). */
@@ -273,7 +377,7 @@
 }
 
 .frg-panel .frg-panel-delete {
-  color: #fca5a5;
+  color: var(--frg-danger);
 }
 
 /* Декор узлов поверх канваса: подпись, ромбики фракций, иконки состояний (src/ui/node-decor.ts). */
@@ -313,7 +417,7 @@
   gap: 8px;
   align-items: center;
   padding: 6px 10px;
-  background: var(--frg-toolbar-color, #0f172a);
+  background: var(--frg-toolbar-color, var(--frg-toolbar-bg));
 }
 
 .frg-toolbar button {
@@ -354,8 +458,95 @@
 
 /* Кнопка «Редактировать», пока этот пользователь — редактор. */
 .frg-toolbar .frg-toolbar-active {
-  background: #facc15;
+  background: var(--frg-accent);
+  color: var(--frg-accent-text);
+}
+
+/* Отмена/повтор вне режима редактирования спрятаны; display группы перебивал бы [hidden]. */
+.frg-toolbar .frg-toolbar-group[hidden] {
+  display: none;
+}
+
+/*
+ * Свой цвет панели инструментов (GraphApp.#applyToolbarColor): кнопки — переменными кнопок
+ * Foundry 13, контрастно к яркости фона. Без своего цвета панель и кнопки — в цветах темы.
+ */
+.frg-toolbar.frg-toolbar-on-light {
+  --button-text-color: #0f172a;
+  --button-background-color: rgba(15, 23, 42, 0.08);
+  --button-border-color: rgba(15, 23, 42, 0.45);
+  --button-hover-text-color: #0f172a;
+  --button-hover-background-color: rgba(15, 23, 42, 0.16);
   color: #0f172a;
+}
+
+.frg-toolbar.frg-toolbar-on-dark {
+  --button-text-color: #f1f5f9;
+  --button-background-color: rgba(255, 255, 255, 0.08);
+  --button-border-color: rgba(255, 255, 255, 0.35);
+  --button-hover-text-color: #ffffff;
+  --button-hover-background-color: rgba(255, 255, 255, 0.16);
+  color: #f1f5f9;
+}
+
+.frg-toolbar.frg-toolbar-on-light button:not(.frg-toolbar-active),
+.frg-toolbar.frg-toolbar-on-dark button:not(.frg-toolbar-active) {
+  color: var(--button-text-color);
+  background: var(--button-background-color);
+  border-color: var(--button-border-color);
+}
+
+.frg-toolbar.frg-toolbar-on-light button:not(.frg-toolbar-active):hover,
+.frg-toolbar.frg-toolbar-on-dark button:not(.frg-toolbar-active):hover {
+  color: var(--button-hover-text-color);
+  background: var(--button-hover-background-color);
+}
+
+/* Режим редактирования — рамка и плашка поверх графа (GraphApp, cyHost). Мышь не ловят. */
+.frg-edit-frame {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border: 2px solid var(--frg-accent);
+  pointer-events: none;
+}
+
+.frg-edit-frame[hidden] {
+  display: none;
+}
+
+.frg-edit-badge {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 2px 8px;
+  border-bottom-right-radius: 4px;
+  background: var(--frg-accent);
+  color: var(--frg-accent-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Пустой граф — подсказка по центру (GraphApp.#updateGraphHints). */
+.frg-empty-hint {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  max-width: 80%;
+  transform: translate(-50%, -50%);
+  padding: 8px 14px;
+  border: 1px solid var(--frg-border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--frg-surface) 85%, transparent);
+  color: var(--frg-text);
+  font-size: 13px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.frg-empty-hint[hidden] {
+  display: none;
 }
 
 /* Градиентная окольцовка узла «Правит только GM» (gmOnly, включая скрытые): кольцо снаружи рамки узла. */
@@ -480,7 +671,7 @@
   flex: 0 0 auto;
   width: 12px;
   height: 12px;
-  border: 1px solid #475569;
+  border: 1px solid var(--frg-border);
   border-radius: 2px;
 }
 
@@ -510,7 +701,7 @@
   flex: 0 0 auto;
   width: 16px;
   text-align: center;
-  color: #fde68a;
+  color: var(--frg-condition-icon);
 }
 
 .frg-condition-preview {
@@ -541,11 +732,13 @@
   display: none;
 }
 
-/* Ползунок масштаба в правом нижнем углу графа (src/ui/zoom-control.ts). Под боковой
-   панелью (z-index 9) — пока она открыта, контрол ею закрыт. */
+/* Ползунок масштаба в правом нижнем углу графа (src/ui/zoom-control.ts). Пока открыта боковая
+   панель, он сдвигается влево на её ширину (та же формула, что width/max-width у .frg-panel —
+   проценты обоих считаются от wrapper окна). */
 .frg-zoom {
   position: absolute;
   right: 12px;
+  transition: right 0.15s ease;
   bottom: 12px;
   z-index: 5;
   display: flex;
@@ -553,10 +746,14 @@
   align-items: center;
   gap: 4px;
   padding: 6px 4px;
-  background: rgba(15, 23, 42, 0.85);
-  border: 1px solid #475569;
+  background: color-mix(in srgb, var(--frg-surface) 85%, transparent);
+  border: 1px solid var(--frg-border);
   border-radius: 6px;
-  color: #e2e8f0;
+  color: var(--frg-text);
+}
+
+:has(> .frg-panel) > .frg-zoom {
+  right: calc(min(300px, 80%) + 12px);
 }
 
 .frg-zoom .frg-zoom-button {
@@ -598,16 +795,23 @@
   --frg-zoom-fill: 50%;
 }
 
+/* Свечение фокуса Foundry повёрнутому ползунку не подходит — своя рамка, только с клавиатуры. */
 .frg-zoom input.frg-zoom-slider:focus {
   outline: none;
   box-shadow: none;
+}
+
+.frg-zoom input.frg-zoom-slider:focus-visible {
+  outline: 2px solid var(--frg-focus);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .frg-zoom input.frg-zoom-slider::-webkit-slider-runnable-track {
   height: 4px;
   border: none;
   border-radius: 2px;
-  background: linear-gradient(to right, #facc15 var(--frg-zoom-fill), #475569 var(--frg-zoom-fill));
+  background: linear-gradient(to right, var(--frg-accent) var(--frg-zoom-fill), var(--frg-border) var(--frg-zoom-fill));
 }
 
 /* Бегунок шире дорожки и по центру неё: margin-top = (4 − 14) / 2. */
@@ -617,31 +821,31 @@
   width: 14px;
   height: 14px;
   margin-top: -5px;
-  border: 2px solid #0f172a;
+  border: 2px solid var(--frg-surface);
   border-radius: 50%;
-  background: #e2e8f0;
-  box-shadow: 0 0 0 1px #94a3b8;
+  background: var(--frg-text);
+  box-shadow: 0 0 0 1px var(--frg-text-muted);
 }
 
 .frg-zoom input.frg-zoom-slider::-moz-range-track {
   height: 4px;
   border: none;
   border-radius: 2px;
-  background: linear-gradient(to right, #facc15 var(--frg-zoom-fill), #475569 var(--frg-zoom-fill));
+  background: linear-gradient(to right, var(--frg-accent) var(--frg-zoom-fill), var(--frg-border) var(--frg-zoom-fill));
 }
 
 .frg-zoom input.frg-zoom-slider::-moz-range-thumb {
   width: 10px;
   height: 10px;
-  border: 2px solid #0f172a;
+  border: 2px solid var(--frg-surface);
   border-radius: 50%;
-  background: #e2e8f0;
+  background: var(--frg-text);
 }
 
 .frg-zoom-label {
   min-width: 40px;
-  color: #94a3b8;
-  font-size: 10px;
+  color: var(--frg-text-muted);
+  font-size: 12px;
   text-align: center;
 }
 
@@ -687,9 +891,9 @@
 
 .frg-panel .frg-search-input {
   width: 100%;
-  background: #1e293b;
-  color: #e2e8f0;
-  border: 1px solid #475569;
+  background: var(--frg-surface-raised);
+  color: var(--frg-text);
+  border: 1px solid var(--frg-border);
 }
 
 /* flex: none — в переполненном списке строки не сжимаются, а прокручиваются. */
@@ -709,7 +913,7 @@
   width: 32px;
   height: 32px;
   object-fit: cover;
-  border: 1px solid #475569;
+  border: 1px solid var(--frg-border);
   border-radius: 50%;
 }
 

@@ -40,6 +40,7 @@ import {
   toolbarColor,
   type BackgroundEditValues,
 } from "../core/background";
+import { isLightColor } from "../core/color";
 import {
   allConditions,
   conditionLabel,
@@ -91,6 +92,7 @@ import { createOverlays, type MenuItem, type Overlays } from "./overlays";
 import { adoptIntoPopout, canPopout, openPopout, windowOf, type Popout } from "./popout";
 import { createZoomControl, type ZoomControl } from "./zoom-control";
 import { createBackgroundPanel } from "./panels/BackgroundPanel";
+import { createHelpPanel } from "./panels/HelpPanel";
 import { createConditionListPanel, createConditionPanel } from "./panels/ConditionPanel";
 import { createEdgePanel } from "./panels/EdgePanel";
 import { createFactionListPanel, createFactionPanel } from "./panels/FactionPanel";
@@ -183,6 +185,9 @@ export class GraphApp extends ApplicationV2 {
   #redoButton: HTMLButtonElement | null = null;
   #backgroundButton: HTMLButtonElement | null = null;
   #searchButton: HTMLButtonElement | null = null;
+  #helpButton: HTMLButtonElement | null = null;
+  /** Открыта шпаргалка управления. */
+  #helpOpen = false;
   #importControl: ImportControl | null = null;
   /** История отмены/повтора — только на время сеанса редактирования. */
   #history = new GraphHistory();
@@ -200,6 +205,12 @@ export class GraphApp extends ApplicationV2 {
   /** «Вернуть в окно Foundry» на панели инструментов — видна только во вкладке (заголовок там скрыт). */
   #popInButton: HTMLButtonElement | null = null;
   #toolbar: HTMLElement | null = null;
+  /** Отмена/повтор — видны только в режиме редактирования. */
+  #historyGroup: HTMLElement | null = null;
+  /** Рамка и плашка «Редактирование» поверх графа (в cyHost). */
+  #editFrame: HTMLElement | null = null;
+  /** Подсказка пустого графа «ПКМ — добавить узел» (в cyHost). */
+  #emptyHint: HTMLElement | null = null;
 
   /** Рамка окна Foundry плюс кнопка «Отдельное окно» перед крестиком. */
   async _renderFrame(options: unknown): Promise<HTMLElement> {
@@ -255,7 +266,8 @@ export class GraphApp extends ApplicationV2 {
     // Отмена/повтор — доступны в режиме редактирования, когда есть что отменять/повторять.
     this.#undoButton = button("fa-rotate-left", t("RELGRAPH.Graph.Undo"), () => void this.#undo());
     this.#redoButton = button("fa-rotate-right", t("RELGRAPH.Graph.Redo"), () => void this.#redo());
-    toolbar.append(group(this.#undoButton, this.#redoButton));
+    this.#historyGroup = group(this.#undoButton, this.#redoButton);
+    toolbar.append(this.#historyGroup);
 
     // Поиск — всем и в любом режиме; повторный клик закрывает панель.
     this.#searchButton = button("fa-magnifying-glass", t("RELGRAPH.Search.Panel"), () => this.#toggleSearch());
@@ -275,6 +287,10 @@ export class GraphApp extends ApplicationV2 {
       this.#backgroundButton = button("fa-image", t("RELGRAPH.Background.Panel"), () => this.#openBackgroundPanel());
       toolbar.append(group(this.#backgroundButton));
     }
+
+    // Шпаргалка управления — всем и в любом режиме; повторный клик закрывает.
+    this.#helpButton = button("fa-question", t("RELGRAPH.Help.Panel"), () => this.#toggleHelp());
+    toolbar.append(group(this.#helpButton));
 
     // Импорт и экспорт — только GM, справа. Импорт — только в режиме редактирования.
     if (this.#isGM) {
@@ -298,6 +314,20 @@ export class GraphApp extends ApplicationV2 {
     const cyHost = document.createElement("div");
     // position/overflow — для слоя декора узлов (node-decor.ts), он живёт внутри cyHost.
     cyHost.style.cssText = `position:relative;overflow:hidden;flex:1 1 auto;min-height:0;background:${DEFAULT_BACKGROUND_COLOR};`;
+
+    // Поверх канвасов Cytoscape (z-index в module.css), мышь не ловят.
+    const editFrame = document.createElement("div");
+    editFrame.className = "frg-edit-frame";
+    const editBadge = document.createElement("div");
+    editBadge.className = "frg-edit-badge";
+    editBadge.textContent = t("RELGRAPH.Graph.EditingBadge");
+    editFrame.append(editBadge);
+    this.#editFrame = editFrame;
+    const emptyHint = document.createElement("div");
+    emptyHint.className = "frg-empty-hint";
+    this.#emptyHint = emptyHint;
+    cyHost.append(editFrame, emptyHint);
+    this.#updateToolbar();
 
     // ползунок масштаба — в wrapper поверх правого нижнего угла графа (см. zoom-control.ts)
     this.#zoomControl?.destroy();
@@ -533,13 +563,28 @@ export class GraphApp extends ApplicationV2 {
         : `<i class="fa-solid fa-pen"></i> ${t("RELGRAPH.Common.Edit")}`;
       button.title = busy && editor ? t("RELGRAPH.Graph.EditingBy", { user: userName(editor) }) : "";
     }
+    if (this.#historyGroup) this.#historyGroup.hidden = !this.#editing;
     if (this.#undoButton) this.#undoButton.disabled = !this.#editing || !this.#history.canUndo;
     if (this.#redoButton) this.#redoButton.disabled = !this.#editing || !this.#history.canRedo;
+    this.#updateGraphHints();
     this.#importControl?.setEnabled(this.#editing);
     if (this.#backgroundButton) {
       this.#backgroundButton.disabled = !this.#editing;
       this.#backgroundButton.title = this.#editing ? t("RELGRAPH.Background.Panel") : t("RELGRAPH.Background.PanelDisabled");
     }
+  }
+
+  /**
+   * Знак режима редактирования на графе и подсказка пустого графа. Пустой — нет ни одного узла
+   * на графе (у игрока скрытые узлы тоже нарисованы, как «Неизвестный»).
+   */
+  #updateGraphHints(): void {
+    if (this.#editFrame) this.#editFrame.hidden = !this.#editing;
+    const hint = this.#emptyHint;
+    if (!hint) return;
+    const empty = this.#cy !== null && this.#cy.nodes("[!isFaction]").empty();
+    hint.hidden = !empty;
+    hint.textContent = this.#editing ? t("RELGRAPH.Graph.EmptyHintEditing") : t("RELGRAPH.Graph.EmptyHint");
   }
 
   // ---------------------------------------------------------------------------------------
@@ -597,7 +642,7 @@ export class GraphApp extends ApplicationV2 {
     // шрифт подписей: HTML-слою (node-decor.ts) — через CSS-переменную, Cytoscape — в стиле связей
     const fontFamily = graphFontFamily(hydrated.background);
     this.#cyHost.style.setProperty("--frg-font", fontFamily);
-    this.#toolbar?.style.setProperty("--frg-toolbar-color", toolbarColor(hydrated.background));
+    this.#applyToolbarColor(hydrated.background);
     this.#cy = renderGraph(this.#cyHost, hydrated, { isGM: this.#isGM, editable: this.#editing, fontFamily });
     if (viewport) this.#cy.viewport(viewport);
     this.#interaction.bind(this.#cy);
@@ -615,6 +660,7 @@ export class GraphApp extends ApplicationV2 {
     this.#resizeObserver.observe(this.#cyHost);
 
     if (searchQuery !== null) this.#openSearch(searchQuery, false);
+    this.#updateGraphHints();
   }
 
   /**
@@ -685,6 +731,8 @@ export class GraphApp extends ApplicationV2 {
     if (this.#searchQuery !== null) this.#dimBySearch("");
     this.#searchQuery = null;
     this.#searchButton?.classList.remove("frg-toolbar-active");
+    this.#helpOpen = false;
+    this.#helpButton?.classList.remove("frg-toolbar-active");
   }
 
   // ---------------------------------------------------------------------------------------
@@ -719,6 +767,17 @@ export class GraphApp extends ApplicationV2 {
     if (this.#onFindKey) this.#findKeyDocument?.removeEventListener("keydown", this.#onFindKey, { capture: true });
     this.#onFindKey = null;
     this.#findKeyDocument = null;
+  }
+
+  /** Шпаргалка управления; повторный клик по «?» закрывает её. */
+  #toggleHelp(): void {
+    if (this.#helpOpen) {
+      this.#closePanel();
+      return;
+    }
+    this.#mountPanel(createHelpPanel(() => this.#closePanel()));
+    this.#helpOpen = true;
+    this.#helpButton?.classList.add("frg-toolbar-active");
   }
 
   #toggleSearch(): void {
@@ -1120,9 +1179,24 @@ export class GraphApp extends ApplicationV2 {
    * Перестраивает слои фона и цвет панели инструментов без перерисовки графа — для предпросмотра
    * и отката. Шрифт и вид фракций не трогает: они в стиле Cytoscape.
    */
+  /**
+   * Цвет панели инструментов. Свой цвет GM — inline-переменной и классом светлого/тёмного фона:
+   * под него подбираются цвета кнопок (module.css). Без своего цвета — цвет темы Foundry.
+   */
+  #applyToolbarColor(background: GraphBackground | null | undefined): void {
+    const toolbar = this.#toolbar;
+    if (!toolbar) return;
+    const custom = background?.toolbarColor?.trim() ?? "";
+    const light = custom ? isLightColor(custom) : null;
+    if (custom) toolbar.style.setProperty("--frg-toolbar-color", toolbarColor(background));
+    else toolbar.style.removeProperty("--frg-toolbar-color");
+    toolbar.classList.toggle("frg-toolbar-on-light", light === true);
+    toolbar.classList.toggle("frg-toolbar-on-dark", light === false);
+  }
+
   #showBackground(background: GraphBackground | null): void {
     if (!this.#cyHost || !this.#cy || !this.#background) return;
-    this.#toolbar?.style.setProperty("--frg-toolbar-color", toolbarColor(background));
+    this.#applyToolbarColor(background);
     const blend = appliedFactionBlend(background);
     if (blend !== this.#factionBlobsBlend) {
       this.#factionBlobs?.destroy();
@@ -1234,7 +1308,13 @@ export class GraphApp extends ApplicationV2 {
       const editable = editing && node !== undefined && canEditNode(node, this.#isGM);
       items.push({ label: t("RELGRAPH.Common.Info"), onSelect: () => this.#openInfo(target, client) });
       if (editable) items.push({ label: t("RELGRAPH.Common.Edit"), onSelect: () => this.#openNodePanel(nodeId) });
-      if (editing) items.push({ label: t("RELGRAPH.Menu.CreateEdge"), onSelect: () => this.#interaction?.startLinking(nodeId) });
+      if (editing) {
+        items.push({
+          label: t("RELGRAPH.Menu.CreateEdge"),
+          shortcut: t("RELGRAPH.Menu.ShortcutLink"),
+          onSelect: () => this.#interaction?.startLinking(nodeId),
+        });
+      }
       // Лист актёра открывает только GM: игроку он выдал бы лишнее (у скрытого узла — ещё и кто это).
       const actorId = node && this.#isGM ? node.actorId : null;
       const actor = actorId ? game.actors?.get(actorId) : null;
@@ -1246,6 +1326,7 @@ export class GraphApp extends ApplicationV2 {
         items.push({ label: t("RELGRAPH.Menu.EditEdge"), onSelect: () => this.#openEdgePanel(edgeId) });
         items.push({
           label: t("RELGRAPH.Edge.Delete"),
+          shortcut: "Delete",
           onSelect: () => {
             void this.#deleteEdge(edgeId);
           },
@@ -1279,7 +1360,7 @@ export class GraphApp extends ApplicationV2 {
 
     items.push({ label: t("RELGRAPH.Graph.FitAll"), onSelect: () => this.#cy?.fit(undefined, 30) });
     if (this.#cy?.$(":selected").nonempty()) {
-      items.push({ label: t("RELGRAPH.Menu.ClearSelection"), onSelect: () => this.#cy?.$(":selected").unselect() });
+      items.push({ label: t("RELGRAPH.Menu.ClearSelection"), shortcut: "Esc", onSelect: () => this.#cy?.$(":selected").unselect() });
     }
 
     this.#overlays?.showMenu(client, items);
@@ -1431,6 +1512,11 @@ export class GraphApp extends ApplicationV2 {
     this.#redoButton = null;
     this.#backgroundButton = null;
     this.#searchButton = null;
+    this.#helpButton = null;
+    this.#helpOpen = false;
+    this.#historyGroup = null;
+    this.#editFrame = null;
+    this.#emptyHint = null;
     this.#importControl = null;
     this.#history.clear();
     this.#lastInfo = null;
