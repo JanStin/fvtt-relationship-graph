@@ -847,6 +847,8 @@ export class GraphApp extends ApplicationV2 {
           this.#dimBySearch(value);
         },
         onPick: (target) => this.#showSearchTarget(target),
+        // сведения заменяют панель поиска — запрос сбрасывается, как при открытии любой панели
+        onOpen: (target) => this.#openInfo(target),
         onClose: () => this.#closePanel(),
       },
       { isGM: this.#isGM, focus },

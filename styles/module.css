@@ -199,6 +199,12 @@ body.theme-light #fvtt-relationship-graph-app:not(.theme-dark),
   box-shadow: none;
 }
 
+/* Участник фракции, конец связи — как строка поиска: миниатюра, имя, роль под ним. */
+.frg-panel .frg-info-link-member {
+  gap: 8px;
+  padding: 6px 8px;
+}
+
 .frg-info-link-stroke {
   flex: 0 0 18px;
   width: 18px;

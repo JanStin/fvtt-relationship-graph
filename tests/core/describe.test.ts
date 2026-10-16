@@ -147,6 +147,7 @@ describe("describeNode", () => {
       edgeId: "e2",
       direction: "in",
       stroke: { color: "#000000", dash: null, gmOnly: false },
+      portrait: null,
     });
     expect(block?.kind === "links" && block.groups).toBeUndefined();
   });
@@ -281,6 +282,8 @@ describe("describeEdge", () => {
     expect(d.header).toMatchObject({ kind: "edge", directional: true, color: "#000000", dash: null, gmOnly: false });
 
     expect(describeEdge(data, "e1", { isGM: false })!.title).toBe("командует");
+    // концы — с миниатюрой, как результаты поиска
+    expect(ends?.kind === "links" && ends.links[1].portrait).toMatchObject({ border: "#ff0000" });
   });
 
   it("gmOnly-связь игроку не описывается, GM — со значком", () => {
@@ -315,7 +318,11 @@ describe("describeFaction", () => {
   });
 
   it("скрытый участник у игрока — «Неизвестный», у GM — по имени", () => {
-    expect(value(describeFaction(withHidden, "f1", { isGM: false })!, "Участники")).toBe("Неизвестный | Боб");
+    const player = describeFaction(withHidden, "f1", { isGM: false })!;
+    expect(value(player, "Участники")).toBe("Неизвестный | Боб");
+    // миниатюра скрытого участника — заглушка
+    const members = blockOf(player, "Участники");
+    expect(members?.kind === "links" && members.links[0].portrait).toEqual({ img: "", fit: "cover", align: "center", border: null });
     expect(value(describeFaction(withHidden, "f1", { isGM: true })!, "Участники")).toBe("Алиса: Капитан | Боб");
   });
 

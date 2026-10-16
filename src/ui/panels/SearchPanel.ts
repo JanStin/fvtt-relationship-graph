@@ -1,7 +1,7 @@
 /**
  * Панель поиска: одно поле ищет сразу по узлам и связям, результаты — общим списком
  * (сначала узлы, затем связи). Клик по строке — выделить элемент и показать его на графе,
- * панель при этом остаётся открытой.
+ * панель при этом остаётся открытой; двойной клик — открыть его сведения вместо поиска.
  * Как и остальные панели — только DOM; сам поиск — core/search.ts, выделение — GraphApp.
  */
 
@@ -21,6 +21,8 @@ export interface SearchPanelCallbacks {
   /** Запрос изменился (в том числе стал пустым). */
   onQuery(query: string): void;
   onPick(target: SearchTarget): void;
+  /** Двойной клик по строке — сведения об элементе. */
+  onOpen(target: SearchTarget): void;
   onClose(): void;
 }
 
@@ -59,6 +61,7 @@ export function createSearchPanel(
     button.className = "frg-search-row";
     button.append(...content);
     button.addEventListener("click", () => callbacks.onPick(target));
+    button.addEventListener("dblclick", () => callbacks.onOpen(target));
     return button;
   };
   const text = (className: string, value: string) => {

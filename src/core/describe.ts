@@ -76,6 +76,8 @@ export interface InfoLink {
   direction: LinkDirection;
   /** Полоска перед строкой — цвет и штрих типа связи; null — без полоски. */
   stroke: { color: string | null; dash: number[] | null; gmOnly: boolean } | null;
+  /** Миниатюра узла слева (участник фракции, конец связи); null — строка связи, без миниатюры. */
+  portrait: Portrait | null;
 }
 
 /** Группа связей одного типа. */
@@ -136,8 +138,8 @@ function pushText(blocks: DescriptionBlock[], label: string, text: string): void
   if (text.trim() !== "") blocks.push({ kind: "text", label, text });
 }
 
-/** Ссылка на узел без связи: участник фракции, конец связи. */
-function nodeLink(node: GraphNode, isGM: boolean): InfoLink {
+/** Ссылка на узел без связи: участник фракции, конец связи — с миниатюрой, как в поиске. */
+function nodeLink(data: GraphData, node: GraphNode, isGM: boolean): InfoLink {
   return {
     label: displayName(node, isGM),
     caption: isMasked(node, isGM) ? "" : node.role.trim(),
@@ -145,6 +147,7 @@ function nodeLink(node: GraphNode, isGM: boolean): InfoLink {
     edgeId: null,
     direction: "none",
     stroke: null,
+    portrait: portraitOf(data, node, isGM),
   };
 }
 
@@ -166,6 +169,7 @@ function connectionsBlock(data: GraphData, nodeId: string, isGM: boolean): Descr
       edgeId: edge.id,
       direction: edge.directional ? (outgoing ? "out" : "in") : "none",
       stroke: { color: type?.color || null, dash: parseDash(type?.dash ?? ""), gmOnly: edge.gmOnly },
+      portrait: null,
     };
   };
   const links = edges.map(linkOf);
@@ -268,7 +272,7 @@ export function describeEdge(data: GraphData, edgeId: string, options: DescribeO
 
   const blocks: DescriptionBlock[] = [];
   if (ends.length > 0) {
-    blocks.push({ kind: "links", label: t("RELGRAPH.Edge.Ends"), links: ends.map((n) => nodeLink(n, options.isGM)) });
+    blocks.push({ kind: "links", label: t("RELGRAPH.Edge.Ends"), links: ends.map((n) => nodeLink(data, n, options.isGM)) });
   }
   if (type) {
     blocks.push({
@@ -308,7 +312,7 @@ export function describeFaction(data: GraphData, factionId: string, options: Des
   // У скрытого узла игрок видит только основную фракцию (область) — остальные не выдаём.
   const members = data.nodes
     .filter((n) => (isMasked(n, options.isGM) ? n.primaryFactionId === factionId : n.factionIds.includes(factionId)))
-    .map((n) => nodeLink(n, options.isGM));
+    .map((n) => nodeLink(data, n, options.isGM));
   if (members.length > 0) {
     blocks.push({ kind: "links", label: t("RELGRAPH.Faction.Members", { count: members.length }), links: members });
   }

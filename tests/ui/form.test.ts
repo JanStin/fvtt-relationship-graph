@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { addPanelTabs, colorField, createPanelShell, field, group, hint, segmented, textInput } from "../../src/ui/panels/form";
 import { createOverlays } from "../../src/ui/overlays";
 import { createInfoPanel } from "../../src/ui/panels/InfoPanel";
+import { DEFAULT_NODE_IMG } from "../../src/ui/graph-renderer";
 
 const noop = { onSave() {}, onDelete() {}, onClose() {} };
 
@@ -181,6 +182,7 @@ describe("панель сведений", () => {
       edgeId: "e1",
       direction: "out",
       stroke: { color: "#00ff00", dash: null, gmOnly: true },
+      portrait: null,
     } as const;
     const panel = createInfoPanel(
       {
@@ -201,8 +203,34 @@ describe("панель сведений", () => {
     expect(opened).toEqual([{ kind: "node", id: "b" }]);
   });
 
+  it("участник фракции — строкой как в поиске: миниатюра, имя, роль под ним", () => {
+    const opened: unknown[] = [];
+    const link = {
+      label: "Неизвестный",
+      caption: "Капитан",
+      nodeId: "b",
+      edgeId: null,
+      direction: "none",
+      stroke: null,
+      portrait: { img: "", fit: "cover", align: "top", border: null },
+    } as const;
+    const panel = createInfoPanel(
+      { title: "Стража", header: { kind: "faction", color: "#000000" }, blocks: [{ kind: "links", label: "Участники (1)", links: [link] }] },
+      { ...silent, onOpen: (target) => opened.push(target) },
+    );
+    const row = panel.querySelector<HTMLButtonElement>(".frg-info-link-member")!;
+    const thumb = row.querySelector<HTMLImageElement>(".frg-search-thumb")!;
+    // пустой путь (скрытый у игрока) — заглушка
+    expect(thumb.getAttribute("src")).toBe(DEFAULT_NODE_IMG);
+    expect(row.querySelector(".frg-search-name")!.textContent).toBe("Неизвестный");
+    expect(row.querySelector(".frg-field-hint")!.textContent).toBe("Капитан");
+    expect(row.querySelector(".frg-info-link-caption")).toBeNull();
+    row.click();
+    expect(opened).toEqual([{ kind: "node", id: "b" }]);
+  });
+
   it("группы связей сворачиваются заголовком", () => {
-    const link = { label: "Боб", caption: "", nodeId: "b", edgeId: "e1", direction: "none", stroke: null } as const;
+    const link = { label: "Боб", caption: "", nodeId: "b", edgeId: "e1", direction: "none", stroke: null, portrait: null } as const;
     const panel = createInfoPanel(
       {
         title: "Анна",

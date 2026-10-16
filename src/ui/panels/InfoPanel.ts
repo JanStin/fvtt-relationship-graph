@@ -151,30 +151,74 @@ function infoHeader(description: Description, onClose: () => void): HTMLElement 
 const DIRECTION_ICONS = { out: "fa-arrow-right", in: "fa-arrow-left", none: "fa-minus" } as const;
 const DIRECTION_LABELS = { out: "RELGRAPH.Info.Outgoing", in: "RELGRAPH.Info.Incoming", none: "RELGRAPH.Info.Undirected" } as const;
 
-/** Строка-ссылка на узел: полоска типа связи, направление, имя, подпись. */
-function linkRow(link: InfoLink, actions: InfoPanelActions): HTMLElement {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "frg-info-link";
+/** Миниатюра в строке участника или конца связи — как в результатах поиска. */
+function linkThumb(portrait: Portrait): HTMLImageElement {
+  const image = document.createElement("img");
+  image.className = "frg-search-thumb";
+  image.src = portrait.img || DEFAULT_NODE_IMG;
+  image.alt = "";
+  image.style.objectFit = portrait.fit;
+  const position = imageAlignPosition(portrait.align);
+  image.style.objectPosition = `${position.x} ${position.y}`;
+  return image;
+}
+
+/** Имя и роль под ним — текст строки участника. */
+function memberText(link: InfoLink): HTMLElement {
+  const info = document.createElement("span");
+  info.className = "frg-search-info";
+  const name = document.createElement("span");
+  name.className = "frg-search-name";
+  name.textContent = link.label;
+  info.append(name);
+  if (link.caption) {
+    const role = document.createElement("span");
+    role.className = "frg-field-hint";
+    role.textContent = link.caption;
+    info.append(role);
+  }
+  return info;
+}
+
+/** Полоска типа, направление, имя и подпись в строку — содержимое строки связи. */
+function connectionContent(link: InfoLink): Element[] {
+  const content: Element[] = [];
   if (link.stroke) {
-    button.append(strokeLine("frg-info-link-stroke", 18, link.stroke.color, strokeDash(link.stroke.dash, link.stroke.gmOnly), false));
+    content.push(strokeLine("frg-info-link-stroke", 18, link.stroke.color, strokeDash(link.stroke.dash, link.stroke.gmOnly), false));
     const direction = document.createElement("span");
     direction.className = "frg-info-link-direction";
     direction.title = t(DIRECTION_LABELS[link.direction]);
     direction.setAttribute("role", "img");
     direction.setAttribute("aria-label", t(DIRECTION_LABELS[link.direction]));
     direction.append(icon(`fa-solid ${DIRECTION_ICONS[link.direction]}`));
-    button.append(direction);
+    content.push(direction);
   }
   const name = document.createElement("span");
   name.className = "frg-info-link-name";
   name.textContent = link.label;
-  button.append(name);
+  content.push(name);
   if (link.caption) {
     const caption = document.createElement("span");
     caption.className = "frg-info-link-caption";
     caption.textContent = link.caption;
-    button.append(caption);
+    content.push(caption);
+  }
+  return content;
+}
+
+/**
+ * Строка-ссылка на узел. Связь — полоска типа, направление, имя, подпись в строку; участник
+ * фракции и конец связи — миниатюра, справа имя, под ним роль (как в поиске).
+ */
+function linkRow(link: InfoLink, actions: InfoPanelActions): HTMLElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "frg-info-link";
+  if (link.portrait) {
+    button.classList.add("frg-info-link-member");
+    button.append(linkThumb(link.portrait), memberText(link));
+  } else {
+    button.append(...connectionContent(link));
   }
 
   const hover = { nodeId: link.nodeId, edgeId: link.edgeId };
