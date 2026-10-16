@@ -8,6 +8,7 @@ import {
   removeElements,
   removeFaction,
   removeNode,
+  reorderFaction,
   updateEdge,
   updateFaction,
   updateNode,
@@ -279,5 +280,13 @@ describe("removeFaction", () => {
   it("неизвестная фракция — no-op", () => {
     const data = dataWithMembers();
     expect(removeFaction(data, "nope")).toEqual(data);
+  });
+});
+
+describe("reorderFaction", () => {
+  it("меняет порядок массива; двигать некуда — те же данные", () => {
+    const data = makeData();
+    expect(reorderFaction(data, "f1", 1).factions.map((f) => f.id)).toEqual(["f2", "f1"]);
+    expect(reorderFaction(data, "f2", 2)).toBe(data);
   });
 });

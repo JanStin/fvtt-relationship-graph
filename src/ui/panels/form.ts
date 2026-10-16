@@ -1,3 +1,4 @@
+import { indexForSlot, type MoveStep } from "../../core/catalog-order";
 import { contentLinkFromDrop } from "../../core/content-links";
 import { t } from "../../core/i18n";
 import { adoptIntoPopout } from "../popout";
@@ -409,5 +410,91 @@ export function segmented<T extends string>(
   return {
     element,
     value: () => (inputs.find((input) => input.checked)?.value ?? current) as T,
+  };
+}
+
+/** Тип данных перетаскивания строки справочника — чтобы чужие перетаскивания (актёры, файлы) не принимать. */
+const CATALOG_DRAG_TYPE = "application/x-frg-catalog";
+
+/**
+ * Ручной порядок строк справочника (GM в режиме редактирования): стрелки ↑/↓ и перетаскивание.
+ * Возвращает обёртку строки; состояние перетаскивания общее на весь список. Строка сама бывает
+ * кнопкой — стрелки не внутри неё, а рядом. У первой строки «выше» выключена, у последней —
+ * «ниже». onMove получает новое место строки. data-move-id/data-move-step — чтобы после
+ * перестановки вернуть фокус на ту же стрелку (GraphApp).
+ */
+export function catalogReorder(
+  count: number,
+  onMove: (id: string, index: number) => void,
+): (row: HTMLElement, id: string, index: number) => HTMLElement {
+  const items: HTMLElement[] = [];
+  let dragged: { id: string; index: number } | null = null;
+
+  const clearDropMarks = () => {
+    for (const item of items) item.classList.remove("frg-drop-before", "frg-drop-after");
+  };
+  // курсор в нижней половине строки — щель после неё, в верхней — перед ней
+  const isAfter = (item: HTMLElement, event: DragEvent) => {
+    const rect = item.getBoundingClientRect();
+    return event.clientY > rect.top + rect.height / 2;
+  };
+
+  return (row, id, index) => {
+    const item = document.createElement("div");
+    item.className = "frg-catalog-item";
+    item.draggable = true;
+    items.push(item);
+
+    const arrow = (step: MoveStep, icon: string, title: string, disabled: boolean) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "frg-catalog-move";
+      button.innerHTML = `<i class="fa-solid ${icon}"></i>`;
+      button.title = title;
+      button.setAttribute("aria-label", title);
+      button.dataset.moveId = id;
+      button.dataset.moveStep = String(step);
+      button.disabled = disabled;
+      button.addEventListener("click", () => onMove(id, index + step));
+      return button;
+    };
+    item.append(
+      row,
+      arrow(-1, "fa-arrow-up", t("RELGRAPH.Common.MoveUp"), index === 0),
+      arrow(1, "fa-arrow-down", t("RELGRAPH.Common.MoveDown"), index === count - 1),
+    );
+
+    item.addEventListener("dragstart", (event) => {
+      dragged = { id, index };
+      event.dataTransfer?.setData(CATALOG_DRAG_TYPE, id);
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+      item.classList.add("frg-dragging");
+    });
+    item.addEventListener("dragover", (event) => {
+      if (!dragged) return; // перетаскивают не строку этого списка
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+      const after = isAfter(item, event);
+      clearDropMarks();
+      item.classList.add(after ? "frg-drop-after" : "frg-drop-before");
+    });
+    item.addEventListener("dragleave", (event) => {
+      if (!item.contains(event.relatedTarget as Node | null)) item.classList.remove("frg-drop-before", "frg-drop-after");
+    });
+    item.addEventListener("drop", (event) => {
+      if (!dragged) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const source = dragged;
+      const target = indexForSlot(source.index, isAfter(item, event) ? index + 1 : index);
+      clearDropMarks();
+      if (target !== source.index) onMove(source.id, target);
+    });
+    item.addEventListener("dragend", () => {
+      dragged = null;
+      clearDropMarks();
+      item.classList.remove("frg-dragging");
+    });
+    return item;
   };
 }

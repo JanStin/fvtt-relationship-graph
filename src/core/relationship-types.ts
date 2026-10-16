@@ -3,6 +3,7 @@
  * разбор стиля линии. Чистая логика, как core/conditions.ts.
  */
 
+import { moveToIndex } from "./catalog-order";
 import { t } from "./i18n";
 import type { GraphData, RelationshipType } from "./model";
 
@@ -163,4 +164,10 @@ export function removeRelationshipType(data: GraphData, typeId: string): GraphDa
     relationshipTypes: data.relationshipTypes.filter((rt) => rt.id !== typeId),
     edges: data.edges.map((e) => (e.relationshipTypeId === typeId ? { ...e, relationshipTypeId: "" } : e)),
   };
+}
+
+/** Ставит тип на место index в справочнике (порядок массива). Двигать некуда — данные как есть. */
+export function reorderRelationshipType(data: GraphData, typeId: string, index: number): GraphData {
+  const moved = moveToIndex(data.relationshipTypes, typeId, index);
+  return moved ? { ...data, relationshipTypes: moved } : data;
 }

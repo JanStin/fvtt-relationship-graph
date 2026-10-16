@@ -126,6 +126,15 @@ describe("экспорт → импорт", () => {
     expect(parseGraphFileJson(roundTrip({ ...graph, background: null })).data.background ?? null).toBeNull();
   });
 
+  it("сохраняет ручной порядок состояний", () => {
+    const ordered: GraphData = { ...graph, conditionOrder: ["cursed", "deceased"] };
+    expect(parseGraphFileJson(roundTrip(ordered)).data).toEqual(ordered);
+  });
+
+  it("порядок состояний null или не массив — без ручного порядка", () => {
+    expect(parseGraphFileJson(roundTrip({ ...graph, conditionOrder: null })).data.conditionOrder).toBeUndefined();
+  });
+
   it("parseGraphFile распознаёт свой формат", () => {
     const result = parseGraphFile(roundTrip(graph));
     expect(result.format).toBe("native");

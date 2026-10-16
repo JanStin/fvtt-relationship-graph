@@ -115,13 +115,13 @@ describe("describeNode", () => {
     });
   });
 
-  it("при нескольких фракциях выделяет основную", () => {
+  it("при нескольких фракциях выделяет основную; порядок — справочника", () => {
     const many: GraphData = {
       ...data,
       factions: [...data.factions, { id: "f2", name: "Гильдия", color: "#00ff00", description: "" }],
       nodes: [makeNode({ id: "x", factionIds: ["f2", "f1"], primaryFactionId: "f2" })],
     };
-    expect(value(describeNode(many, "x", { isGM: false })!, "Фракции")).toBe("Гильдия*, Стража");
+    expect(value(describeNode(many, "x", { isGM: false })!, "Фракции")).toBe("Стража, Гильдия*");
   });
 
   it("состояния — чипами с названием и иконкой из справочника", () => {
@@ -136,6 +136,16 @@ describe("describeNode", () => {
       { label: "Проклят", icon: "fa-solid fa-ghost" },
       { label: "неизвестное", icon: expect.stringContaining("fa-solid") },
     ]);
+  });
+
+  it("чипы состояний — в порядке справочника, а не в порядке отметки у узла", () => {
+    const ordered: GraphData = {
+      ...data,
+      conditions: [{ id: "cursed", label: "Проклят", icon: "fa-ghost" }],
+      conditionOrder: ["cursed", "deceased"],
+      nodes: [makeNode({ id: "x", conditions: ["deceased", "cursed"] })],
+    };
+    expect(value(describeNode(ordered, "x", { isGM: false })!, "Состояния")).toBe("Проклят, Мёртв");
   });
 
   it("связи — ссылками на соседей: направление, подпись или тип, полоска типа", () => {

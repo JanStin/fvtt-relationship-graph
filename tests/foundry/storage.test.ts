@@ -72,7 +72,19 @@ describe("saveGraphData + loadGraphData", () => {
     expect(loaded).toEqual({
       ...SAMPLE,
       relationshipTypes: DEFAULT_RELATIONSHIP_TYPES,
+      background: null,
+      conditionOrder: null,
     });
+  });
+
+  it("необязательные поля, которых нет, пишутся null: setFlag сливает объекты и сохранил бы старое", async () => {
+    mock = installMockFoundry();
+    await saveGraphData({ ...SAMPLE, conditionOrder: ["deceased"] });
+    await saveGraphData(SAMPLE);
+
+    const loaded = await loadGraphData();
+    expect(loaded?.conditionOrder).toBeNull();
+    expect(loaded?.background).toBeNull();
   });
 
   it("повторное сохранение переиспользует существующий JournalEntry, не создаёт дубликат", async () => {

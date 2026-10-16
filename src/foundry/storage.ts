@@ -88,5 +88,11 @@ export async function loadGraphData(): Promise<GraphData | null> {
 
 export async function saveGraphData(data: GraphData): Promise<void> {
   const entry = await getOrCreateStorageEntry();
-  await entry.setFlag(FLAG_SCOPE, FLAG_KEY, data);
+  // setFlag сливает объекты: необязательное поле, которого нет (например после отмены шага,
+  // где его ещё не было), осталось бы в хранилище со старым значением — пишем null.
+  await entry.setFlag(FLAG_SCOPE, FLAG_KEY, {
+    ...data,
+    background: data.background ?? null,
+    conditionOrder: data.conditionOrder ?? null,
+  });
 }

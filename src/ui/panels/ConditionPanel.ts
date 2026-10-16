@@ -8,11 +8,16 @@
 import { conditionIconClass, conditionLabel, isBuiltinCondition, isDefaultConditionLabel, type ConditionEditValues } from "../../core/conditions";
 import { t } from "../../core/i18n";
 import type { ConditionDef } from "../../core/model";
-import { createPanelShell, field, hint, panelHeader, textInput } from "./form";
+import { createPanelShell, field, hint, panelHeader, catalogReorder, textInput } from "./form";
 
 export interface ConditionListCallbacks {
   onEdit(conditionId: string): void;
   onCreate(): void;
+  /**
+   * Стрелка ↑/↓ или перетаскивание строки (только при editable); index — её новое место.
+   * Встроенные двигаются наравне со своими.
+   */
+  onMove(conditionId: string, index: number): void;
   onClose(): void;
 }
 
@@ -36,7 +41,8 @@ export function createConditionListPanel(
   const body = document.createElement("div");
   body.className = "frg-panel-body";
 
-  for (const condition of conditions) {
+  const reorderRow = options.editable ? catalogReorder(conditions.length, (id, index) => callbacks.onMove(id, index)) : null;
+  conditions.forEach((condition, index) => {
     // у игрока строка — просто текст, без клика
     const row = document.createElement(options.editable ? "button" : "div");
     row.className = "frg-faction-row";
@@ -57,8 +63,9 @@ export function createConditionListPanel(
         row.addEventListener("click", () => callbacks.onEdit(condition.id));
       }
     }
-    body.append(row);
-  }
+    // стрелки — у того, кто правит справочник (GM в режиме редактирования)
+    body.append(reorderRow ? reorderRow(row, condition.id, index) : row);
+  });
 
   element.append(panelHeader(t("RELGRAPH.Common.Conditions"), callbacks.onClose), body);
   if (options.editable) {

@@ -4,6 +4,7 @@
  * Чистая логика поверх GraphData — без DOM и Foundry; GM-only данные отсекаются здесь же.
  */
 
+import { idsInCatalogOrder } from "./catalog-order";
 import { allConditions, conditionIconClass, conditionLabel } from "./conditions";
 import { factionName } from "./edit";
 import { t } from "./i18n";
@@ -221,9 +222,8 @@ export function describeNode(data: GraphData, nodeId: string, options: DescribeO
   pushText(blocks, "notes", t("RELGRAPH.Node.Notes"), node.playerNotes);
   if (options.isGM) pushText(blocks, "gmNotes", t("RELGRAPH.Node.GmNotes"), node.gmNotes);
 
-  const factions = node.factionIds
-    .map((id) => data.factions.find((f) => f.id === id))
-    .filter((f) => f !== undefined);
+  // чипы — в порядке справочника, а не в порядке, в каком их отметили у узла
+  const factions = data.factions.filter((f) => node.factionIds.includes(f.id));
   if (factions.length > 0) {
     blocks.push({
       kind: "chips",
@@ -239,13 +239,14 @@ export function describeNode(data: GraphData, nodeId: string, options: DescribeO
     });
   }
 
-  const conditionById = new Map(allConditions(data).map((c) => [c.id, c]));
+  const catalog = allConditions(data);
+  const conditionById = new Map(catalog.map((c) => [c.id, c]));
   if (node.conditions.length > 0) {
     blocks.push({
       kind: "chips",
       id: "conditions",
       label: t("RELGRAPH.Common.Conditions"),
-      chips: node.conditions.map((id) => {
+      chips: idsInCatalogOrder(node.conditions, catalog).map((id) => {
         const condition = conditionById.get(id);
         return { label: condition ? conditionLabel(condition) : id, icon: conditionIconClass(condition?.icon ?? "") };
       }),

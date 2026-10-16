@@ -1097,6 +1097,38 @@ body.theme-light .frg-info-dialog:not(.theme-dark),
   text-align: left;
 }
 
+/* строка справочника со стрелками ручного порядка (form.ts: reorderableRow) */
+.frg-catalog-item {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.frg-panel .frg-catalog-item > .frg-faction-row {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* перетаскивание строки: сама строка приглушена, место вставки — линией сверху или снизу */
+.frg-catalog-item.frg-dragging {
+  opacity: 0.5;
+}
+
+.frg-catalog-item.frg-drop-before {
+  box-shadow: inset 0 2px 0 var(--frg-accent);
+}
+
+.frg-catalog-item.frg-drop-after {
+  box-shadow: inset 0 -2px 0 var(--frg-accent);
+}
+
+.frg-panel .frg-catalog-move {
+  flex: 0 0 2em;
+  width: 2em;
+  height: auto;
+  padding: 0;
+}
+
 .frg-faction-name {
   flex: 1 1 auto;
   min-width: 0;

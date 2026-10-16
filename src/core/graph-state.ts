@@ -3,6 +3,7 @@
  * Не зависит от Cytoscape/Foundry — см. docs/architecture.md §8 (src/core/ не знает о Foundry).
  */
 
+import { moveToIndex } from "./catalog-order";
 import type { Faction, GraphData, GraphEdge, GraphNode } from "./model";
 
 export function addNode(data: GraphData, node: GraphNode): GraphData {
@@ -143,4 +144,13 @@ export function removeFaction(data: GraphData, factionId: string): GraphData {
     return { ...n, factionIds, primaryFactionId };
   });
   return { ...data, nodes, factions: data.factions.filter((f) => f.id !== factionId) };
+}
+
+/**
+ * Ставит фракцию на место index в справочнике (порядок массива). От порядка зависит и то, какая
+ * область рисуется поверх (core/faction-areas.ts). Двигать некуда — данные как есть.
+ */
+export function reorderFaction(data: GraphData, factionId: string, index: number): GraphData {
+  const moved = moveToIndex(data.factions, factionId, index);
+  return moved ? { ...data, factions: moved } : data;
 }

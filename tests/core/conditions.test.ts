@@ -9,6 +9,7 @@ import {
   ensureConditionDefs,
   isBuiltinCondition,
   removeCondition,
+  reorderCondition,
   updateCondition,
 } from "../../src/core/conditions";
 import type { GraphData, GraphNode } from "../../src/core/model";
@@ -156,5 +157,37 @@ describe("removeCondition", () => {
   it("встроенное и неизвестное состояние — ошибка", () => {
     expect(() => removeCondition(makeData(), "deceased")).toThrow(/built-in/);
     expect(() => removeCondition(makeData(), "nope")).toThrow(/not found/);
+  });
+});
+
+describe("reorderCondition", () => {
+  const ids = (data: GraphData) => allConditions(data).map((c) => c.id);
+
+  it("без порядка — встроенные, затем свои", () => {
+    expect(ids(makeData())).toEqual(["deceased", "questgiver", "captured", "missing", "cursed"]);
+  });
+
+  it("своё двигается выше встроенного; порядок пишется целиком", () => {
+    const result = reorderCondition(makeData(), "cursed", 3);
+    expect(result.conditionOrder).toEqual(["deceased", "questgiver", "captured", "cursed", "missing"]);
+    expect(ids(result)).toEqual(result.conditionOrder);
+  });
+
+  it("встроенное двигается наравне со своими — в том числе через несколько мест", () => {
+    expect(ids(reorderCondition(makeData(), "deceased", 4))).toEqual(["questgiver", "captured", "missing", "cursed", "deceased"]);
+    expect(ids(reorderCondition(makeData(), "deceased", 1))).toEqual(["questgiver", "deceased", "captured", "missing", "cursed"]);
+  });
+
+  it("двигать некуда — те же данные", () => {
+    const data = makeData();
+    expect(reorderCondition(data, "deceased", 0)).toBe(data);
+    expect(reorderCondition(data, "cursed", 5)).toBe(data);
+  });
+
+  it("новое состояние после ручного порядка — в конце; удалённое уходит из порядка", () => {
+    const moved = reorderCondition(makeData(), "cursed", 3);
+    const created = createCondition(moved, "new", { label: "Новое", icon: "" });
+    expect(ids(created).slice(-2)).toEqual(["missing", "new"]);
+    expect(removeCondition(created, "cursed").conditionOrder).toEqual(["deceased", "questgiver", "captured", "missing"]);
   });
 });

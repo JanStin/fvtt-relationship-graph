@@ -8,6 +8,7 @@ import {
   parseDash,
   relationshipTypeLabel,
   removeRelationshipType,
+  reorderRelationshipType,
   updateRelationshipType,
 } from "../../src/core/relationship-types";
 import { installRuTranslator } from "../setup/i18n";
@@ -153,5 +154,13 @@ describe("relationshipTypeLabel", () => {
   it("переименованный стандартный и свой тип — как введены", () => {
     expect(relationshipTypeLabel({ id: "romantic", label: "Любовь", color: "", dash: "" })).toBe("Любовь");
     expect(relationshipTypeLabel({ id: "t1", label: "Союз", color: "", dash: "" })).toBe("Союз");
+  });
+});
+
+describe("reorderRelationshipType", () => {
+  it("меняет порядок массива; двигать некуда — те же данные", () => {
+    const data = makeData();
+    expect(reorderRelationshipType(data, "enemy", 0).relationshipTypes.map((rt) => rt.id)).toEqual(["enemy", "ally"]);
+    expect(reorderRelationshipType(data, "ally", 0)).toBe(data);
   });
 });

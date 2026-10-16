@@ -4,6 +4,7 @@
  * Узел ссылается на состояния по id (GraphNode.conditions).
  */
 
+import { moveToIndex, sortByOrder } from "./catalog-order";
 import { t } from "./i18n";
 import type { ConditionDef, GraphData } from "./model";
 
@@ -48,9 +49,18 @@ export function isBuiltinCondition(conditionId: string): boolean {
   return BUILTIN_CONDITIONS.some((c) => c.id === conditionId);
 }
 
-/** Весь справочник: встроенные, затем свои. */
+/**
+ * Весь справочник в порядке справочника (GraphData.conditionOrder): без ручного порядка —
+ * встроенные, затем свои; состояния, которых нет в порядке (созданные позже), — в конце.
+ */
 export function allConditions(data: GraphData): ConditionDef[] {
-  return [...builtinConditions(), ...data.conditions];
+  return sortByOrder([...builtinConditions(), ...data.conditions], data.conditionOrder);
+}
+
+/** Ставит состояние (встроенное или своё) на место index; порядок пишется целиком. Двигать некуда — данные как есть. */
+export function reorderCondition(data: GraphData, conditionId: string, index: number): GraphData {
+  const moved = moveToIndex(allConditions(data), conditionId, index);
+  return moved ? { ...data, conditionOrder: moved.map((c) => c.id) } : data;
 }
 
 /** Классы для <i>: одиночное "fa-skull" дополняется стилем fa-solid, набор классов идёт как есть. */
@@ -120,6 +130,7 @@ export function removeCondition(data: GraphData, conditionId: string): GraphData
   return {
     ...data,
     conditions: data.conditions.filter((c) => c.id !== conditionId),
+    ...(data.conditionOrder ? { conditionOrder: data.conditionOrder.filter((id) => id !== conditionId) } : {}),
     nodes: data.nodes.map((n) =>
       n.conditions.includes(conditionId) ? { ...n, conditions: n.conditions.filter((id) => id !== conditionId) } : n,
     ),

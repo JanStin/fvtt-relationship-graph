@@ -10,7 +10,7 @@
 import { factionName, isDefaultFactionName, type FactionEditValues } from "../../core/edit";
 import { t } from "../../core/i18n";
 import type { Faction } from "../../core/model";
-import { colorField, contentLinksHint, createPanelShell, field, hint, linkTextArea, panelHeader, textInput } from "./form";
+import { colorField, contentLinksHint, createPanelShell, field, hint, linkTextArea, panelHeader, catalogReorder, textInput } from "./form";
 
 const NEW_FACTION_COLOR = "#6366f1";
 
@@ -20,6 +20,8 @@ export interface FactionListCallbacks {
   /** Клик по строке в режиме просмотра — сведения фракции. */
   onInfo(factionId: string): void;
   onCreate(): void;
+  /** Стрелка ↑/↓ или перетаскивание строки (только при reorderable); index — её новое место. */
+  onMove(factionId: string, index: number): void;
   onClose(): void;
 }
 
@@ -33,6 +35,8 @@ export interface FactionListOptions {
   editable: boolean;
   /** Кнопка «Создать фракцию» (только GM, и только когда editable). */
   canCreate: boolean;
+  /** Стрелки ручного порядка (только GM в режиме редактирования). */
+  reorderable: boolean;
 }
 
 export function createFactionListPanel(
@@ -49,7 +53,8 @@ export function createFactionListPanel(
   body.className = "frg-panel-body";
 
   if (factions.length === 0) body.append(hint(t("RELGRAPH.Faction.None")));
-  for (const faction of factions) {
+  const reorderRow = options.reorderable ? catalogReorder(factions.length, (id, index) => callbacks.onMove(id, index)) : null;
+  factions.forEach((faction, index) => {
     // в режиме просмотра — сведения: единственный путь к фракции без узлов (её области нет)
     const row = document.createElement("button");
     row.type = "button";
@@ -66,8 +71,8 @@ export function createFactionListPanel(
     count.title = t("RELGRAPH.Faction.NodeCount");
     row.append(swatch, name, count);
     row.addEventListener("click", () => (options.editable ? callbacks.onEdit(faction.id) : callbacks.onInfo(faction.id)));
-    body.append(row);
-  }
+    body.append(reorderRow ? reorderRow(row, faction.id, index) : row);
+  });
 
   element.append(panelHeader(t("RELGRAPH.Common.Factions"), callbacks.onClose), body);
   if (options.editable && options.canCreate) {

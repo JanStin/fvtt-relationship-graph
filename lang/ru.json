@@ -39,7 +39,9 @@
         "many": "{count} фракций",
         "other": "{count} фракции"
       },
-      "ColorDefault": "По умолчанию"
+      "ColorDefault": "По умолчанию",
+      "MoveUp": "Выше",
+      "MoveDown": "Ниже"
     },
     "NodeType": {
       "Actor": "Актёр",

@@ -44,6 +44,7 @@ import {
   conditionLabel,
   createCondition,
   removeCondition,
+  reorderCondition,
   updateCondition,
   type ConditionEditValues,
 } from "../core/conditions";
@@ -59,7 +60,7 @@ import {
   isBlankEdge,
   type FactionEditValues,
 } from "../core/edit";
-import { addEdge, addNode, removeEdge, removeElements, removeFaction, removeNode } from "../core/graph-state";
+import { addEdge, addNode, removeEdge, removeElements, removeFaction, removeNode, reorderFaction } from "../core/graph-state";
 import { GraphHistory } from "../core/history";
 import { exportFileName, exportGraphFile } from "../import/native";
 import { clientToModel, type Point } from "../core/hit-test";
@@ -68,6 +69,7 @@ import {
   ensureDefaultRelationshipTypes,
   relationshipTypeLabel,
   removeRelationshipType,
+  reorderRelationshipType,
   updateRelationshipType,
   type RelationshipTypeEditValues,
 } from "../core/relationship-types";
@@ -1341,6 +1343,27 @@ export class GraphApp extends ApplicationV2 {
   }
 
   /**
+   * Стрелка ↑/↓ или перетаскивание в списке справочника (только GM): шаг истории, список
+   * открывается заново. Нажата была стрелка — фокус на ту же стрелку строки; у края списка она
+   * выключена — тогда на соседнюю.
+   */
+  async #reorderCatalog(reorder: (data: GraphData) => GraphData, id: string, reopen: () => void): Promise<void> {
+    const current = this.#currentData;
+    if (!current || !this.#isGM) return;
+    const next = reorder(current);
+    if (next === current) return;
+    const active = this.#panel?.ownerDocument.activeElement;
+    const step = active instanceof HTMLElement && active.dataset.moveId === id ? active.dataset.moveStep : undefined;
+    await this.#commit(next);
+    reopen();
+    if (step === undefined) return;
+    const arrows = [...(this.#panel?.querySelectorAll<HTMLButtonElement>(".frg-catalog-move") ?? [])].filter(
+      (button) => button.dataset.moveId === id && !button.disabled,
+    );
+    (arrows.find((button) => button.dataset.moveStep === step) ?? arrows[0])?.focus();
+  }
+
+  /**
    * Список всех фракций — единственный путь к фракции без узлов: её на графе нет. Игрок видит
    * список и правит описание. Дополнительные фракции скрытых узлов игроку в счёт не идут.
    */
@@ -1359,9 +1382,12 @@ export class GraphApp extends ApplicationV2 {
         onEdit: (factionId) => this.#openFactionPanel(factionId),
         onInfo: (factionId) => this.#openInfo({ kind: "faction", id: factionId }),
         onCreate: () => this.#openFactionPanel(null),
+        onMove: (factionId, index) => {
+          void this.#reorderCatalog((d) => reorderFaction(d, factionId, index), factionId, () => this.#openFactionList());
+        },
         onClose: () => this.#closePanel(),
       },
-      { editable: this.#editing, canCreate: isGM },
+      { editable: this.#editing, canCreate: isGM, reorderable: isGM && this.#editing },
     );
     this.#mountPanel(panel, () => this.#openFactionList());
   }
@@ -1434,6 +1460,9 @@ export class GraphApp extends ApplicationV2 {
       {
         onEdit: (conditionId) => this.#openConditionPanel(conditionId),
         onCreate: () => this.#openConditionPanel(null),
+        onMove: (conditionId, index) => {
+          void this.#reorderCatalog((d) => reorderCondition(d, conditionId, index), conditionId, () => this.#openConditionList());
+        },
         onClose: () => this.#closePanel(),
       },
       { editable: isGM && this.#editing },
@@ -1580,6 +1609,9 @@ export class GraphApp extends ApplicationV2 {
       {
         onEdit: (typeId) => this.#openRelationshipTypePanel(typeId),
         onCreate: () => this.#openRelationshipTypePanel(null),
+        onMove: (typeId, index) => {
+          void this.#reorderCatalog((d) => reorderRelationshipType(d, typeId, index), typeId, () => this.#openRelationshipTypeList());
+        },
         onClose: () => this.#closePanel(),
       },
       { editable: isGM && this.#editing },

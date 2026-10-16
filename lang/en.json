@@ -39,7 +39,9 @@
         "many": "{count} factions",
         "other": "{count} factions"
       },
-      "ColorDefault": "Default"
+      "ColorDefault": "Default",
+      "MoveUp": "Move up",
+      "MoveDown": "Move down"
     },
     "NodeType": {
       "Actor": "Actor",

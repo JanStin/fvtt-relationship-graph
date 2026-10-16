@@ -7,13 +7,15 @@
 import { t } from "../../core/i18n";
 import type { RelationshipType } from "../../core/model";
 import { dashPresets, isDefaultRelationshipTypeLabel, relationshipTypeLabel, type RelationshipTypeEditValues } from "../../core/relationship-types";
-import { colorField, createPanelShell, field, hint, panelHeader, select, textInput } from "./form";
+import { colorField, createPanelShell, field, hint, panelHeader, catalogReorder, select, textInput } from "./form";
 
 const NEW_TYPE_COLOR = "#64748b";
 
 export interface RelationshipTypeListCallbacks {
   onEdit(typeId: string): void;
   onCreate(): void;
+  /** Стрелка ↑/↓ или перетаскивание строки (только при editable); index — её новое место. */
+  onMove(typeId: string, index: number): void;
   onClose(): void;
 }
 
@@ -33,7 +35,8 @@ export function createRelationshipTypeListPanel(
   body.className = "frg-panel-body";
 
   if (types.length === 0) body.append(hint(t("RELGRAPH.RelationshipType.None")));
-  for (const type of types) {
+  const reorderRow = editable ? catalogReorder(types.length, (id, index) => callbacks.onMove(id, index)) : null;
+  types.forEach((type, index) => {
     // у игрока строка — просто текст, без клика
     const row = document.createElement(editable ? "button" : "div");
     if (row instanceof HTMLButtonElement) row.type = "button";
@@ -50,8 +53,8 @@ export function createRelationshipTypeListPanel(
     count.title = t("RELGRAPH.RelationshipType.EdgeCount");
     row.append(swatch, name, count);
     if (editable) row.addEventListener("click", () => callbacks.onEdit(type.id));
-    body.append(row);
-  }
+    body.append(reorderRow ? reorderRow(row, type.id, index) : row);
+  });
 
   element.append(panelHeader(t("RELGRAPH.Common.RelationshipTypes"), callbacks.onClose), body);
   if (editable) {

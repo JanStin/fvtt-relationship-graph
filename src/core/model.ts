@@ -117,6 +117,9 @@ export interface GraphData {
   factions: Faction[];
   relationshipTypes: RelationshipType[];
   conditions: ConditionDef[]; // свои состояния; встроенные сюда не входят
+  // Ручной порядок справочника состояний: id встроенных и своих (core/conditions.ts). Нет или
+  // null (графы до 1.7.0) — встроенные, затем свои по порядку создания. Сброс — null, как у фона.
+  conditionOrder?: string[] | null;
   // нет или null — стандартный фон. Сброс хранится как null, а не удалением ключа: setFlag
   // сливает объекты, и удалённый ключ остался бы в хранилище со старым значением.
   background?: GraphBackground | null;

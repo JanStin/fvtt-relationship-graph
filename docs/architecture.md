@@ -107,6 +107,7 @@ interface GraphData {
   factions: Faction[];
   relationshipTypes: RelationshipType[];
   conditions: ConditionDef[]; // свои состояния; встроенные — в core/conditions.ts
+  conditionOrder?: string[] | null; // ручной порядок состояний (id встроенных и своих)
 }
 ```
 
@@ -291,6 +292,7 @@ src/
 │   ├── edit.ts             # применение значений форм, заготовки узла/связи
 │   ├── conditions.ts       # справочник состояний (встроенные + свои)
 │   ├── relationship-types.ts # справочник типов связей, стили линий
+│   ├── catalog-order.ts    # ручной порядок справочников: перестановка, сортировка
 │   ├── layout.ts           # сепарация наложений
 │   ├── selection.ts        # групповой scale
 │   ├── hit-test.ts         # координаты курсора → координаты графа

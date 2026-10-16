@@ -212,5 +212,8 @@ export function parseGraphFileJson(raw: unknown): ParseResult {
     ensureDefaultRelationshipTypes(ensureConditionDefs({ nodes, edges, factions, relationshipTypes, conditions })),
   );
   const background = parseBackground(data.background);
-  return { data: background ? setBackground(normalized, background) : normalized, warnings };
+  const withBackground = background ? setBackground(normalized, background) : normalized;
+  // ручной порядок состояний; неизвестные id не мешают — allConditions их пропускает
+  const conditionOrder = Array.isArray(data.conditionOrder) ? strArray(data.conditionOrder) : null;
+  return { data: conditionOrder ? { ...withBackground, conditionOrder } : withBackground, warnings };
 }
