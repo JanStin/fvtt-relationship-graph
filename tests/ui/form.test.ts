@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addPanelTabs, colorField, createPanelShell, field, group, hint, segmented, textInput } from "../../src/ui/panels/form";
+import { addPanelTabs, colorField, createPanelShell, field, group, hint, contentLinksHint, linkTextArea, segmented, textInput } from "../../src/ui/panels/form";
 import { createOverlays } from "../../src/ui/overlays";
 import { createInfoPanel } from "../../src/ui/panels/InfoPanel";
 import { DEFAULT_NODE_IMG } from "../../src/ui/graph-renderer";
@@ -280,5 +280,36 @@ describe("панель сведений", () => {
       silent,
     );
     expect(panel.querySelector(".frg-info-empty")!.textContent).toBe("Сведений нетЗаполните");
+  });
+});
+
+describe("linkTextArea", () => {
+  /** jsdom без DragEvent/DataTransfer: событие drop с подложенными данными. */
+  function drop(target: HTMLElement, text: string): Event {
+    const event = new Event("drop", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "dataTransfer", { value: { types: ["text/plain"], getData: () => text } });
+    target.dispatchEvent(event);
+    return event;
+  }
+
+  it("перетащенный документ вставляется ссылкой в позицию курсора", () => {
+    const area = linkTextArea("См. ");
+    let inputs = 0;
+    area.addEventListener("input", () => inputs++);
+    area.setSelectionRange(4, 4);
+    const event = drop(area, '{"type":"JournalEntry","uuid":"JournalEntry.AbC123"}');
+    expect(event.defaultPrevented).toBe(true);
+    expect(area.value).toBe("См. @UUID[JournalEntry.AbC123]");
+    expect(inputs).toBe(1);
+  });
+
+  it("подсказка — с готовым примером ссылки", () => {
+    expect(contentLinksHint().textContent).toContain("@UUID[JournalEntry.AbC123]{Дневник капитана}");
+  });
+
+  it("обычный текст — штатная вставка браузера", () => {
+    const area = linkTextArea("");
+    expect(drop(area, "просто текст").defaultPrevented).toBe(false);
+    expect(area.value).toBe("");
   });
 });

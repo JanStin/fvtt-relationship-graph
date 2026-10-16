@@ -117,7 +117,10 @@
       "Resize": "Panel width: drag the edge or press ← / →",
       "Edit": "Edit",
       "ActorSheet": "Actor sheet",
-      "ShowOnGraph": "Show on graph"
+      "ShowOnGraph": "Show on graph",
+      "HiddenLink": "[hidden]",
+      "LinksHint": "Links to journals, actors and items: drag a document from the Foundry sidebar into the field or type it. Example: {example} becomes a “{label}” link in the details; without a label in curly braces the document name is shown.",
+      "LinksExample": "Captain's log"
     },
     "Faction": {
       "Panel": "Faction",

@@ -1,3 +1,4 @@
+import { contentLinkFromDrop } from "../../core/content-links";
 import { t } from "../../core/i18n";
 import { adoptIntoPopout } from "../popout";
 /**
@@ -139,6 +140,33 @@ export function textArea(value: string, rows = 3): HTMLTextAreaElement {
   area.rows = rows;
   area.value = value;
   return area;
+}
+
+/**
+ * Многострочное поле для текста сведений (описание, заметки): перетащенный в него документ
+ * Foundry (журнал, актёр, предмет) вставляется ссылкой `@UUID[...]` в позицию курсора.
+ */
+export function linkTextArea(value: string, rows = 3): HTMLTextAreaElement {
+  const area = textArea(value, rows);
+  area.addEventListener("dragover", (e) => {
+    if (e.dataTransfer?.types.includes("text/plain")) e.preventDefault();
+  });
+  area.addEventListener("drop", (e) => {
+    const link = contentLinkFromDrop(e.dataTransfer?.getData("text/plain") ?? "");
+    if (!link) return;
+    e.preventDefault();
+    area.focus();
+    area.setRangeText(link, area.selectionStart, area.selectionEnd, "end");
+    area.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  return area;
+}
+
+/** Подсказка под полями с linkTextArea: как вставить ссылку на документ Foundry, с примером. */
+export function contentLinksHint(): HTMLElement {
+  const label = t("RELGRAPH.Info.LinksExample");
+  // пример — параметром: фигурные скобки в строке перевода читались бы как подстановка
+  return hint(t("RELGRAPH.Info.LinksHint", { example: `@UUID[JournalEntry.AbC123]{${label}}`, label }));
 }
 
 export function select(options: ReadonlyArray<{ value: string; label: string }>, current: string): HTMLSelectElement {

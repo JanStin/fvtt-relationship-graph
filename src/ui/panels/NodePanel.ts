@@ -18,12 +18,13 @@ import {
   browseImage,
   checkbox,
   createPanelShell,
+  contentLinksHint,
   field,
   group,
   hint,
+  linkTextArea,
   segmented,
   select,
-  textArea,
   textInput,
   type SegmentOption,
   type Segmented,
@@ -244,9 +245,9 @@ export function createNodePanel(
   scale.step = "0.1";
   scale.value = String(node.scale);
   const conditionPicker = createConditionPicker(node, conditions);
-  const lore = textArea(node.lore, 4);
-  const playerNotes = textArea(node.playerNotes);
-  const gmNotes = textArea(node.gmNotes);
+  const lore = linkTextArea(node.lore, 4);
+  const playerNotes = linkTextArea(node.playerNotes);
+  const gmNotes = linkTextArea(node.gmNotes);
   const hidden = checkbox(t("RELGRAPH.Node.HiddenHint"), node.hidden);
   const gmOnly = checkbox(t("RELGRAPH.Node.GmOnly"), node.gmOnly);
   // hidden всегда подразумевает gmOnly (core/visibility.ts): флажок включается и блокируется.
@@ -327,7 +328,9 @@ export function createNodePanel(
         field(t("RELGRAPH.Common.Description"), lore),
         field(t("RELGRAPH.Node.PlayerNotes"), playerNotes),
         // у игрока этих полей нет — при сохранении прежние значения подставит core/permissions.ts
-        ...(isGM ? [field(t("RELGRAPH.Node.GmNotes"), gmNotes), hidden.row, gmOnly.row] : []),
+        ...(isGM ? [field(t("RELGRAPH.Node.GmNotes"), gmNotes)] : []),
+        contentLinksHint(),
+        ...(isGM ? [hidden.row, gmOnly.row] : []),
       ],
     },
     {

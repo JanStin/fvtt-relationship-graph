@@ -10,7 +10,7 @@
 import { factionName, isDefaultFactionName, type FactionEditValues } from "../../core/edit";
 import { t } from "../../core/i18n";
 import type { Faction } from "../../core/model";
-import { colorField, createPanelShell, field, hint, panelHeader, textArea, textInput } from "./form";
+import { colorField, contentLinksHint, createPanelShell, field, hint, linkTextArea, panelHeader, textInput } from "./form";
 
 const NEW_FACTION_COLOR = "#6366f1";
 
@@ -103,7 +103,7 @@ export function createFactionPanel(
     input.disabled = !isGM;
   });
 
-  const description = textArea(faction?.description ?? "", 4);
+  const description = linkTextArea(faction?.description ?? "", 4);
 
   const shell = createPanelShell(faction ? t("RELGRAPH.Faction.Panel") : t("RELGRAPH.Faction.DefaultName"), faction && isGM ? t("RELGRAPH.Faction.Delete") : null, {
     onSave: () => callbacks.onSave({ name: name.value, color: color.value(), description: description.value }),
@@ -111,7 +111,7 @@ export function createFactionPanel(
     onClose: callbacks.onClose,
   });
 
-  shell.body.append(field(t("RELGRAPH.Common.Name"), name), field(t("RELGRAPH.Common.Color"), color.element), field(t("RELGRAPH.Common.Description"), description));
+  shell.body.append(field(t("RELGRAPH.Common.Name"), name), field(t("RELGRAPH.Common.Color"), color.element), field(t("RELGRAPH.Common.Description"), description), contentLinksHint());
   if (!isGM) shell.body.append(hint(t("RELGRAPH.Faction.GmOnlyHint")));
   return shell.element;
 }

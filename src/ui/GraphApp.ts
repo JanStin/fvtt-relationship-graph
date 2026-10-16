@@ -99,6 +99,8 @@ import { createFactionListPanel, createFactionPanel } from "./panels/FactionPane
 import { iconButton } from "./panels/form";
 import { createImportControl, type ImportControl } from "./panels/ImportDialog";
 import { createHoverPreview, type HoverPreview } from "./hover-preview";
+import { hasContentLinks, restrictContentLinks } from "../core/content-links";
+import { canViewUuid, enrichContent } from "../foundry/enrich";
 import { createInfoPanel, paragraphsElement, syncInfoPanelWidth, type InfoFooterAction } from "./panels/InfoPanel";
 import { createNodePanel, type ActorOption } from "./panels/NodePanel";
 import { createRelationshipTypeListPanel, createRelationshipTypePanel } from "./panels/RelationshipTypePanel";
@@ -754,7 +756,10 @@ export class GraphApp extends ApplicationV2 {
       onClose: () => this.#closeInfo(),
       onOpen: (next) => this.#openLinkedInfo(next),
       onHover: (link) => this.#highlightInfoLink(link),
-      onExpand: (title, text) => this.#showText(title, text),
+      onExpand: (title, text) => {
+        void this.#showText(title, text);
+      },
+      enrich: (text) => this.#enrichText(text),
     }, this.#infoFooter(target));
     this.#mountPanel(panel, () => this.#openInfo(target, { reveal: false, focus: false }));
     syncInfoPanelWidth(panel);
@@ -833,11 +838,26 @@ export class GraphApp extends ApplicationV2 {
     if (target.kind === "node") this.#showSearchTarget({ kind: "node", id: target.id });
   }
 
+  /**
+   * Ссылки Foundry (`@UUID[...]`) в тексте сведений — кликабельными, как в журналах. Ссылки на
+   * недоступные зрителю документы сначала заменяются подписью (content-links.ts). null — ссылок
+   * нет, оформлять нечего.
+   */
+  async #enrichText(text: string): Promise<string | null> {
+    if (!hasContentLinks(text)) return null;
+    const restricted = restrictContentLinks(text, canViewUuid, t("RELGRAPH.Info.HiddenLink"));
+    // innerHTML экранирует текст — разметка из описания не исполняется, оформляются только ссылки
+    return enrichContent(paragraphsElement(restricted, "").innerHTML);
+  }
+
   /** «Развернуть» в сведениях: длинный текст в отдельном окне нормальной ширины, только чтение. */
-  #showText(title: string, text: string): void {
-    // outerHTML экранирует текст — разметка из описания не исполняется
-    const content = paragraphsElement(text, "frg-info-dialog-text").outerHTML;
-    void foundry.applications.api.DialogV2.prompt({
+  async #showText(title: string, text: string): Promise<void> {
+    const body = paragraphsElement(text, "frg-info-dialog-text");
+    const enriched = await this.#enrichText(text).catch(() => null);
+    if (enriched !== null) body.innerHTML = enriched;
+    // текст экранирован (paragraphsElement, #enrichText) — разметка из описания не исполняется
+    const content = body.outerHTML;
+    await foundry.applications.api.DialogV2.prompt({
       window: { title },
       content,
       ok: { label: t("RELGRAPH.Common.Close") },

@@ -39,6 +39,11 @@ export interface InfoPanelActions {
   onHover(link: { nodeId: string; edgeId: string | null } | null): void;
   /** «Развернуть» у длинного текста — показать его в отдельном окне. */
   onExpand(title: string, text: string): void;
+  /**
+   * Оформить ссылки Foundry в тексте: готовый HTML абзацев или null — ссылок нет, текст остаётся
+   * как есть. Пока оформление идёт, показан обычный текст.
+   */
+  enrich?(text: string): Promise<string | null>;
 }
 
 /** Кнопка подвала сведений; какие показать (по правам и режиму), решает GraphApp. */
@@ -353,7 +358,15 @@ function blockContent(item: DescriptionBlock, title: string, actions: InfoPanelA
   const content = document.createElement("dd");
   content.className = "frg-info-section-content";
   if (item.kind === "text") {
-    content.append(paragraphsElement(item.text, "frg-info-value frg-info-text"));
+    const value = paragraphsElement(item.text, "frg-info-value frg-info-text");
+    content.append(value);
+    actions.enrich?.(item.text).then(
+      (html) => {
+        if (html !== null) value.innerHTML = html;
+      },
+      // не вышло — остаётся обычный текст
+      () => undefined,
+    );
     if (isLongText(item.text)) {
       const expand = document.createElement("button");
       expand.type = "button";

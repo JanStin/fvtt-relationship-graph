@@ -146,3 +146,17 @@ describe("ползунок масштаба рядом со сведениями
     expect(wrapper.style.getPropertyValue("--frg-info-width")).toBe(panel.style.width);
   });
 });
+
+describe("ссылки Foundry в тексте сведений", () => {
+  it("оформленный HTML заменяет текст; null — текст остаётся", async () => {
+    const enriched = createInfoPanel(description("см. @UUID[Actor.a]"), {
+      ...silent,
+      enrich: async () => '<p>см. <a class="content-link">Алиса</a></p>',
+    });
+    const plain = createInfoPanel(description("без ссылок"), { ...silent, enrich: async () => null });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(enriched.querySelector(".frg-info-text a.content-link")!.textContent).toBe("Алиса");
+    expect(plain.querySelector(".frg-info-text")!.textContent).toBe("без ссылок");
+  });
+});
