@@ -160,3 +160,26 @@ describe("ссылки Foundry в тексте сведений", () => {
     expect(plain.querySelector(".frg-info-text")!.textContent).toBe("без ссылок");
   });
 });
+
+describe("сведения в отдельном окне", () => {
+  it("в панели — кнопка выноса рядом с крестиком", () => {
+    const detached: number[] = [];
+    const panel = createInfoPanel(description("т"), { ...silent, onDetach: () => detached.push(1) });
+    const buttons = [...panel.querySelectorAll<HTMLButtonElement>(".frg-info-header button")];
+    expect(buttons.map((b) => b.getAttribute("aria-label"))).toEqual(["Открыть в отдельном окне", "Закрыть"]);
+    buttons[0].click();
+    expect(detached).toEqual([1]);
+    // без onDetach — только крестик
+    expect(createInfoPanel(description("т"), silent).querySelectorAll(".frg-info-header button")).toHaveLength(1);
+  });
+
+  it("в окне — без ширины, края, крестика и выноса: окном управляет Foundry", () => {
+    const panel = createInfoPanel(description("т"), { ...silent, onDetach() {} }, [], { window: true });
+    expect(panel.classList.contains("frg-info-window")).toBe(true);
+    expect(panel.classList.contains("frg-info-panel")).toBe(false);
+    expect(panel.style.width).toBe("");
+    expect(panel.querySelector(".frg-info-resize")).toBeNull();
+    expect(panel.querySelectorAll(".frg-info-header button")).toHaveLength(0);
+    expect(panel.getAttribute("role")).toBeNull();
+  });
+});

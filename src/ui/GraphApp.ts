@@ -49,7 +49,7 @@ import {
   updateCondition,
   type ConditionEditValues,
 } from "../core/conditions";
-import { describeEdge, describeFaction, describeNode, previewNode, type InfoTarget } from "../core/describe";
+import { describeEdge, describeFaction, describeNode, previewNode, type Description, type InfoTarget } from "../core/describe";
 import {
   applyEdgeEdit,
   applyFactionEdit,
@@ -101,7 +101,13 @@ import { createImportControl, type ImportControl } from "./panels/ImportDialog";
 import { createHoverPreview, type HoverPreview } from "./hover-preview";
 import { hasContentLinks, restrictContentLinks } from "../core/content-links";
 import { canViewUuid, enrichContent } from "../foundry/enrich";
-import { createInfoPanel, paragraphsElement, syncInfoPanelWidth, type InfoFooterAction } from "./panels/InfoPanel";
+import {
+  createInfoPanel,
+  paragraphsElement,
+  syncInfoPanelWidth,
+  type InfoFooterAction,
+  type InfoPanelActions,
+} from "./panels/InfoPanel";
 import { createNodePanel, type ActorOption } from "./panels/NodePanel";
 import { createRelationshipTypeListPanel, createRelationshipTypePanel } from "./panels/RelationshipTypePanel";
 import { createSearchPanel, type SearchTarget } from "./panels/SearchPanel";
@@ -114,6 +120,16 @@ declare const CONFIG: any;
 
 /** Через сколько минут полного бездействия редактор выходит из режима. */
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+
+/** Окно сведений, вынесенное из боковой панели: DialogV2 и чьи в нём сведения. */
+interface InfoWindow {
+  dialog: {
+    element: HTMLElement | null;
+    bringToFront(): void;
+    close(): Promise<unknown>;
+  };
+  target: InfoTarget;
+}
 
 /** Ближе стольких пикселей к краю боковой панели элемент считается закрытым ею. */
 const REVEAL_MARGIN = 24;
@@ -188,6 +204,8 @@ export class GraphApp extends ApplicationV2 {
   #searchQuery: string | null = null;
   /** Чьи сведения сейчас в боковой панели; null — панель сведений закрыта. */
   #infoTarget: GraphTarget | null = null;
+  /** Окна сведений, вынесенные из панели (#detachInfo); ключ — «вид:id» элемента. */
+  #infoWindows = new Map<string, InfoWindow>();
   /** Где был фокус до открытия сведений — вернуть его при закрытии (✕, Esc). */
   #infoReturnFocus: HTMLElement | null = null;
   #cyHost: HTMLElement | null = null;
@@ -690,6 +708,7 @@ export class GraphApp extends ApplicationV2 {
 
     if (searchQuery !== null) this.#openSearch(searchQuery, false);
     this.#updateGraphHints();
+    this.#refreshInfoWindows();
   }
 
   /**
@@ -744,23 +763,19 @@ export class GraphApp extends ApplicationV2 {
         : active && active !== active.ownerDocument.body && !this.#panel?.contains(active)
           ? active
           : null;
-    const options = { isGM: this.#isGM };
-    const card =
-      target.kind === "node"
-        ? describeNode(this.#currentData, target.id, options)
-        : target.kind === "edge"
-          ? describeEdge(this.#currentData, target.id, options)
-          : describeFaction(this.#currentData, target.id, options);
+    const card = this.#describe(target);
     if (!card) return;
-    const panel = createInfoPanel(card, {
-      onClose: () => this.#closeInfo(),
-      onOpen: (next) => this.#openLinkedInfo(next),
-      onHover: (link) => this.#highlightInfoLink(link),
-      onExpand: (title, text) => {
-        void this.#showText(title, text);
+    const panel = createInfoPanel(
+      card,
+      {
+        ...this.#infoActions(),
+        onClose: () => this.#closeInfo(),
+        onDetach: () => {
+          void this.#detachInfo(target);
+        },
       },
-      enrich: (text) => this.#enrichText(text),
-    }, this.#infoFooter(target));
+      this.#infoFooter(target),
+    );
     this.#mountPanel(panel, () => this.#openInfo(target, { reveal: false, focus: false }));
     syncInfoPanelWidth(panel);
     this.#infoTarget = target;
@@ -769,16 +784,90 @@ export class GraphApp extends ApplicationV2 {
     if (reveal && target.kind !== "faction") this.#revealBesidePanel(target.id);
   }
 
+  /** Сведения об элементе; null — его нет или он не виден этому пользователю. */
+  #describe(target: InfoTarget): Description | null {
+    const data = this.#currentData;
+    if (!data) return null;
+    const options = { isGM: this.#isGM };
+    if (target.kind === "node") return describeNode(data, target.id, options);
+    if (target.kind === "edge") return describeEdge(data, target.id, options);
+    return describeFaction(data, target.id, options);
+  }
+
+  /** Общие действия сведений — у боковой панели и у отдельных окон. */
+  #infoActions(): InfoPanelActions {
+    return {
+      onClose: () => undefined,
+      onOpen: (next) => this.#openLinkedInfo(next),
+      onHover: (link) => this.#highlightInfoLink(link),
+      onExpand: (title, text) => {
+        void this.#showText(title, text);
+      },
+      enrich: (text) => this.#enrichText(text),
+    };
+  }
+
+  /**
+   * Сведения в отдельном окне Foundry — для сравнения: окон можно открыть несколько, у одного
+   * элемента — одно (повторный вынос поднимает его наверх). Ссылки в окне открывают сведения в
+   * боковой панели. Окна обновляются вместе с графом (#refreshInfoWindows).
+   */
+  async #detachInfo(target: InfoTarget): Promise<void> {
+    const key = `${target.kind}:${target.id}`;
+    const opened = this.#infoWindows.get(key);
+    if (opened) {
+      opened.dialog.bringToFront();
+      return;
+    }
+    const card = this.#describe(target);
+    if (!card) return;
+    const dialog = new foundry.applications.api.DialogV2({
+      window: { title: card.title, icon: "fa-solid fa-circle-info", resizable: true },
+      classes: ["frg-info-dialog"],
+      position: { width: 420, height: 560 },
+      content: `<div class="frg-info-window-host"></div>`,
+      buttons: [{ action: "close", label: t("RELGRAPH.Common.Close"), default: true }],
+      modal: false,
+    });
+    this.#infoWindows.set(key, { dialog, target });
+    dialog.addEventListener("close", () => this.#infoWindows.delete(key));
+    await dialog.render({ force: true });
+    // граф в отдельном окне — окно сведений там же
+    adoptIntoPopout(dialog);
+    this.#fillInfoWindow(dialog, target);
+  }
+
+  /** Содержимое окна сведений заново; элемента больше нет — окно закрывается. */
+  #fillInfoWindow(dialog: InfoWindow["dialog"], target: InfoTarget): void {
+    const host = dialog.element?.querySelector<HTMLElement>(".frg-info-window-host");
+    if (!host) return;
+    const card = this.#describe(target);
+    if (!card) {
+      void dialog.close();
+      return;
+    }
+    const title = dialog.element?.querySelector(".window-title");
+    if (title) title.textContent = card.title;
+    host.replaceChildren(createInfoPanel(card, this.#infoActions(), this.#infoFooter(target, { edit: false }), { window: true }));
+  }
+
+  /** После перерисовки графа (правка, чужое изменение, смена режима) — обновить окна сведений. */
+  #refreshInfoWindows(): void {
+    for (const { dialog, target } of [...this.#infoWindows.values()]) this.#fillInfoWindow(dialog, target);
+  }
+
   /**
    * Подвал сведений — те же права, что в меню ПКМ. «Изменить» открывает форму на месте сведений;
-   * после сохранения или отмены панель возвращается к сведениям.
+   * после сохранения или отмены панель возвращается к сведениям. В отдельном окне «Изменить» нет
+   * (edit: false) — форма открывается только в боковой панели.
    */
-  #infoFooter(target: InfoTarget): InfoFooterAction[] {
+  #infoFooter(target: InfoTarget, { edit: withEdit = true } = {}): InfoFooterAction[] {
     const data = this.#currentData;
     if (!data) return [];
     const footer: InfoFooterAction[] = [];
-    const edit = (onSelect: () => void) =>
-      footer.push({ label: t("RELGRAPH.Info.Edit"), icon: "fa-solid fa-pen", onSelect });
+    const edit = (onSelect: () => void) => {
+      if (withEdit) footer.push({ label: t("RELGRAPH.Info.Edit"), icon: "fa-solid fa-pen", onSelect });
+    };
 
     if (target.kind === "node") {
       const node = data.nodes.find((n) => n.id === target.id);
@@ -1723,6 +1812,9 @@ export class GraphApp extends ApplicationV2 {
   }
 
   async close(options?: unknown): Promise<this> {
+    // окна сведений без графа не нужны
+    for (const { dialog } of [...this.#infoWindows.values()]) void dialog.close();
+    this.#infoWindows.clear();
     // Закрыл окно в режиме редактирования — вышел из режима.
     if (this.#editing) {
       this.#setEditing(false);

@@ -120,7 +120,8 @@
       "ShowOnGraph": "Show on graph",
       "HiddenLink": "[hidden]",
       "LinksHint": "Links to journals, actors and items: drag a document from the Foundry sidebar into the field or type it. Example: {example} becomes a “{label}” link in the details; without a label in curly braces the document name is shown.",
-      "LinksExample": "Captain's log"
+      "LinksExample": "Captain's log",
+      "Detach": "Open in a separate window"
     },
     "Faction": {
       "Panel": "Faction",

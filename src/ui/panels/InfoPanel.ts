@@ -44,6 +44,16 @@ export interface InfoPanelActions {
    * как есть. Пока оформление идёт, показан обычный текст.
    */
   enrich?(text: string): Promise<string | null>;
+  /** Кнопка в шапке: вынести сведения в отдельное окно (для сравнения); нет — кнопки нет. */
+  onDetach?(): void;
+}
+
+export interface InfoPanelOptions {
+  /**
+   * Содержимое отдельного окна Foundry, а не боковая панель: без своей ширины, края для её
+   * изменения, крестика и кнопки выноса — окном управляет Foundry.
+   */
+  window?: boolean;
 }
 
 /** Кнопка подвала сведений; какие показать (по правам и режиму), решает GraphApp. */
@@ -163,7 +173,8 @@ function icon(classes: string): HTMLElement {
 let titleCounter = 0;
 
 /** Шапка: картинка, имя, тип и роль, значок видимости, крестик. */
-function infoHeader(description: Description, onClose: () => void): HTMLElement {
+/** onClose / onDetach — null: кнопки нет (сведения в отдельном окне). */
+function infoHeader(description: Description, onClose: (() => void) | null, onDetach: (() => void) | null): HTMLElement {
   const header = document.createElement("div");
   header.className = "frg-panel-header frg-info-header";
 
@@ -196,16 +207,22 @@ function infoHeader(description: Description, onClose: () => void): HTMLElement 
     text.append(role);
   }
 
-  const close = document.createElement("button");
-  close.type = "button";
-  close.className = "frg-panel-close";
-  close.innerHTML = `<i class="fa-solid fa-xmark"></i>`;
-  close.title = t("RELGRAPH.Common.Close");
-  close.setAttribute("aria-label", t("RELGRAPH.Common.Close"));
-  close.addEventListener("click", () => onClose());
-
-  header.append(headerVisual(description.header), text, close);
+  header.append(headerVisual(description.header), text);
+  if (onDetach) header.append(headerButton("fa-up-right-from-square", t("RELGRAPH.Info.Detach"), onDetach));
+  if (onClose) header.append(headerButton("fa-xmark", t("RELGRAPH.Common.Close"), onClose));
   return header;
+}
+
+/** Кнопка-значок в шапке (вынести в окно, закрыть). */
+function headerButton(iconClass: string, label: string, onClick: () => void): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "frg-panel-close";
+  button.append(icon(`fa-solid ${iconClass}`));
+  button.title = label;
+  button.setAttribute("aria-label", label);
+  button.addEventListener("click", () => onClick());
+  return button;
 }
 
 const DIRECTION_ICONS = { out: "fa-arrow-right", in: "fa-arrow-left", none: "fa-minus" } as const;
@@ -497,14 +514,18 @@ export function createInfoPanel(
   description: Description,
   actions: InfoPanelActions,
   footer: readonly InfoFooterAction[] = [],
+  options: InfoPanelOptions = {},
 ): HTMLElement {
+  const inWindow = options.window === true;
   const element = document.createElement("div");
-  element.className = "frg-panel frg-info-panel";
-  // немодальный диалог: граф рядом остаётся доступен; фокус ставит GraphApp при открытии
-  element.setAttribute("role", "dialog");
-  element.tabIndex = -1;
-  // пределы окна графа — max-width в CSS
-  element.style.width = `${loadInfoPanelWidth()}px`;
+  element.className = inWindow ? "frg-panel frg-info-window" : "frg-panel frg-info-panel";
+  if (!inWindow) {
+    // немодальный диалог: граф рядом остаётся доступен; фокус ставит GraphApp при открытии
+    element.setAttribute("role", "dialog");
+    element.tabIndex = -1;
+    // пределы окна графа — max-width в CSS
+    element.style.width = `${loadInfoPanelWidth()}px`;
+  }
 
   const collapsed = loadCollapsedBlocks();
   const body = document.createElement("div");
@@ -532,9 +553,13 @@ export function createInfoPanel(
   }
 
   // шапка — вне прокручиваемого тела: при прокрутке видно, чьи это сведения
-  const header = infoHeader(description, actions.onClose);
-  element.setAttribute("aria-labelledby", header.querySelector(".frg-panel-title")!.id);
-  element.append(resizeHandle(element), header, body);
+  const header = inWindow ? infoHeader(description, null, null) : infoHeader(description, actions.onClose, actions.onDetach ?? null);
+  if (inWindow) {
+    element.append(header, body);
+  } else {
+    element.setAttribute("aria-labelledby", header.querySelector(".frg-panel-title")!.id);
+    element.append(resizeHandle(element), header, body);
+  }
   if (footer.length > 0) element.append(infoFooter(footer));
   return element;
 }

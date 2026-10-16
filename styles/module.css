@@ -4,7 +4,8 @@
  * (.theme-light) или у всего интерфейса (body.theme-light), если окну тема не задана отдельно.
  * Подписи и значки на самом графе от темы не зависят — их цвета в своих правилах ниже.
  */
-#fvtt-relationship-graph-app {
+#fvtt-relationship-graph-app,
+.frg-info-dialog {
   --frg-surface: #0f172a;
   --frg-surface-raised: #1e293b;
   --frg-hover: #334155;
@@ -24,7 +25,9 @@
 }
 
 body.theme-light #fvtt-relationship-graph-app:not(.theme-dark),
-#fvtt-relationship-graph-app.theme-light {
+#fvtt-relationship-graph-app.theme-light,
+body.theme-light .frg-info-dialog:not(.theme-dark),
+.frg-info-dialog.theme-light {
   --frg-surface: #f8fafc;
   --frg-surface-raised: #ffffff;
   --frg-hover: #e2e8f0;
@@ -473,6 +476,43 @@ body.theme-light #fvtt-relationship-graph-app:not(.theme-dark),
   margin-top: 4px;
   padding: 2px 8px;
   font-size: 12px;
+}
+
+/*
+ * Сведения в отдельном окне (DialogV2, GraphApp#detachInfo): то же содержимое, что в панели, но
+ * растянуто на окно, без тени и рамки панели; прокручивается тело, шапка остаётся на месте.
+ */
+.frg-info-dialog .window-content {
+  padding: 0;
+}
+
+.frg-info-dialog .dialog-form,
+.frg-info-dialog .dialog-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+}
+
+.frg-info-dialog .dialog-buttons {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+}
+
+.frg-info-window-host {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.frg-panel.frg-info-window {
+  position: static;
+  flex: 1 1 auto;
+  width: auto;
+  max-width: none;
+  border: none;
+  box-shadow: none;
 }
 
 /* Окно «Развернуть» (DialogV2): текст для чтения нормальной ширины. */
