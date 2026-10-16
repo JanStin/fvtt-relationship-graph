@@ -53,9 +53,9 @@ export const LINK_SOURCE_CLASS = "link-source";
 /** Элемент не подходит под запрос открытой панели поиска — приглушён (GraphApp). */
 export const DIMMED_CLASS = "frg-dimmed";
 /** Рамка узла без фракции (и линия связи без типа). */
-const NEUTRAL_COLOR = "#64748b";
+export const NEUTRAL_COLOR = "#64748b";
 /** Пунктир gmOnly-связи, у типа которой линия сплошная. */
-const GM_ONLY_DASH = [6, 3];
+export const GM_ONLY_DASH = [6, 3];
 
 export interface RenderOptions {
   /** false — режим просмотра: узлы не перетаскиваются вовсе. */

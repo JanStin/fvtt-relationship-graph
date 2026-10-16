@@ -129,15 +129,41 @@ describe("панель сведений", () => {
   it("заголовок, подзаголовок и поля; крестик закрывает", () => {
     let closed = false;
     const panel = createInfoPanel(
-      { title: "Анна", subtitle: "Актёр", rows: [{ label: "Роль", value: "Кузнец" }] },
+      {
+        title: "Анна",
+        subtitle: "Актёр",
+        header: { kind: "node", portrait: { img: "", fit: "contain", align: "top", border: "#ff0000" }, role: "Кузнец" },
+        rows: [{ label: "Описание", value: "Высокая" }],
+      },
       () => (closed = true),
     );
     expect(panel.classList.contains("frg-panel")).toBe(true);
     expect(panel.querySelector(".frg-panel-title")!.textContent).toBe("Анна");
     expect(panel.querySelector(".frg-info-subtitle")!.textContent).toBe("Актёр");
-    expect(panel.querySelector(".frg-field-label")!.textContent).toBe("Роль");
-    expect(panel.querySelector(".frg-info-value")!.textContent).toBe("Кузнец");
+    expect(panel.querySelector(".frg-info-role")!.textContent).toBe("Кузнец");
+    expect(panel.querySelector(".frg-field-label")!.textContent).toBe("Описание");
+    expect(panel.querySelector(".frg-info-value")!.textContent).toBe("Высокая");
+    // пустой путь — заглушка; вписывание и выравнивание — как на графе
+    const portrait = panel.querySelector<HTMLImageElement>(".frg-info-portrait")!;
+    expect(portrait.getAttribute("src")).toContain("placeholder-npc.png");
+    expect(portrait.style.objectFit).toBe("contain");
+    expect(portrait.style.objectPosition).toBe("50% 0%");
     panel.querySelector<HTMLButtonElement>(".frg-panel-close")!.click();
     expect(closed).toBe(true);
+  });
+
+  it("у связи — миниатюры двух концов и линия со стрелкой", () => {
+    const end = { img: "a.png", fit: "cover", align: "center", border: null } as const;
+    const panel = createInfoPanel(
+      {
+        title: "Связь",
+        header: { kind: "edge", source: end, target: end, directional: true, color: "#00ff00", dash: [4, 4], gmOnly: false },
+        rows: [],
+      },
+      () => {},
+    );
+    expect(panel.querySelectorAll(".frg-info-portrait")).toHaveLength(2);
+    expect(panel.querySelector("line")!.getAttribute("stroke-dasharray")).toBe("4 4");
+    expect(panel.querySelector("polygon")).not.toBeNull();
   });
 });

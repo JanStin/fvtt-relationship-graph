@@ -6,8 +6,10 @@
 import { allConditions, conditionLabel } from "./conditions";
 import { factionName } from "./edit";
 import { t } from "./i18n";
-import type { GraphData, NodeType } from "./model";
-import { relationshipTypeLabel } from "./relationship-types";
+import { normalizeImageAlign } from "./image-align";
+import type { GraphData, GraphNode, ImageAlign, ImageFit, NodeType } from "./model";
+import { normalizeImageFit } from "./node-image";
+import { parseDash, relationshipTypeLabel } from "./relationship-types";
 import { displayName, isMasked, nodeName, unknownNodeName } from "./visibility";
 
 export interface DescriptionRow {
@@ -15,9 +17,36 @@ export interface DescriptionRow {
   value: string;
 }
 
+/** Миниатюра узла — как он нарисован на графе. */
+export interface Portrait {
+  /** '' — заглушка (пустой путь или скрытый узел у игрока). */
+  img: string;
+  fit: ImageFit;
+  align: ImageAlign;
+  /** Цвет рамки — основной фракции; null — нейтральная. */
+  border: string | null;
+}
+
+/** Картинка в шапке сведений: портрет узла, два конца связи или цвет фракции. */
+export type DescriptionHeader =
+  | { kind: "node"; portrait: Portrait; role: string }
+  | {
+      kind: "edge";
+      source: Portrait;
+      target: Portrait;
+      directional: boolean;
+      /** Цвет типа связи; null — тип не задан. */
+      color: string | null;
+      /** Штрих типа связи; null — сплошная (у gmOnly-связи — свой пунктир, как на графе). */
+      dash: number[] | null;
+      gmOnly: boolean;
+    }
+  | { kind: "faction"; color: string };
+
 export interface Description {
   title: string;
   subtitle?: string;
+  header: DescriptionHeader;
   rows: DescriptionRow[];
 }
 
@@ -36,6 +65,18 @@ const NODE_TYPE_KEYS: Record<NodeType, string> = {
 function relationshipTypeCaption(data: GraphData, typeId: string): string {
   const type = data.relationshipTypes.find((rt) => rt.id === typeId);
   return type ? relationshipTypeLabel(type) : "";
+}
+
+/** Миниатюра узла; скрытый узел у игрока — заглушка, без настоящей картинки и цвета фракции. */
+function portraitOf(data: GraphData, node: GraphNode | undefined, isGM: boolean): Portrait {
+  if (!node || isMasked(node, isGM)) return { img: "", fit: "cover", align: "center", border: null };
+  const primary = node.primaryFactionId ? data.factions.find((f) => f.id === node.primaryFactionId) : undefined;
+  return {
+    img: node.img,
+    fit: normalizeImageFit(node.imageFit),
+    align: normalizeImageAlign(node.imageAlign),
+    border: primary?.color ?? null,
+  };
 }
 
 function pushIfPresent(rows: DescriptionRow[], label: string, value: string): void {
@@ -59,16 +100,17 @@ export function describeNode(data: GraphData, nodeId: string, options: DescribeO
       return caption ? `${arrow} ${otherName}: ${caption}` : `${arrow} ${otherName}`;
     });
 
+  const portrait = portraitOf(data, node, options.isGM);
   // Скрытый узел у игрока — «неизвестный»: только то, что и так видно на графе (связи, размер).
   if (isMasked(node, options.isGM)) {
     const rows: DescriptionRow[] = [];
     pushIfPresent(rows, t("RELGRAPH.Node.Connections", { count: connections.length }), connections.join("\n"));
     rows.push({ label: t("RELGRAPH.Common.Size"), value: `×${node.scale.toFixed(1)}` });
-    return { title: unknownNodeName(), rows };
+    return { title: unknownNodeName(), header: { kind: "node", portrait, role: "" }, rows };
   }
 
+  // роль — в шапке, под именем и типом
   const rows: DescriptionRow[] = [];
-  pushIfPresent(rows, t("RELGRAPH.Common.Role"), node.role);
 
   const factions = node.factionIds
     .map((id) => data.factions.find((f) => f.id === id))
@@ -92,7 +134,12 @@ export function describeNode(data: GraphData, nodeId: string, options: DescribeO
   }
   rows.push({ label: t("RELGRAPH.Common.Size"), value: `×${node.scale.toFixed(1)}` });
 
-  return { title: nodeName(node), subtitle: t(NODE_TYPE_KEYS[node.type]), rows };
+  return {
+    title: nodeName(node),
+    subtitle: t(NODE_TYPE_KEYS[node.type]),
+    header: { kind: "node", portrait, role: node.role.trim() },
+    rows,
+  };
 }
 
 /**
@@ -112,7 +159,24 @@ export function describeEdge(data: GraphData, edgeId: string, options: DescribeO
   pushIfPresent(rows, t("RELGRAPH.Edge.TypeShort"), relationshipTypeCaption(data, edge.relationshipTypeId));
   if (edge.gmOnly) rows.push({ label: t("RELGRAPH.Common.Visibility"), value: t("RELGRAPH.Edge.GmOnly") });
 
-  return { title: edge.label || t("RELGRAPH.Common.Edge"), subtitle: edge.label ? t("RELGRAPH.Common.Edge") : undefined, rows };
+  const type = data.relationshipTypes.find((rt) => rt.id === edge.relationshipTypeId);
+  const nodeById = (id: string) => data.nodes.find((n) => n.id === id);
+  const header: DescriptionHeader = {
+    kind: "edge",
+    source: portraitOf(data, nodeById(edge.source), options.isGM),
+    target: portraitOf(data, nodeById(edge.target), options.isGM),
+    directional: edge.directional,
+    color: type?.color || null,
+    dash: parseDash(type?.dash ?? ""),
+    gmOnly: edge.gmOnly,
+  };
+
+  return {
+    title: edge.label || t("RELGRAPH.Common.Edge"),
+    subtitle: edge.label ? t("RELGRAPH.Common.Edge") : undefined,
+    header,
+    rows,
+  };
 }
 
 /** null — фракции с таким id нет. */
@@ -129,5 +193,10 @@ export function describeFaction(data: GraphData, factionId: string, options: Des
     .map((n) => displayName(n, options.isGM));
   pushIfPresent(rows, t("RELGRAPH.Faction.Members", { count: members.length }), members.join("\n"));
 
-  return { title: factionName(faction), subtitle: t("RELGRAPH.Faction.Panel"), rows };
+  return {
+    title: factionName(faction),
+    subtitle: t("RELGRAPH.Faction.Panel"),
+    header: { kind: "faction", color: faction.color },
+    rows,
+  };
 }

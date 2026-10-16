@@ -66,7 +66,12 @@ describe("describeNode", () => {
     const d = describeNode(data, "a", { isGM: false })!;
     expect(d.title).toBe("Алиса");
     expect(d.subtitle).toBe("Актёр");
-    expect(rowValue(d.rows, "Роль")).toBe("Капитан");
+    expect(d.header).toEqual({
+      kind: "node",
+      portrait: { img: "", fit: "cover", align: "center", border: "#ff0000" },
+      role: "Капитан",
+    });
+    expect(rowValue(d.rows, "Роль")).toBeUndefined(); // роль — в шапке
     expect(rowValue(d.rows, "Фракции")).toBe("Стража"); // несуществующая фракция пропущена
     expect(rowValue(d.rows, "Размер")).toBe("×1.5");
   });
@@ -121,7 +126,11 @@ const withHidden: GraphData = {
 
 describe("describeNode: флаги видимости", () => {
   it("скрытый узел у игрока — «Неизвестный»: только связи и размер", () => {
-    const d = describeNode(withHidden, "a", { isGM: false })!;
+    const d = describeNode({ ...withHidden, nodes: withHidden.nodes.map((n) => ({ ...n, img: "secret.png" })) }, "a", {
+      isGM: false,
+    })!;
+    // заглушка вместо картинки, без роли и цвета фракции
+    expect(d.header).toEqual({ kind: "node", portrait: { img: "", fit: "cover", align: "center", border: null }, role: "" });
     expect(d.title).toBe("Неизвестный");
     expect(d.subtitle).toBeUndefined();
     expect(d.rows.map((r) => r.label)).toEqual(["Связи (2)", "Размер"]);
@@ -144,7 +153,7 @@ describe("describeNode: флаги видимости", () => {
 
     const player = describeNode(gmOnly, "a", { isGM: false })!;
     expect(player.title).toBe("Алиса");
-    expect(rowValue(player.rows, "Роль")).toBe("Капитан");
+    expect(player.header).toMatchObject({ kind: "node", role: "Капитан" });
     expect(rowValue(player.rows, "Видимость")).toBeUndefined();
 
     expect(rowValue(describeNode(gmOnly, "a", { isGM: true })!.rows, "Видимость")).toBe("Правит только GM");
@@ -157,6 +166,7 @@ describe("describeEdge", () => {
     expect(d.title).toBe("Связь");
     expect(rowValue(d.rows, "Кто с кем")).toBe("Карл → Алиса");
     expect(rowValue(d.rows, "Тип")).toBe("враг");
+    expect(d.header).toMatchObject({ kind: "edge", directional: true, color: "#000000", dash: null, gmOnly: false });
 
     expect(describeEdge(data, "e1", { isGM: false })!.title).toBe("командует");
   });
@@ -167,7 +177,10 @@ describe("describeEdge", () => {
   });
 
   it("скрытый конец у игрока — «Неизвестный»", () => {
-    expect(rowValue(describeEdge(withHidden, "e1", { isGM: false })!.rows, "Кто с кем")).toBe("Неизвестный → Боб");
+    const d = describeEdge(withHidden, "e1", { isGM: false })!;
+    expect(rowValue(d.rows, "Кто с кем")).toBe("Неизвестный → Боб");
+    // миниатюра скрытого конца — заглушка без цвета фракции, у видимого — рамка его фракции
+    expect(d.header).toMatchObject({ source: { img: "", border: null }, target: { border: "#ff0000" } });
   });
 
   it("неизвестная связь — null", () => {
@@ -183,6 +196,7 @@ describe("describeFaction", () => {
   it("собирает описание и список участников", () => {
     const d = describeFaction(data, "f1", { isGM: false })!;
     expect(d.title).toBe("Стража");
+    expect(d.header).toEqual({ kind: "faction", color: "#ff0000" });
     expect(d.rows).toEqual([
       { label: "Описание", value: "Городская стража" },
       { label: "Участники (2)", value: "Алиса\nБоб" },

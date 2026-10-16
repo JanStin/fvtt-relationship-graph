@@ -99,9 +99,64 @@ body.theme-light #fvtt-relationship-graph-app:not(.theme-dark),
   outline: none;
 }
 
-/* Панель сведений (src/ui/panels/InfoPanel.ts): подзаголовок и значения полей. */
+/* Панель сведений (src/ui/panels/InfoPanel.ts): шапка с картинкой, значения полей. */
+.frg-info-header {
+  align-items: flex-start;
+  padding-top: 12px;
+}
+
+.frg-info-visual {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.frg-info-portrait {
+  display: block;
+  border: 2px solid;
+  border-radius: 50%;
+  background: var(--frg-surface-raised);
+}
+
+.frg-info-portrait-large {
+  width: 56px;
+  height: 56px;
+}
+
+.frg-info-portrait-small {
+  width: 36px;
+  height: 36px;
+}
+
+.frg-info-edge-line {
+  width: 28px;
+  height: 12px;
+}
+
+.frg-info-swatch {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--frg-border);
+  border-radius: 8px;
+}
+
+.frg-info-heading {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+
 .frg-info-subtitle {
   color: var(--frg-text-muted);
+  font-size: 12px;
+}
+
+.frg-info-role {
+  color: var(--frg-text);
 }
 
 .frg-info-value {
