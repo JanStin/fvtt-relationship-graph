@@ -8,6 +8,7 @@
  * на месте, геометрия ей не нужна.
  */
 
+import { parseUiTheme } from "./ui-theme";
 import type { BackgroundImageMode, FactionBlend, FactionDisplay, GraphBackground, GraphData } from "./model";
 
 /** Стандартный цвет фона графа (без настроек). */
@@ -56,6 +57,7 @@ export function defaultBackground(): GraphBackground {
     factionDisplay: "badges",
     factionBlend: "overlay",
     toolbarColor: "",
+    uiTheme: "",
   };
 }
 
@@ -75,6 +77,8 @@ export interface BackgroundEditValues {
   factionBlend: FactionBlend;
   /** '' — стандартный цвет панели инструментов. */
   toolbarColor: string;
+  /** '' — стандартный цветовой набор. */
+  uiTheme: string;
 }
 
 function parseNumber(text: string, fallback: number): number {
@@ -99,6 +103,7 @@ export function backgroundFromEdit(values: BackgroundEditValues): GraphBackgroun
     factionDisplay: parseFactionDisplay(values.factionDisplay),
     factionBlend: parseFactionBlend(values.factionBlend),
     toolbarColor: values.toolbarColor.trim(),
+    uiTheme: parseUiTheme(values.uiTheme),
   };
 }
 
@@ -141,7 +146,8 @@ export function isDefaultBackground(background: GraphBackground): boolean {
     !background.font &&
     factionDisplayOf(background) === "badges" &&
     factionBlendOf(background) === "overlay" &&
-    !background.toolbarColor
+    !background.toolbarColor &&
+    !parseUiTheme(background.uiTheme)
   );
 }
 

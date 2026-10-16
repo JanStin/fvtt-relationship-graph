@@ -15,6 +15,7 @@ import {
   type BackgroundEditValues,
 } from "../../core/background";
 import { t } from "../../core/i18n";
+import { parseUiTheme, UI_THEMES, uiThemeToolbarColor } from "../../core/ui-theme";
 import type { BackgroundImageMode, FactionBlend, FactionDisplay, GraphBackground } from "../../core/model";
 import { addPanelTabs, browseImage, checkbox, colorField, createPanelShell, field, group, hint, segmented, select, textInput } from "./form";
 
@@ -42,6 +43,13 @@ function factionBlendOptions(): Array<{ value: FactionBlend; label: string }> {
     { value: "mix", label: t("RELGRAPH.Background.FactionBlendMix") },
   ];
 }
+
+const UI_THEME_LABELS: Record<(typeof UI_THEMES)[number], string> = {
+  "": "RELGRAPH.Background.UiThemeDefault",
+  parchment: "RELGRAPH.Background.UiThemeParchment",
+  night: "RELGRAPH.Background.UiThemeNight",
+  forest: "RELGRAPH.Background.UiThemeForest",
+};
 
 export interface BackgroundPanelCallbacks {
   onSave(values: BackgroundEditValues): void;
@@ -121,6 +129,18 @@ export function createBackgroundPanel(
 
   const color = colorField(current.color, DEFAULT_BACKGROUND_COLOR);
   const toolbarColor = colorField(current.toolbarColor ?? "", DEFAULT_TOOLBAR_COLOR);
+  const uiTheme = select(
+    UI_THEMES.map((value) => ({ value, label: t(UI_THEME_LABELS[value]) })),
+    parseUiTheme(current.uiTheme),
+  );
+  // пустой цвет панели инструментов — цвет набора; выбор набора сбрасывает свой цвет, иначе он
+  // перекрывал бы набор и панель инструментов осталась бы прежней
+  const themeToolbarColor = () => uiThemeToolbarColor(parseUiTheme(uiTheme.value)) ?? DEFAULT_TOOLBAR_COLOR;
+  toolbarColor.setFallback(themeToolbarColor());
+  uiTheme.addEventListener("change", () => {
+    toolbarColor.setFallback(themeToolbarColor());
+    toolbarColor.clear();
+  });
 
   const image = textInput(current.image);
   image.placeholder = t("RELGRAPH.Background.NoImage");
@@ -175,6 +195,7 @@ export function createBackgroundPanel(
     factionDisplay: factionDisplay.value(),
     factionBlend: factionBlend.value(),
     toolbarColor: toolbarColor.value(),
+    uiTheme: uiTheme.value,
   });
 
   fit.addEventListener("click", () => {
@@ -264,7 +285,8 @@ export function createBackgroundPanel(
           hint(t("RELGRAPH.Background.FactionDisplayHint")),
         ),
         factionBlendField,
-        field(t("RELGRAPH.Background.ToolbarColor"), toolbarColor.element, hint(t("RELGRAPH.Background.ColorHint"))),
+        field(t("RELGRAPH.Background.UiTheme"), uiTheme, hint(t("RELGRAPH.Background.UiThemeHint"))),
+        field(t("RELGRAPH.Background.ToolbarColor"), toolbarColor.element, hint(t("RELGRAPH.Background.ToolbarColorHint"))),
       ],
     },
   ]);

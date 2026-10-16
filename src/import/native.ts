@@ -6,6 +6,7 @@
  * Свой формат проходит те же нормализации, что и загрузка из хранилища.
  */
 
+import { parseUiTheme } from "../core/ui-theme";
 import { BACKGROUND_IMAGE_MODES, defaultBackground, parseFactionBlend, parseFactionDisplay, setBackground } from "../core/background";
 import { ensureConditionDefs, isBuiltinCondition } from "../core/conditions";
 import { normalizeFactions } from "../core/edit";
@@ -128,6 +129,7 @@ function parseBackground(raw: unknown): GraphBackground | null {
     factionDisplay: parseFactionDisplay(raw.factionDisplay),
     factionBlend: parseFactionBlend(raw.factionBlend),
     toolbarColor: str(raw.toolbarColor),
+    uiTheme: parseUiTheme(raw.uiTheme),
   };
 }
 

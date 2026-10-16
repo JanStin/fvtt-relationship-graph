@@ -216,7 +216,16 @@ const UNSET_COLOR = "#808080";
  * Пустое поле — «не задан»: в поле подсказка «По умолчанию», палитра приглушённо показывает
  * fallback — цвет, который тогда действует (или серый, если он неизвестен), а не чёрный.
  */
-export function colorField(current: string, fallback = ""): { element: HTMLElement; value(): string } {
+export interface ColorField {
+  element: HTMLElement;
+  value(): string;
+  /** Сбросить в «не задан» (с событием input — как правка пользователем). */
+  clear(): void;
+  /** Другой цвет по умолчанию — например, от выбранного набора цветов. */
+  setFallback(color: string): void;
+}
+
+export function colorField(current: string, fallback = ""): ColorField {
   const text = textInput(current, t("RELGRAPH.Common.ColorDefault"));
   const picker = document.createElement("input");
   picker.type = "color";
@@ -238,7 +247,19 @@ export function colorField(current: string, fallback = ""): { element: HTMLEleme
   const element = document.createElement("div");
   element.className = "frg-field-row";
   element.append(text, picker);
-  return { element, value: () => text.value };
+  return {
+    element,
+    value: () => text.value,
+    clear() {
+      text.value = "";
+      syncUnset();
+      text.dispatchEvent(new Event("input", { bubbles: true }));
+    },
+    setFallback(color: string) {
+      fallback = color;
+      syncUnset();
+    },
+  };
 }
 
 /** Штатный FilePicker Foundry для выбора изображения; путь попадает в input (с событием input). */

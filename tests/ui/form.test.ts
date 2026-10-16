@@ -313,3 +313,19 @@ describe("linkTextArea", () => {
     expect(area.value).toBe("");
   });
 });
+
+describe("colorField: цвет по умолчанию и сброс", () => {
+  it("setFallback меняет показ пустого поля, clear сбрасывает свой цвет с событием input", () => {
+    const color = colorField("#123456", "#0f172a");
+    const [text, picker] = color.element.querySelectorAll("input");
+    let inputs = 0;
+    color.element.addEventListener("input", () => inputs++);
+    color.setFallback("#efe4c8");
+    expect(color.value()).toBe("#123456");
+    color.clear();
+    expect(color.value()).toBe("");
+    expect((text as HTMLInputElement).value).toBe("");
+    expect((picker as HTMLInputElement).value).toBe("#efe4c8");
+    expect(inputs).toBe(1);
+  });
+});

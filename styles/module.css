@@ -3,6 +3,9 @@
  * и только здесь. Тёмные — по умолчанию; светлые — при светлой теме Foundry 13: у окна графа
  * (.theme-light) или у всего интерфейса (body.theme-light), если окну тема не задана отдельно.
  * Подписи и значки на самом графе от темы не зависят — их цвета в своих правилах ниже.
+ * Боковые панели и меню — того же цвета, что панель инструментов (--frg-surface = --frg-toolbar-bg).
+ * Цветовой набор и свой цвет панели инструментов из «Настроек графа» GraphApp ставит поверх —
+ * inline-переменными (core/ui-theme.ts).
  */
 #fvtt-relationship-graph-app,
 .frg-info-dialog {
@@ -10,11 +13,11 @@
   --frg-surface-raised: #1e293b;
   --frg-hover: #334155;
   --frg-border-subtle: #334155;
-  --frg-border: #475569;
-  --frg-border-strong: #64748b;
+  --frg-border: #64748b;
+  --frg-border-strong: #7c8ba1;
   --frg-text: #e2e8f0;
   --frg-text-strong: #f8fafc;
-  --frg-text-muted: #94a3b8;
+  --frg-text-muted: #a3b0c2;
   --frg-accent: #facc15;
   --frg-accent-text: #0f172a;
   --frg-danger: #fca5a5;
@@ -28,22 +31,37 @@ body.theme-light #fvtt-relationship-graph-app:not(.theme-dark),
 #fvtt-relationship-graph-app.theme-light,
 body.theme-light .frg-info-dialog:not(.theme-dark),
 .frg-info-dialog.theme-light {
-  --frg-surface: #f8fafc;
-  --frg-surface-raised: #ffffff;
-  --frg-hover: #e2e8f0;
-  --frg-border-subtle: #cbd5e1;
-  --frg-border: #94a3b8;
-  --frg-border-strong: #64748b;
+  --frg-surface: #e2e8f0;
+  --frg-surface-raised: #f8fafc;
+  --frg-hover: #cbd5e1;
+  --frg-border-subtle: #b8c4d4;
+  --frg-border: #64748b;
+  --frg-border-strong: #475569;
   --frg-text: #1e293b;
   --frg-text-strong: #0f172a;
   --frg-text-muted: #475569;
-  --frg-accent: #facc15;
-  --frg-accent-text: #0f172a;
+  --frg-accent: #b45309;
+  --frg-accent-text: #ffffff;
   --frg-danger: #b91c1c;
   --frg-focus: #2563eb;
   --frg-condition-icon: #b45309;
   --frg-shadow: rgba(15, 23, 42, 0.25);
   --frg-toolbar-bg: #e2e8f0;
+}
+
+/*
+ * Полосы прокрутки — цветов интерфейса (набора, своего цвета панели инструментов), а не Foundry:
+ * и стандартным свойством, и переменными Foundry 13 — на случай, если тема задаёт их сама.
+ */
+#fvtt-relationship-graph-app,
+.frg-info-dialog {
+  --color-scrollbar: var(--frg-border-strong);
+  --color-scrollbar-track: var(--frg-surface);
+}
+
+#fvtt-relationship-graph-app *,
+.frg-info-dialog * {
+  scrollbar-color: var(--frg-border-strong) var(--frg-surface);
 }
 
 /* Контекстное меню поверх графа (src/ui/overlays.ts). */

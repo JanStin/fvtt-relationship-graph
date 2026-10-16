@@ -37,10 +37,8 @@ import {
   coverVisibleArea,
   DEFAULT_BACKGROUND_COLOR,
   setBackground,
-  toolbarColor,
   type BackgroundEditValues,
 } from "../core/background";
-import { isLightColor } from "../core/color";
 import {
   allConditions,
   conditionLabel,
@@ -99,6 +97,7 @@ import { createFactionListPanel, createFactionPanel } from "./panels/FactionPane
 import { iconButton } from "./panels/form";
 import { createImportControl, type ImportControl } from "./panels/ImportDialog";
 import { createHoverPreview, type HoverPreview } from "./hover-preview";
+import { isLightUi, parseUiTheme, UI_THEME_VARS, uiThemeVars } from "../core/ui-theme";
 import { hasContentLinks, restrictContentLinks } from "../core/content-links";
 import { canViewUuid, enrichContent } from "../foundry/enrich";
 import {
@@ -204,6 +203,8 @@ export class GraphApp extends ApplicationV2 {
   #searchQuery: string | null = null;
   /** Чьи сведения сейчас в боковой панели; null — панель сведений закрыта. */
   #infoTarget: GraphTarget | null = null;
+  /** CSS-переменные цветов интерфейса (#applyUiColors) — их получают и новые окна сведений. */
+  #uiVars: Record<string, string> = {};
   /** Окна сведений, вынесенные из панели (#detachInfo); ключ — «вид:id» элемента. */
   #infoWindows = new Map<string, InfoWindow>();
   /** Где был фокус до открытия сведений — вернуть его при закрытии (✕, Esc). */
@@ -686,7 +687,7 @@ export class GraphApp extends ApplicationV2 {
     // шрифт подписей: HTML-слою (node-decor.ts) — через CSS-переменную, Cytoscape — в стиле связей
     const fontFamily = graphFontFamily(hydrated.background);
     this.#cyHost.style.setProperty("--frg-font", fontFamily);
-    this.#applyToolbarColor(hydrated.background);
+    this.#applyUiColors(hydrated.background);
     this.#cy = renderGraph(this.#cyHost, hydrated, { isGM: this.#isGM, editable: this.#editing, fontFamily });
     if (viewport) this.#cy.viewport(viewport);
     this.#interaction.bind(this.#cy);
@@ -834,6 +835,7 @@ export class GraphApp extends ApplicationV2 {
     await dialog.render({ force: true });
     // граф в отдельном окне — окно сведений там же
     adoptIntoPopout(dialog);
+    this.#paintUi(dialog.element);
     this.#fillInfoWindow(dialog, target);
   }
 
@@ -1505,23 +1507,32 @@ export class GraphApp extends ApplicationV2 {
    * и отката. Шрифт и вид фракций не трогает: они в стиле Cytoscape.
    */
   /**
-   * Цвет панели инструментов. Свой цвет GM — inline-переменной и классом светлого/тёмного фона:
-   * под него подбираются цвета кнопок (module.css). Без своего цвета — цвет темы Foundry.
+   * Цвета интерфейса (core/ui-theme.ts): набор и свой цвет панели инструментов — inline-
+   * переменными на окне графа и окнах сведений; боковые панели и меню — того же цвета, что панель
+   * инструментов. Классом светлого/тёмного фона под него подбираются цвета кнопок панели
+   * инструментов (module.css). Стандартный набор без своего цвета — цвета темы Foundry.
    */
-  #applyToolbarColor(background: GraphBackground | null | undefined): void {
-    const toolbar = this.#toolbar;
-    if (!toolbar) return;
-    const custom = background?.toolbarColor?.trim() ?? "";
-    const light = custom ? isLightColor(custom) : null;
-    if (custom) toolbar.style.setProperty("--frg-toolbar-color", toolbarColor(background));
-    else toolbar.style.removeProperty("--frg-toolbar-color");
-    toolbar.classList.toggle("frg-toolbar-on-light", light === true);
-    toolbar.classList.toggle("frg-toolbar-on-dark", light === false);
+  #applyUiColors(background: GraphBackground | null | undefined): void {
+    const theme = parseUiTheme(background?.uiTheme);
+    const color = background?.toolbarColor?.trim() ?? "";
+    this.#uiVars = uiThemeVars(theme, color);
+    this.#paintUi(this.element as HTMLElement | null);
+    for (const { dialog } of this.#infoWindows.values()) this.#paintUi(dialog.element);
+    const light = isLightUi(theme, color);
+    this.#toolbar?.classList.toggle("frg-toolbar-on-light", light === true);
+    this.#toolbar?.classList.toggle("frg-toolbar-on-dark", light === false);
+  }
+
+  /** Ставит текущие переменные цветов (#uiVars) на элемент, снимая прежние. */
+  #paintUi(element: HTMLElement | null): void {
+    if (!element) return;
+    for (const name of UI_THEME_VARS) element.style.removeProperty(name);
+    for (const [name, value] of Object.entries(this.#uiVars)) element.style.setProperty(name, value);
   }
 
   #showBackground(background: GraphBackground | null): void {
     if (!this.#cyHost || !this.#cy || !this.#background) return;
-    this.#applyToolbarColor(background);
+    this.#applyUiColors(background);
     const blend = appliedFactionBlend(background);
     if (blend !== this.#factionBlobsBlend) {
       this.#factionBlobs?.destroy();

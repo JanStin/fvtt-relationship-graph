@@ -34,6 +34,7 @@ function values(overrides: Partial<BackgroundEditValues> = {}): BackgroundEditVa
     factionDisplay: "badges",
     factionBlend: "overlay",
     toolbarColor: "",
+    uiTheme: "",
     ...overrides,
   };
 }
@@ -56,6 +57,7 @@ describe("backgroundFromEdit", () => {
       factionDisplay: "badges",
       factionBlend: "overlay",
       toolbarColor: "",
+      uiTheme: "",
     });
   });
 
@@ -148,6 +150,10 @@ describe("toolbarColor", () => {
 
   it("фон, у которого изменён только цвет панели, не стандартный", () => {
     expect(isDefaultBackground({ ...defaultBackground(), toolbarColor: "#334455" })).toBe(false);
+    expect(isDefaultBackground({ ...defaultBackground(), uiTheme: "night" })).toBe(false);
+    expect(isDefaultBackground({ ...defaultBackground(), uiTheme: "neon" })).toBe(true);
+    expect(backgroundFromEdit(values({ uiTheme: "forest" })).uiTheme).toBe("forest");
+    expect(backgroundFromEdit(values({ uiTheme: "neon" })).uiTheme).toBe("");
   });
 });
 

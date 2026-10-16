@@ -116,6 +116,7 @@ describe("экспорт → импорт", () => {
         factionDisplay: "areas",
         factionBlend: "mix",
         toolbarColor: "#334455",
+        uiTheme: "parchment",
       },
     };
     expect(parseGraphFileJson(roundTrip(withBackground)).data).toEqual(withBackground);
@@ -237,6 +238,7 @@ describe("импорт своего формата: фон", () => {
       factionDisplay: "badges",
       factionBlend: "overlay",
       toolbarColor: "",
+      uiTheme: "",
     });
   });
 

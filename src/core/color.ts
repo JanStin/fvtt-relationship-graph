@@ -40,6 +40,17 @@ export function isLightColor(color: string): boolean | null {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b > LIGHT_LUMINANCE;
 }
 
+/** Контраст двух цветов по WCAG (1–21); цвета — "#rgb" / "#rrggbb". */
+export function contrastRatio(a: string, b: string): number {
+  const luminance = (color: string) => {
+    const [r, g, b2] = parseHexColor(color).map(toLinear);
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b2;
+  };
+  const la = luminance(a);
+  const lb = luminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
 /** Яркость, при которой контраст с чёрным и с белым одинаков: (L + 0.05)² = 1.05 · 0.05. */
 const LIGHT_LUMINANCE = Math.sqrt(1.05 * 0.05) - 0.05;
 
