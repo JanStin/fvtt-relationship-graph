@@ -98,7 +98,7 @@ import { createEdgePanel } from "./panels/EdgePanel";
 import { createFactionListPanel, createFactionPanel } from "./panels/FactionPanel";
 import { iconButton } from "./panels/form";
 import { createImportControl, type ImportControl } from "./panels/ImportDialog";
-import { createInfoPanel, paragraphsElement } from "./panels/InfoPanel";
+import { createInfoPanel, paragraphsElement, type InfoFooterAction } from "./panels/InfoPanel";
 import { createNodePanel, type ActorOption } from "./panels/NodePanel";
 import { createRelationshipTypeListPanel, createRelationshipTypePanel } from "./panels/RelationshipTypePanel";
 import { createSearchPanel, type SearchTarget } from "./panels/SearchPanel";
@@ -732,10 +732,70 @@ export class GraphApp extends ApplicationV2 {
       onOpen: (next) => this.#openLinkedInfo(next),
       onHover: (link) => this.#highlightInfoLink(link),
       onExpand: (title, text) => this.#showText(title, text),
-    });
+    }, this.#infoFooter(target));
     this.#mountPanel(panel, () => this.#openInfo(target, { reveal: false }));
     this.#infoTarget = target;
     if (reveal && target.kind !== "faction") this.#revealBesidePanel(target.id);
+  }
+
+  /**
+   * Подвал сведений — те же права, что в меню ПКМ. «Изменить» открывает форму на месте сведений;
+   * после сохранения или отмены панель возвращается к сведениям.
+   */
+  #infoFooter(target: InfoTarget): InfoFooterAction[] {
+    const data = this.#currentData;
+    if (!data) return [];
+    const footer: InfoFooterAction[] = [];
+    const edit = (onSelect: () => void) =>
+      footer.push({ label: t("RELGRAPH.Info.Edit"), icon: "fa-solid fa-pen", onSelect });
+
+    if (target.kind === "node") {
+      const node = data.nodes.find((n) => n.id === target.id);
+      if (this.#editing && node && canEditNode(node, this.#isGM)) edit(() => this.#openNodePanel(target.id, target));
+      // лист актёра — только GM, как в меню ПКМ
+      const actor = node?.actorId && this.#isGM ? game.actors?.get(node.actorId) : null;
+      if (actor) footer.push({ label: t("RELGRAPH.Info.ActorSheet"), icon: "fa-solid fa-id-card", onSelect: () => actor.sheet?.render(true) });
+    } else if (target.kind === "edge") {
+      if (this.#editing) edit(() => this.#openEdgePanel(target.id, target));
+    } else {
+      // игроку форма фракции открывается с правкой только описания
+      if (this.#editing) edit(() => this.#openFactionPanel(target.id, target));
+      footer.push({
+        label: t("RELGRAPH.Menu.SelectArea"),
+        icon: "fa-solid fa-object-group",
+        onSelect: () => this.#interaction?.selectFaction(target.id),
+      });
+    }
+    footer.push({ label: t("RELGRAPH.Info.ShowOnGraph"), icon: "fa-solid fa-crosshairs", onSelect: () => this.#showOnGraph(target) });
+    return footer;
+  }
+
+  /**
+   * «Показать на графе»: узел или связь — выделить и поставить в центр видимой части; фракция —
+   * центрировать на её участниках (видимых этому пользователю), выделение не меняется.
+   */
+  #showOnGraph(target: InfoTarget): void {
+    const cy = this.#cy;
+    const data = this.#currentData;
+    if (!cy || !data) return;
+    if (target.kind !== "faction") {
+      this.#showSearchTarget({ kind: target.kind, id: target.id });
+      return;
+    }
+    const isGM = this.#isGM;
+    const memberIds = new Set(
+      data.nodes
+        .filter((n) => (isMasked(n, isGM) ? n.primaryFactionId === target.id : n.factionIds.includes(target.id)))
+        .map((n) => n.id),
+    );
+    const members = cy.nodes("[!isFaction]").filter((node) => memberIds.has(node.id()));
+    if (members.nonempty()) this.#centerInView(members);
+  }
+
+  /** Форма, открытая из сведений, закрыта (сохранение, отмена): вернуться к сведениям или закрыть. */
+  #returnToInfo(returnTo: InfoTarget | null): void {
+    if (returnTo) this.#openInfo(returnTo, { reveal: false });
+    else this.#closePanel();
   }
 
   /**
@@ -771,7 +831,7 @@ export class GraphApp extends ApplicationV2 {
   }
 
   /** Плавно переводит вид так, чтобы элемент оказался в центре видимой части графа. */
-  #centerInView(element: cytoscape.CollectionReturnValue): void {
+  #centerInView(element: cytoscape.Collection): void {
     const cy = this.#cy;
     const center = this.#visibleCenter();
     if (!cy || !center) return;
@@ -1060,7 +1120,8 @@ export class GraphApp extends ApplicationV2 {
     await this.#commit(data);
   }
 
-  #openNodePanel(nodeId: string): void {
+  /** returnTo — открыта из сведений: после сохранения или отмены вернуться к ним. */
+  #openNodePanel(nodeId: string, returnTo: InfoTarget | null = null): void {
     const data = this.#currentData;
     const node = data?.nodes.find((n) => n.id === nodeId);
     if (!data || !node || !canEditNode(node, this.#isGM)) return;
@@ -1072,12 +1133,14 @@ export class GraphApp extends ApplicationV2 {
       this.#actorOptions(),
       {
         onSave: (values) => {
-          void this.#saveNode(nodeId, values);
+          void this.#saveNode(nodeId, values).then(() => {
+            if (returnTo) this.#returnToInfo(returnTo);
+          });
         },
         onDelete: () => {
           void this.#deleteNode(nodeId, nodeName(node));
         },
-        onClose: () => this.#closePanel(),
+        onClose: () => this.#returnToInfo(returnTo),
       },
       { isGM: this.#isGM },
     );
@@ -1104,7 +1167,8 @@ export class GraphApp extends ApplicationV2 {
     await this.#commit(removeNode(this.#currentData, nodeId));
   }
 
-  #openEdgePanel(edgeId: string): void {
+  /** returnTo — как у #openNodePanel. */
+  #openEdgePanel(edgeId: string, returnTo: InfoTarget | null = null): void {
     const data = this.#currentData;
     const edge = data?.edges.find((e) => e.id === edgeId);
     if (!data || !edge) return;
@@ -1116,12 +1180,15 @@ export class GraphApp extends ApplicationV2 {
       data.relationshipTypes,
       {
         onSave: (values) => {
-          if (this.#currentData) void this.#commit(applyEdgeEdit(this.#currentData, edgeId, values));
+          if (!this.#currentData) return;
+          void this.#commit(applyEdgeEdit(this.#currentData, edgeId, values)).then(() => {
+            if (returnTo) this.#returnToInfo(returnTo);
+          });
         },
         onDelete: () => {
           void this.#deleteEdge(edgeId);
         },
-        onClose: () => this.#closePanel(),
+        onClose: () => this.#returnToInfo(returnTo),
       },
       { isGM: this.#isGM },
     );
@@ -1153,8 +1220,11 @@ export class GraphApp extends ApplicationV2 {
     this.#mountPanel(panel, () => this.#openFactionList());
   }
 
-  /** factionId === null — создание новой фракции (только GM). */
-  #openFactionPanel(factionId: string | null): void {
+  /**
+   * factionId === null — создание новой фракции (только GM). returnTo — открыта из сведений:
+   * после сохранения или отмены вернуться к ним, а не к списку фракций.
+   */
+  #openFactionPanel(factionId: string | null, returnTo: InfoTarget | null = null): void {
     const data = this.#currentData;
     const faction = factionId === null ? null : data?.factions.find((f) => f.id === factionId);
     if (!data || faction === undefined || (faction === null && !this.#isGM)) return;
@@ -1163,19 +1233,19 @@ export class GraphApp extends ApplicationV2 {
       faction,
       {
         onSave: (values) => {
-          void this.#saveFaction(factionId, values);
+          void this.#saveFaction(factionId, values, returnTo);
         },
         onDelete: () => {
           if (faction) void this.#deleteFaction(faction.id, factionName(faction));
         },
-        onClose: () => this.#closePanel(),
+        onClose: () => this.#returnToInfo(returnTo),
       },
       { isGM: this.#isGM },
     );
     this.#mountPanel(panel);
   }
 
-  async #saveFaction(factionId: string | null, values: FactionEditValues): Promise<void> {
+  async #saveFaction(factionId: string | null, values: FactionEditValues, returnTo: InfoTarget | null = null): Promise<void> {
     const current = this.#currentData;
     if (!current) return;
     let data: GraphData;
@@ -1188,7 +1258,8 @@ export class GraphApp extends ApplicationV2 {
       data = applyFactionEdit(current, factionId, restrictFactionEdit(faction, values, this.#isGM));
     }
     await this.#commit(data);
-    this.#openFactionList();
+    if (returnTo) this.#returnToInfo(returnTo);
+    else this.#openFactionList();
   }
 
   async #deleteFaction(factionId: string, name: string): Promise<void> {

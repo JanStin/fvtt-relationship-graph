@@ -410,6 +410,18 @@ body.theme-light #fvtt-relationship-graph-app:not(.theme-dark),
   transform: rotate(-90deg);
 }
 
+/* Подвал сведений: кнопки переносятся, если не помещаются в строку. */
+.frg-info-footer {
+  flex-wrap: wrap;
+  border-top: 1px solid var(--frg-border-subtle);
+}
+
+.frg-info-footer button {
+  flex: 1 1 auto;
+  width: auto;
+  white-space: nowrap;
+}
+
 .frg-panel .frg-info-expand {
   align-self: flex-start;
   width: auto;

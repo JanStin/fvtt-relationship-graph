@@ -114,7 +114,10 @@
       "Undirected": "Undirected",
       "PrimaryFaction": "Primary faction",
       "Expand": "Expand",
-      "Resize": "Panel width: drag the edge or press ← / →"
+      "Resize": "Panel width: drag the edge or press ← / →",
+      "Edit": "Edit",
+      "ActorSheet": "Actor sheet",
+      "ShowOnGraph": "Show on graph"
     },
     "Faction": {
       "Panel": "Faction",

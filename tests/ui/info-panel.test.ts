@@ -99,3 +99,18 @@ describe("ширина панели", () => {
     expect(loadInfoPanelWidth()).toBe(INFO_PANEL_MIN_WIDTH);
   });
 });
+
+describe("подвал сведений", () => {
+  it("кнопки действий; без действий подвала нет", () => {
+    expect(createInfoPanel(description("т"), silent).querySelector(".frg-info-footer")).toBeNull();
+    const selected: string[] = [];
+    const panel = createInfoPanel(description("т"), silent, [
+      { label: "Изменить", icon: "fa-solid fa-pen", onSelect: () => selected.push("edit") },
+      { label: "Показать на графе", icon: "fa-solid fa-crosshairs", onSelect: () => selected.push("show") },
+    ]);
+    const buttons = [...panel.querySelectorAll<HTMLButtonElement>(".frg-info-footer button")];
+    expect(buttons.map((b) => b.textContent?.trim())).toEqual(["Изменить", "Показать на графе"]);
+    buttons[1].click();
+    expect(selected).toEqual(["show"]);
+  });
+});

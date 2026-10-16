@@ -41,6 +41,14 @@ export interface InfoPanelActions {
   onExpand(title: string, text: string): void;
 }
 
+/** Кнопка подвала сведений; какие показать (по правам и режиму), решает GraphApp. */
+export interface InfoFooterAction {
+  label: string;
+  /** Классы Font Awesome. */
+  icon: string;
+  onSelect(): void;
+}
+
 /** Длинный текст — больше стольких строк в панели — получает кнопку «Развернуть». */
 export const LONG_TEXT_LINES = 15;
 /** Знаков в строке панели по умолчанию — для оценки числа строк. */
@@ -439,7 +447,25 @@ function resizeHandle(panel: HTMLElement): HTMLElement {
   return handle;
 }
 
-export function createInfoPanel(description: Description, actions: InfoPanelActions): HTMLElement {
+/** Подвал с действиями над элементом: «Изменить», «Лист актёра», «Выбрать область», «Показать на графе». */
+function infoFooter(footer: readonly InfoFooterAction[]): HTMLElement {
+  const element = document.createElement("div");
+  element.className = "frg-panel-footer frg-info-footer";
+  for (const action of footer) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.append(icon(action.icon), ` ${action.label}`);
+    button.addEventListener("click", () => action.onSelect());
+    element.append(button);
+  }
+  return element;
+}
+
+export function createInfoPanel(
+  description: Description,
+  actions: InfoPanelActions,
+  footer: readonly InfoFooterAction[] = [],
+): HTMLElement {
   const element = document.createElement("div");
   element.className = "frg-panel frg-info-panel";
   // пределы окна графа — max-width в CSS
@@ -467,5 +493,6 @@ export function createInfoPanel(description: Description, actions: InfoPanelActi
 
   // шапка — вне прокручиваемого тела: при прокрутке видно, чьи это сведения
   element.append(resizeHandle(element), infoHeader(description, actions.onClose), body);
+  if (footer.length > 0) element.append(infoFooter(footer));
   return element;
 }
