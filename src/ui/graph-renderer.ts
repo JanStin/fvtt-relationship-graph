@@ -52,6 +52,8 @@ export function factionIdFromElement(elementId: string): string {
 export const LINK_SOURCE_CLASS = "link-source";
 /** Элемент не подходит под запрос открытой панели поиска — приглушён (GraphApp). */
 export const DIMMED_CLASS = "frg-dimmed";
+/** Узел или связь под строкой сведений, на которую навели курсор (GraphApp). */
+export const INFO_HOVER_CLASS = "frg-info-hover";
 /** Рамка узла без фракции (и линия связи без типа). */
 export const NEUTRAL_COLOR = "#64748b";
 /** Пунктир gmOnly-связи, у типа которой линия сплошная. */
@@ -263,6 +265,23 @@ const STYLE = [
       width: 4,
       "line-color": "#facc15",
       "target-arrow-color": "#facc15",
+    },
+  },
+  {
+    selector: `node.${INFO_HOVER_CLASS}`,
+    style: {
+      "underlay-color": "#38bdf8",
+      "underlay-opacity": 0.5,
+      "underlay-padding": 10,
+      "underlay-shape": "ellipse",
+    },
+  },
+  {
+    selector: `edge.${INFO_HOVER_CLASS}`,
+    style: {
+      "underlay-color": "#38bdf8",
+      "underlay-opacity": 0.5,
+      "underlay-padding": 4,
     },
   },
   {

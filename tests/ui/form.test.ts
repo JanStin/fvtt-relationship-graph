@@ -126,19 +126,23 @@ describe("контекстное меню", () => {
 });
 
 describe("панель сведений", () => {
-  it("заголовок, подзаголовок и поля; крестик закрывает", () => {
+  const silent = { onClose() {}, onOpen() {}, onHover() {} };
+
+  it("шапка, текстовый блок, значок видимости; крестик закрывает", () => {
     let closed = false;
     const panel = createInfoPanel(
       {
         title: "Анна",
         subtitle: "Актёр",
         header: { kind: "node", portrait: { img: "", fit: "contain", align: "top", border: "#ff0000" }, role: "Кузнец" },
-        rows: [{ label: "Описание", value: "Высокая" }],
+        visibility: { icon: "fa-eye-slash", label: "Скрыт от игроков" },
+        blocks: [{ kind: "text", label: "Описание", text: "Высокая" }],
       },
-      () => (closed = true),
+      { ...silent, onClose: () => (closed = true) },
     );
     expect(panel.classList.contains("frg-panel")).toBe(true);
-    expect(panel.querySelector(".frg-panel-title")!.textContent).toBe("Анна");
+    expect(panel.querySelector(".frg-panel-title")!.textContent).toContain("Анна");
+    expect(panel.querySelector(".frg-info-visibility")!.getAttribute("aria-label")).toBe("Скрыт от игроков");
     expect(panel.querySelector(".frg-info-subtitle")!.textContent).toBe("Актёр");
     expect(panel.querySelector(".frg-info-role")!.textContent).toBe("Кузнец");
     expect(panel.querySelector(".frg-field-label")!.textContent).toBe("Описание");
@@ -158,12 +162,94 @@ describe("панель сведений", () => {
       {
         title: "Связь",
         header: { kind: "edge", source: end, target: end, directional: true, color: "#00ff00", dash: [4, 4], gmOnly: false },
-        rows: [],
+        blocks: [],
       },
-      () => {},
+      silent,
     );
     expect(panel.querySelectorAll(".frg-info-portrait")).toHaveLength(2);
-    expect(panel.querySelector("line")!.getAttribute("stroke-dasharray")).toBe("4 4");
-    expect(panel.querySelector("polygon")).not.toBeNull();
+    expect(panel.querySelector(".frg-info-edge-line line")!.getAttribute("stroke-dasharray")).toBe("4 4");
+    expect(panel.querySelector(".frg-info-edge-line polygon")).not.toBeNull();
+  });
+
+  it("связь — кнопка: клик открывает узел, наведение подсвечивает узел и связь", () => {
+    const opened: unknown[] = [];
+    const hovered: unknown[] = [];
+    const link = {
+      label: "Боб",
+      caption: "друг",
+      nodeId: "b",
+      edgeId: "e1",
+      direction: "out",
+      stroke: { color: "#00ff00", dash: null, gmOnly: true },
+    } as const;
+    const panel = createInfoPanel(
+      {
+        title: "Анна",
+        header: { kind: "faction", color: "#000000" },
+        blocks: [{ kind: "links", label: "Связи (1)", links: [link] }],
+      },
+      { onClose() {}, onOpen: (target) => opened.push(target), onHover: (value) => hovered.push(value) },
+    );
+    const row = panel.querySelector<HTMLButtonElement>(".frg-info-link")!;
+    expect(row.querySelector(".frg-info-link-direction")!.getAttribute("aria-label")).toBe("Исходящая");
+    // сплошной тип у gmOnly-связи — пунктир, как на графе
+    expect(row.querySelector("line")!.getAttribute("stroke-dasharray")).toBe("6 3");
+    row.dispatchEvent(new MouseEvent("mouseenter"));
+    row.dispatchEvent(new MouseEvent("mouseleave"));
+    row.click();
+    expect(hovered).toEqual([{ nodeId: "b", edgeId: "e1" }, null]);
+    expect(opened).toEqual([{ kind: "node", id: "b" }]);
+  });
+
+  it("группы связей сворачиваются заголовком", () => {
+    const link = { label: "Боб", caption: "", nodeId: "b", edgeId: "e1", direction: "none", stroke: null } as const;
+    const panel = createInfoPanel(
+      {
+        title: "Анна",
+        header: { kind: "faction", color: "#000000" },
+        blocks: [{ kind: "links", label: "Связи (1)", links: [link], groups: [{ label: "друг", color: "#00ff00", links: [link] }] }],
+      },
+      silent,
+    );
+    const toggle = panel.querySelector<HTMLButtonElement>(".frg-info-group-toggle")!;
+    expect(toggle.textContent).toBe("друг1");
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    toggle.click();
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(panel.querySelector<HTMLElement>(".frg-info-group .frg-info-links")!.hidden).toBe(true);
+  });
+
+  it("чип фракции — кнопка к её сведениям, основная выделена; состояние — чип с иконкой", () => {
+    const opened: unknown[] = [];
+    const panel = createInfoPanel(
+      {
+        title: "Анна",
+        header: { kind: "faction", color: "#000000" },
+        blocks: [
+          {
+            kind: "chips",
+            label: "Фракции",
+            chips: [{ label: "Стража", color: "#ff0000", primary: true, target: { kind: "faction", id: "f1" } }],
+          },
+          { kind: "chips", label: "Состояния", chips: [{ label: "Мёртв", icon: "fa-solid fa-skull" }] },
+        ],
+      },
+      { ...silent, onOpen: (target) => opened.push(target) },
+    );
+    const [faction, condition] = panel.querySelectorAll<HTMLElement>(".frg-info-chip");
+    expect(faction.tagName).toBe("BUTTON");
+    expect(faction.classList.contains("frg-info-chip-primary")).toBe(true);
+    faction.click();
+    expect(opened).toEqual([{ kind: "faction", id: "f1" }]);
+    expect(condition.tagName).toBe("SPAN");
+    expect(condition.querySelector(".fa-skull")).not.toBeNull();
+  });
+
+  it("пустое состояние с подсказкой", () => {
+    const panel = createInfoPanel(
+      { title: "Анна", header: { kind: "faction", color: "#000000" }, blocks: [], empty: { hint: "Заполните" } },
+      silent,
+    );
+    expect(panel.querySelector(".frg-info-empty")!.textContent).toBe("Сведений нетЗаполните");
   });
 });

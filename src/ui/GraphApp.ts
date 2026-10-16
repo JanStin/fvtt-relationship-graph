@@ -49,7 +49,7 @@ import {
   updateCondition,
   type ConditionEditValues,
 } from "../core/conditions";
-import { describeEdge, describeFaction, describeNode } from "../core/describe";
+import { describeEdge, describeFaction, describeNode, type InfoTarget } from "../core/describe";
 import {
   applyEdgeEdit,
   applyFactionEdit,
@@ -84,7 +84,7 @@ import { displayName, isMasked, nodeName } from "../core/visibility";
 import { createBackgroundLayer, type BackgroundLayer } from "./background-layer";
 import { setupEdgeLabels, type EdgeLabelsHandle } from "./edge-labels";
 import { createFactionBlobLayer, type FactionBlobLayer } from "./faction-blobs";
-import { DIMMED_CLASS, renderGraph } from "./graph-renderer";
+import { DIMMED_CLASS, INFO_HOVER_CLASS, renderGraph } from "./graph-renderer";
 import { setupInteraction, type GraphTarget, type InteractionHandle, type NodeSnapshot } from "./interaction";
 import { startIdleTimer, type IdleTimer } from "./idle-timer";
 import { createNodeDecorLayer, type NodeDecorLayer } from "./node-decor";
@@ -722,8 +722,29 @@ export class GraphApp extends ApplicationV2 {
           ? describeEdge(this.#currentData, target.id, options)
           : describeFaction(this.#currentData, target.id, options);
     if (!card) return;
-    this.#mountPanel(createInfoPanel(card, () => this.#closePanel()), () => this.#openInfo(target));
+    const panel = createInfoPanel(card, {
+      onClose: () => this.#closePanel(),
+      onOpen: (next) => this.#openLinkedInfo(next),
+      onHover: (link) => this.#highlightInfoLink(link),
+    });
+    this.#mountPanel(panel, () => this.#openInfo(target));
     this.#infoTarget = target;
+  }
+
+  /** Переход из сведений по связи, участнику или фракции: узел ещё и выделяется в центре вида. */
+  #openLinkedInfo(target: InfoTarget): void {
+    if (target.kind === "node") this.#showSearchTarget({ kind: "node", id: target.id });
+    this.#openInfo(target);
+  }
+
+  /** Подсветка узла и связи на графе при наведении на строку сведений; null — снять. */
+  #highlightInfoLink(link: { nodeId: string; edgeId: string | null } | null): void {
+    const cy = this.#cy;
+    if (!cy) return;
+    cy.elements(`.${INFO_HOVER_CLASS}`).removeClass(INFO_HOVER_CLASS);
+    if (!link) return;
+    cy.getElementById(link.nodeId).addClass(INFO_HOVER_CLASS);
+    if (link.edgeId) cy.getElementById(link.edgeId).addClass(INFO_HOVER_CLASS);
   }
 
   /** Имя узла для заголовков панелей; скрытый узел у игрока — «Неизвестный». */
@@ -742,6 +763,7 @@ export class GraphApp extends ApplicationV2 {
     this.#panel = null;
     this.#reopenPanel = null;
     this.#infoTarget = null;
+    this.#highlightInfoLink(null);
     if (this.#searchQuery !== null) this.#dimBySearch("");
     this.#searchQuery = null;
     this.#searchButton?.classList.remove("frg-toolbar-active");

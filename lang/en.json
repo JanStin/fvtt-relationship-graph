@@ -13,7 +13,6 @@
       "Description": "Description",
       "Size": "Size",
       "Role": "Role",
-      "Visibility": "Visibility",
       "Factions": "Factions",
       "Conditions": "Conditions",
       "RelationshipTypes": "Relationship Types",
@@ -84,7 +83,6 @@
       "FactionPicker": "Factions (checkmark on the right — primary, area)",
       "NoFactions": "No factions yet — create them via right-click → “Factions…”.",
       "PrimaryFaction": "Primary faction",
-      "PrimaryMark": "{name} (primary)",
       "Connections": "Connections ({count})",
       "DeleteConfirm": "Delete node “{name}”?",
       "DeleteConfirmEdges": "Delete node “{name}” and its relationships ({count})?",
@@ -106,6 +104,15 @@
       "NewHint": "The relationship will appear after saving. If nothing is filled in, it won't be created.",
       "EmptyNotCreated": "Relationship not created: nothing was filled in.",
       "Linking": "Creating relationship: select the second node. Esc or right-click — cancel"
+    },
+    "Info": {
+      "Empty": "No details yet",
+      "EmptyEditHint": "Role, description, factions and edges are added in edit mode: “Edit” on the toolbar, then double-click the node.",
+      "NoType": "No type",
+      "Outgoing": "Outgoing",
+      "Incoming": "Incoming",
+      "Undirected": "Undirected",
+      "PrimaryFaction": "Primary faction"
     },
     "Faction": {
       "Panel": "Faction",

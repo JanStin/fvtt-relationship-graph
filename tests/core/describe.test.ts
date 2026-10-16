@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { describeEdge, describeFaction, describeNode } from "../../src/core/describe";
+import {
+  describeEdge,
+  describeFaction,
+  describeNode,
+  LINK_GROUP_THRESHOLD,
+  type Description,
+  type DescriptionBlock,
+} from "../../src/core/describe";
 import type { GraphData, GraphEdge, GraphNode } from "../../src/core/model";
 
 function makeNode(overrides: Partial<GraphNode> & { id: string }): GraphNode {
@@ -53,8 +60,28 @@ const data: GraphData = {
   conditions: [],
 };
 
-function rowValue(rows: { label: string; value: string }[], labelStart: string): string | undefined {
-  return rows.find((r) => r.label.startsWith(labelStart))?.value;
+const ARROWS = { out: "→", in: "←", none: "—" } as const;
+
+/** Блок одной строкой: текст как есть, чипы через запятую (основная — со *), ссылки по строкам через « | ». */
+function summary(block: DescriptionBlock): string {
+  if (block.kind === "text") return block.text;
+  if (block.kind === "chips") return block.chips.map((c) => (c.primary ? `${c.label}*` : c.label)).join(", ");
+  return block.links
+    .map((l) => `${l.stroke ? `${ARROWS[l.direction]} ` : ""}${l.label}${l.caption ? `: ${l.caption}` : ""}`)
+    .join(" | ");
+}
+
+function blockOf(d: Description, labelStart: string): DescriptionBlock | undefined {
+  return d.blocks.find((b) => b.label.startsWith(labelStart));
+}
+
+function value(d: Description, labelStart: string): string | undefined {
+  const block = blockOf(d, labelStart);
+  return block && summary(block);
+}
+
+function labels(d: Description): string[] {
+  return d.blocks.map((b) => b.label);
 }
 
 describe("describeNode", () => {
@@ -62,7 +89,7 @@ describe("describeNode", () => {
     expect(describeNode(data, "nope", { isGM: true })).toBeNull();
   });
 
-  it("собирает заголовок, тип, роль, фракции и размер", () => {
+  it("шапка: имя, тип, роль и портрет; размера в сведениях нет", () => {
     const d = describeNode(data, "a", { isGM: false })!;
     expect(d.title).toBe("Алиса");
     expect(d.subtitle).toBe("Актёр");
@@ -71,50 +98,125 @@ describe("describeNode", () => {
       portrait: { img: "", fit: "cover", align: "center", border: "#ff0000" },
       role: "Капитан",
     });
-    expect(rowValue(d.rows, "Роль")).toBeUndefined(); // роль — в шапке
-    expect(rowValue(d.rows, "Фракции")).toBe("Стража"); // несуществующая фракция пропущена
-    expect(rowValue(d.rows, "Размер")).toBe("×1.5");
+    expect(value(d, "Роль")).toBeUndefined(); // роль — в шапке
+    expect(value(d, "Размер")).toBeUndefined();
+    expect(d.empty).toBeUndefined();
   });
 
-  it("при нескольких фракциях помечает основную", () => {
+  it("фракции — чипами с цветом и переходом к фракции; несуществующая пропущена", () => {
+    const d = describeNode(data, "a", { isGM: false })!;
+    const block = blockOf(d, "Фракции");
+    expect(block).toEqual({
+      kind: "chips",
+      label: "Фракции",
+      chips: [{ label: "Стража", color: "#ff0000", primary: false, target: { kind: "faction", id: "f1" } }],
+    });
+  });
+
+  it("при нескольких фракциях выделяет основную", () => {
     const many: GraphData = {
       ...data,
       factions: [...data.factions, { id: "f2", name: "Гильдия", color: "#00ff00", description: "" }],
       nodes: [makeNode({ id: "x", factionIds: ["f2", "f1"], primaryFactionId: "f2" })],
     };
-    expect(rowValue(describeNode(many, "x", { isGM: false })!.rows, "Фракции")).toBe("Гильдия (основная), Стража");
+    expect(value(describeNode(many, "x", { isGM: false })!, "Фракции")).toBe("Гильдия*, Стража");
   });
 
-  it("состояния выводятся названиями из справочника", () => {
+  it("состояния — чипами с названием и иконкой из справочника", () => {
     const withConditions: GraphData = {
       ...data,
       conditions: [{ id: "cursed", label: "Проклят", icon: "fa-ghost" }],
       nodes: [makeNode({ id: "x", conditions: ["deceased", "cursed", "неизвестное"] })],
     };
-    expect(rowValue(describeNode(withConditions, "x", { isGM: false })!.rows, "Состояния")).toBe(
-      "Мёртв, Проклят, неизвестное",
-    );
+    const block = blockOf(describeNode(withConditions, "x", { isGM: false })!, "Состояния");
+    expect(block?.kind === "chips" && block.chips).toEqual([
+      { label: "Мёртв", icon: "fa-solid fa-skull" },
+      { label: "Проклят", icon: "fa-solid fa-ghost" },
+      { label: "неизвестное", icon: expect.stringContaining("fa-solid") },
+    ]);
   });
 
-  it("описывает связи: направление, подпись или название типа", () => {
+  it("связи — ссылками на соседей: направление, подпись или тип, полоска типа", () => {
     const d = describeNode(data, "a", { isGM: false })!;
-    expect(rowValue(d.rows, "Связи")).toBe("→ Боб: командует\n← Карл: враг");
+    expect(value(d, "Связи")).toBe("→ Боб: командует | ← Карл: враг");
+    const block = blockOf(d, "Связи");
+    expect(block?.kind === "links" && block.links[1]).toEqual({
+      label: "Карл",
+      caption: "враг",
+      nodeId: "c",
+      edgeId: "e2",
+      direction: "in",
+      stroke: { color: "#000000", dash: null, gmOnly: false },
+    });
+    expect(block?.kind === "links" && block.groups).toBeUndefined();
   });
 
   it("GM-only связи и заметки GM видит только GM", () => {
     const player = describeNode(data, "a", { isGM: false })!;
-    expect(player.rows.some((r) => r.label === "Заметки GM")).toBe(false);
-    expect(player.rows.some((r) => r.label === "Связи (2)")).toBe(true);
+    expect(labels(player)).not.toContain("Заметки GM");
+    expect(labels(player)).toContain("Связи (2)");
 
     const gm = describeNode(data, "a", { isGM: true })!;
-    expect(rowValue(gm.rows, "Заметки GM")).toBe("секрет");
-    expect(rowValue(gm.rows, "Связи (3)")).toContain("— Карл: шпионит");
+    expect(value(gm, "Заметки GM")).toBe("секрет");
+    expect(value(gm, "Связи (3)")).toContain("— Карл: шпионит");
   });
 
-  it("пустые поля не попадают в строки", () => {
+  it("порядок по важности: описание, заметки, фракции, состояния, связи", () => {
+    const full: GraphData = {
+      ...data,
+      nodes: data.nodes.map((n) =>
+        n.id === "a" ? { ...n, lore: "о ней", playerNotes: "заметка", conditions: ["deceased"], hidden: true } : n,
+      ),
+    };
+    expect(labels(describeNode(full, "a", { isGM: true })!)).toEqual([
+      "Описание",
+      "Заметки",
+      "Заметки GM",
+      "Фракции",
+      "Состояния",
+      "Связи (3)",
+    ]);
+  });
+
+  it("пустые поля не попадают в блоки", () => {
     const d = describeNode(data, "b", { isGM: true })!;
     expect(d.subtitle).toBe("Без актёра");
-    expect(d.rows.map((r) => r.label)).toEqual(["Фракции", "Связи (1)", "Размер"]);
+    expect(labels(d)).toEqual(["Фракции", "Связи (1)"]);
+  });
+
+  it(`больше ${LINK_GROUP_THRESHOLD} связей — группами по типу, без типа — последними`, () => {
+    const others = Array.from({ length: LINK_GROUP_THRESHOLD + 1 }, (_, i) => makeNode({ id: `n${i}` }));
+    const many: GraphData = {
+      ...data,
+      nodes: [makeNode({ id: "hub" }), ...others],
+      relationshipTypes: [
+        { id: "rt1", label: "враг", color: "#000000", dash: "" },
+        { id: "rt2", label: "друг", color: "#00ff00", dash: "4,4" },
+      ],
+      edges: others.map((n, i) =>
+        makeEdge({ id: `e${i}`, source: "hub", target: n.id, relationshipTypeId: i < 3 ? "" : i < 5 ? "rt2" : "rt1" }),
+      ),
+    };
+    const block = blockOf(describeNode(many, "hub", { isGM: false })!, "Связи");
+    expect(block?.kind).toBe("links");
+    if (block?.kind !== "links") return;
+    expect(block.links).toHaveLength(LINK_GROUP_THRESHOLD + 1);
+    expect(block.groups?.map((g) => [g.label, g.color, g.links.length])).toEqual([
+      ["враг", "#000000", 4],
+      ["друг", "#00ff00", 2],
+      ["Без типа", null, 3],
+    ]);
+    expect(block.groups?.[1].links[0].stroke).toEqual({ color: "#00ff00", dash: [4, 4], gmOnly: false });
+  });
+
+  it("узел без роли, текста, фракций и связей — пустое состояние с подсказкой тому, кто может править", () => {
+    const lonely: GraphData = { ...data, edges: [], nodes: [makeNode({ id: "x" }), makeNode({ id: "y", gmOnly: true })] };
+    expect(describeNode(lonely, "x", { isGM: false })!.empty).toEqual({ hint: expect.stringContaining("редактирования") });
+    // gmOnly-узел игрок не правит — подсказки нет
+    expect(describeNode(lonely, "y", { isGM: false })!.empty).toEqual({ hint: null });
+    // роль уже есть — это не пусто
+    const withRole: GraphData = { ...lonely, nodes: [makeNode({ id: "x", role: "Кузнец" })] };
+    expect(describeNode(withRole, "x", { isGM: false })!.empty).toBeUndefined();
   });
 });
 
@@ -125,60 +227,70 @@ const withHidden: GraphData = {
 };
 
 describe("describeNode: флаги видимости", () => {
-  it("скрытый узел у игрока — «Неизвестный»: только связи и размер", () => {
+  it("скрытый узел у игрока — «Неизвестный»: только связи, заглушка вместо картинки", () => {
     const d = describeNode({ ...withHidden, nodes: withHidden.nodes.map((n) => ({ ...n, img: "secret.png" })) }, "a", {
       isGM: false,
     })!;
-    // заглушка вместо картинки, без роли и цвета фракции
     expect(d.header).toEqual({ kind: "node", portrait: { img: "", fit: "cover", align: "center", border: null }, role: "" });
     expect(d.title).toBe("Неизвестный");
     expect(d.subtitle).toBeUndefined();
-    expect(d.rows.map((r) => r.label)).toEqual(["Связи (2)", "Размер"]);
+    expect(d.visibility).toBeUndefined();
+    expect(labels(d)).toEqual(["Связи (2)"]);
   });
 
-  it("GM видит скрытый узел как есть, с пометкой", () => {
+  it("скрытый узел без связей у игрока — пустое состояние без подсказки", () => {
+    const lonely: GraphData = { ...withHidden, edges: [] };
+    expect(describeNode(lonely, "a", { isGM: false })!.empty).toEqual({ hint: null });
+  });
+
+  it("GM видит скрытый узел как есть, со значком видимости", () => {
     const d = describeNode(withHidden, "a", { isGM: true })!;
     expect(d.title).toBe("Алиса");
-    expect(rowValue(d.rows, "Описание")).toBe("тайна");
-    expect(rowValue(d.rows, "Видимость")).toBe("Скрыт от игроков");
+    expect(value(d, "Описание")).toBe("тайна");
+    expect(d.visibility).toEqual({ icon: "fa-eye-slash", label: "Скрыт от игроков" });
   });
 
   it("в связях соседа скрытый узел у игрока назван «Неизвестный»", () => {
-    expect(rowValue(describeNode(withHidden, "b", { isGM: false })!.rows, "Связи")).toBe("← Неизвестный: командует");
-    expect(rowValue(describeNode(withHidden, "b", { isGM: true })!.rows, "Связи")).toBe("← Алиса: командует");
+    expect(value(describeNode(withHidden, "b", { isGM: false })!, "Связи")).toBe("← Неизвестный: командует");
+    expect(value(describeNode(withHidden, "b", { isGM: true })!, "Связи")).toBe("← Алиса: командует");
   });
 
-  it("gmOnly-узел игроку виден как обычно; пометку видит только GM", () => {
+  it("gmOnly-узел игроку виден как обычно; значок видит только GM", () => {
     const gmOnly: GraphData = { ...data, nodes: data.nodes.map((n) => (n.id === "a" ? { ...n, gmOnly: true } : n)) };
 
     const player = describeNode(gmOnly, "a", { isGM: false })!;
     expect(player.title).toBe("Алиса");
     expect(player.header).toMatchObject({ kind: "node", role: "Капитан" });
-    expect(rowValue(player.rows, "Видимость")).toBeUndefined();
+    expect(player.visibility).toBeUndefined();
 
-    expect(rowValue(describeNode(gmOnly, "a", { isGM: true })!.rows, "Видимость")).toBe("Правит только GM");
+    expect(describeNode(gmOnly, "a", { isGM: true })!.visibility).toEqual({ icon: "fa-user-lock", label: "Правит только GM" });
   });
 });
 
 describe("describeEdge", () => {
-  it("подпись в заголовке, концы, направление и тип", () => {
+  it("подпись в заголовке, концы — ссылками, тип — чипом с цветом", () => {
     const d = describeEdge(data, "e2", { isGM: false })!;
     expect(d.title).toBe("Связь");
-    expect(rowValue(d.rows, "Кто с кем")).toBe("Карл → Алиса");
-    expect(rowValue(d.rows, "Тип")).toBe("враг");
+    expect(value(d, "Кто с кем")).toBe("Карл | Алиса: Капитан");
+    const ends = blockOf(d, "Кто с кем");
+    expect(ends?.kind === "links" && ends.links.map((l) => [l.nodeId, l.edgeId])).toEqual([
+      ["c", null],
+      ["a", null],
+    ]);
+    expect(blockOf(d, "Тип")).toEqual({ kind: "chips", label: "Тип", chips: [{ label: "враг", color: "#000000" }] });
     expect(d.header).toMatchObject({ kind: "edge", directional: true, color: "#000000", dash: null, gmOnly: false });
 
     expect(describeEdge(data, "e1", { isGM: false })!.title).toBe("командует");
   });
 
-  it("gmOnly-связь игроку не описывается, GM — с пометкой", () => {
+  it("gmOnly-связь игроку не описывается, GM — со значком", () => {
     expect(describeEdge(data, "e3", { isGM: false })).toBeNull();
-    expect(rowValue(describeEdge(data, "e3", { isGM: true })!.rows, "Видимость")).toBe("Видна только GM");
+    expect(describeEdge(data, "e3", { isGM: true })!.visibility).toEqual({ icon: "fa-eye-slash", label: "Видна только GM" });
   });
 
-  it("скрытый конец у игрока — «Неизвестный»", () => {
+  it("скрытый конец у игрока — «Неизвестный», без роли", () => {
     const d = describeEdge(withHidden, "e1", { isGM: false })!;
-    expect(rowValue(d.rows, "Кто с кем")).toBe("Неизвестный → Боб");
+    expect(value(d, "Кто с кем")).toBe("Неизвестный | Боб");
     // миниатюра скрытого конца — заглушка без цвета фракции, у видимого — рамка его фракции
     expect(d.header).toMatchObject({ source: { img: "", border: null }, target: { border: "#ff0000" } });
   });
@@ -193,19 +305,18 @@ describe("describeFaction", () => {
     expect(describeFaction(data, "nope", { isGM: true })).toBeNull();
   });
 
-  it("собирает описание и список участников", () => {
+  it("описание и участники — ссылками с ролью", () => {
     const d = describeFaction(data, "f1", { isGM: false })!;
     expect(d.title).toBe("Стража");
     expect(d.header).toEqual({ kind: "faction", color: "#ff0000" });
-    expect(d.rows).toEqual([
-      { label: "Описание", value: "Городская стража" },
-      { label: "Участники (2)", value: "Алиса\nБоб" },
-    ]);
+    expect(labels(d)).toEqual(["Описание", "Участники (2)"]);
+    expect(value(d, "Описание")).toBe("Городская стража");
+    expect(value(d, "Участники")).toBe("Алиса: Капитан | Боб");
   });
 
   it("скрытый участник у игрока — «Неизвестный», у GM — по имени", () => {
-    expect(rowValue(describeFaction(withHidden, "f1", { isGM: false })!.rows, "Участники")).toBe("Неизвестный\nБоб");
-    expect(rowValue(describeFaction(withHidden, "f1", { isGM: true })!.rows, "Участники")).toBe("Алиса\nБоб");
+    expect(value(describeFaction(withHidden, "f1", { isGM: false })!, "Участники")).toBe("Неизвестный | Боб");
+    expect(value(describeFaction(withHidden, "f1", { isGM: true })!, "Участники")).toBe("Алиса: Капитан | Боб");
   });
 
   it("дополнительные фракции скрытого узла игроку не выдаются", () => {
@@ -213,7 +324,12 @@ describe("describeFaction", () => {
       ...withHidden,
       nodes: withHidden.nodes.map((n) => (n.id === "a" ? { ...n, factionIds: ["f2", "f1"], primaryFactionId: "f2" } : n)),
     };
-    expect(rowValue(describeFaction(extra, "f1", { isGM: false })!.rows, "Участники")).toBe("Боб");
-    expect(rowValue(describeFaction(extra, "f1", { isGM: true })!.rows, "Участники")).toBe("Алиса\nБоб");
+    expect(value(describeFaction(extra, "f1", { isGM: false })!, "Участники")).toBe("Боб");
+    expect(value(describeFaction(extra, "f1", { isGM: true })!, "Участники")).toBe("Алиса: Капитан | Боб");
+  });
+
+  it("фракция без описания и участников — пустое состояние", () => {
+    const empty: GraphData = { ...data, factions: [{ id: "f9", name: "Пусто", color: "#123456", description: "" }] };
+    expect(describeFaction(empty, "f9", { isGM: true })!.empty).toEqual({ hint: null });
   });
 });
