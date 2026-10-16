@@ -25,6 +25,8 @@
  *   S+ЛКМ по узлу        — быстрое создание связи: начать от узла / завершить на узле; если
  *                          выделен один другой узел — связь сразу от него к нажатому (здесь)
  *   Esc                  — отменить создание связи / снять выделение
+ *   Enter / I            — сведения о единственном выделенном узле или связи (callback
+ *                          onOpenInfo), пока курсор над графом
  *   Delete               — удалить выделенное (callback onDeleteSelected)
  *   Ctrl+Z / Ctrl+Y      — отмена / повтор (callbacks onUndo/onRedo); Ctrl+Shift+Z — тоже повтор
  *
@@ -78,6 +80,8 @@ export interface InteractionCallbacks {
   onContextMenu(target: GraphTarget, client: Point): void;
   /** Двойной клик ЛКМ по узлу, связи или области. */
   onInfo(target: GraphTarget, client: Point): void;
+  /** Enter или I при одном выделенном узле или связи — показать сведения (в любом режиме). */
+  onOpenInfo(target: GraphTarget): void;
   /** Одиночный клик ЛКМ (кроме выбора второго узла в режиме создания связи). */
   onClick(target: GraphTarget): void;
   /** S+ЛКМ по узлу вне режима создания связи. Начинать ли режим (startLinking) — решает получатель. */
@@ -452,6 +456,22 @@ export function setupInteraction(
   };
   doc.addEventListener("keydown", onKeyDown, { capture: true });
 
+  // Enter / I — сведения о выделенном. Не трогаем Enter на кнопке или ссылке (нажатие штатное)
+  // и набор текста; выделено несколько элементов — непонятно чьи, ничего не делаем.
+  const onInfoKeyDown = (e: KeyboardEvent) => {
+    if (e.key !== "Enter" && e.code !== "KeyI") return;
+    if (!cy || !pointerInside || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || isTyping(e.target)) return;
+    // без instanceof: в отдельном окне графа элементы — из другого window
+    if ((e.target as Element | null)?.closest?.("button, a, [role=button]")) return;
+    const selected = cy.$("node[!isFaction]:selected, edge:selected");
+    if (selected.length !== 1) return;
+    const element = selected[0];
+    callbacks.onOpenInfo({ kind: element.isNode() ? "node" : "edge", id: element.id() });
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  doc.addEventListener("keydown", onInfoKeyDown, { capture: true });
+
   const onMouseOver = (evt: cytoscape.EventObject) => {
     hoveredNodeId = (evt.target as cytoscape.NodeSingular).id();
   };
@@ -543,6 +563,7 @@ export function setupInteraction(
       container.removeEventListener("mouseenter", onMouseEnter);
       container.removeEventListener("mouseleave", onMouseLeave);
       doc.removeEventListener("keydown", onKeyDown, { capture: true });
+      doc.removeEventListener("keydown", onInfoKeyDown, { capture: true });
       doc.removeEventListener("keydown", onEditKeyDown, { capture: true });
       doc.removeEventListener("keydown", onSKeyDown);
       doc.removeEventListener("keyup", onSKeyUp);

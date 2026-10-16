@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Description } from "../../src/core/describe";
-import { createInfoPanel, isLongText, LONG_TEXT_LINES, textParagraphs } from "../../src/ui/panels/InfoPanel";
+import { createInfoPanel, isLongText, LONG_TEXT_LINES, syncInfoPanelWidth, textParagraphs } from "../../src/ui/panels/InfoPanel";
 import {
   clampInfoPanelWidth,
   INFO_PANEL_DEFAULT_WIDTH,
@@ -112,5 +112,37 @@ describe("подвал сведений", () => {
     expect(buttons.map((b) => b.textContent?.trim())).toEqual(["Изменить", "Показать на графе"]);
     buttons[1].click();
     expect(selected).toEqual(["show"]);
+  });
+});
+
+describe("доступность сведений", () => {
+  it("немодальный диалог с заголовком; поля — <dl>/<dt>/<dd>", () => {
+    const panel = createInfoPanel(description("т"), silent);
+    expect(panel.getAttribute("role")).toBe("dialog");
+    expect(panel.tabIndex).toBe(-1);
+    const titleId = panel.getAttribute("aria-labelledby")!;
+    expect(panel.querySelector(`#${titleId}`)!.textContent).toBe("Анна");
+    // у следующей панели — свой id
+    expect(createInfoPanel(description("т"), silent).getAttribute("aria-labelledby")).not.toBe(titleId);
+
+    const fields = panel.querySelector("dl.frg-info-fields")!;
+    expect([...fields.querySelectorAll("dt")].map((dt) => dt.textContent)).toEqual(["Описание", "Состояния"]);
+    expect(fields.querySelectorAll("dd")).toHaveLength(2);
+    expect(fields.querySelector("dt button")!.getAttribute("aria-expanded")).toBe("true");
+  });
+});
+
+describe("ползунок масштаба рядом со сведениями", () => {
+  it("ширина панели — в --frg-info-width окна графа, в том числе при изменении", () => {
+    const wrapper = document.createElement("div");
+    saveInfoPanelWidth(420);
+    const panel = createInfoPanel(description("т"), silent);
+    wrapper.append(panel);
+    syncInfoPanelWidth(panel);
+    expect(wrapper.style.getPropertyValue("--frg-info-width")).toBe("420px");
+    // jsdom не считает размеры (у окна ширина 0) — проверяем, что переменная идёт за шириной
+    panel.querySelector<HTMLElement>(".frg-info-resize")!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft" }));
+    expect(panel.style.width).not.toBe("420px");
+    expect(wrapper.style.getPropertyValue("--frg-info-width")).toBe(panel.style.width);
   });
 });

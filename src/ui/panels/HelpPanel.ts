@@ -23,7 +23,7 @@ const MOUSE_ROWS = [
   "RightClick",
 ] as const;
 
-const KEYBOARD_ROWS = ["Esc", "Delete", "Undo", "Redo", "Find"] as const;
+const KEYBOARD_ROWS = ["Esc", "Info", "Delete", "Undo", "Redo", "Find"] as const;
 
 function section(title: string, group: "Mouse" | "Keyboard", rows: readonly string[]): HTMLElement[] {
   const heading = document.createElement("div");

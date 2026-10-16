@@ -346,6 +346,10 @@
           "Keys": "Esc",
           "Text": "Close the menu or details; clear the selection"
         },
+        "Info": {
+          "Keys": "Enter / I",
+          "Text": "Details of the selected node or relationship"
+        },
         "Delete": {
           "Keys": "Delete",
           "Text": "Delete the selection"

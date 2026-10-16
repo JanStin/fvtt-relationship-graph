@@ -380,6 +380,24 @@ body.theme-light #fvtt-relationship-graph-app:not(.theme-dark),
   user-select: none;
 }
 
+/* Поля сведений — <dl>: блоки друг под другом, у <dd> без браузерных отступов. */
+.frg-info-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+}
+
+.frg-info-term,
+.frg-info-section-content {
+  margin: 0;
+}
+
+/* фокус на самой панели ставится программно (при открытии) — рамка не нужна */
+.frg-info-panel:focus {
+  outline: none;
+}
+
 /* Блок сведений — секция: заголовок-кнопка сворачивает содержимое. */
 .frg-panel .frg-info-section-toggle {
   display: flex;
@@ -1047,8 +1065,8 @@ body.theme-light #fvtt-relationship-graph-app:not(.theme-dark),
 }
 
 /* Ползунок масштаба в правом нижнем углу графа (src/ui/zoom-control.ts). Пока открыта боковая
-   панель, он сдвигается влево на её ширину (та же формула, что width/max-width у .frg-panel —
-   проценты обоих считаются от wrapper окна). */
+   панель, он сдвигается влево на её ширину (та же формула, что width/max-width у .frg-panel и
+   .frg-info-panel — проценты обоих считаются от wrapper окна). */
 .frg-zoom {
   position: absolute;
   right: 12px;
@@ -1068,6 +1086,16 @@ body.theme-light #fvtt-relationship-graph-app:not(.theme-dark),
 
 :has(> .frg-panel) > .frg-zoom {
   right: calc(min(300px, 80%) + 12px);
+}
+
+/* Сведения — своей ширины (--frg-info-width ставят InfoPanel и GraphApp) и своего предела. */
+:has(> .frg-info-panel) > .frg-zoom {
+  right: calc(min(var(--frg-info-width, 380px), 60%) + 12px);
+}
+
+/* пока край панели тянут, ползунок идёт за ним без запаздывания */
+:has(> .frg-info-resizing) > .frg-zoom {
+  transition: none;
 }
 
 .frg-zoom .frg-zoom-button {

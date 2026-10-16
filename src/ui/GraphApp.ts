@@ -98,7 +98,7 @@ import { createEdgePanel } from "./panels/EdgePanel";
 import { createFactionListPanel, createFactionPanel } from "./panels/FactionPanel";
 import { iconButton } from "./panels/form";
 import { createImportControl, type ImportControl } from "./panels/ImportDialog";
-import { createInfoPanel, paragraphsElement, type InfoFooterAction } from "./panels/InfoPanel";
+import { createInfoPanel, paragraphsElement, syncInfoPanelWidth, type InfoFooterAction } from "./panels/InfoPanel";
 import { createNodePanel, type ActorOption } from "./panels/NodePanel";
 import { createRelationshipTypeListPanel, createRelationshipTypePanel } from "./panels/RelationshipTypePanel";
 import { createSearchPanel, type SearchTarget } from "./panels/SearchPanel";
@@ -183,6 +183,8 @@ export class GraphApp extends ApplicationV2 {
   #searchQuery: string | null = null;
   /** Чьи сведения сейчас в боковой панели; null — панель сведений закрыта. */
   #infoTarget: GraphTarget | null = null;
+  /** Где был фокус до открытия сведений — вернуть его при закрытии (✕, Esc). */
+  #infoReturnFocus: HTMLElement | null = null;
   #cyHost: HTMLElement | null = null;
   /** Актуальный полный граф (с синхронизированными актёрами) — источник для персиста позиций/scale. */
   #currentData: GraphData | null = null;
@@ -492,6 +494,9 @@ export class GraphApp extends ApplicationV2 {
 
     const selectedIds = this.#cy.$(":selected").map((el) => el.id());
     const reopen = this.#reopenPanel;
+    // фокус был в панели — после перерисовки вернуть его в новую; иначе не отнимать
+    const panelFocused = this.#panel?.contains(this.#panel.ownerDocument.activeElement) === true;
+    const returnFocus = this.#infoReturnFocus;
 
     this.#display(data, true);
 
@@ -499,6 +504,8 @@ export class GraphApp extends ApplicationV2 {
     selectedIds.forEach((id) => cy?.getElementById(id).select());
     // сведения об удалённом элементе не откроются (describe* вернёт null)
     reopen?.();
+    if (this.#infoTarget !== null) this.#infoReturnFocus = returnFocus;
+    if (panelFocused) this.#panel?.focus({ preventScroll: true });
   }
 
   async #toggleEditing(): Promise<void> {
@@ -633,6 +640,7 @@ export class GraphApp extends ApplicationV2 {
       },
       onContextMenu: (target, client) => this.#openContextMenu(target, client),
       onInfo: (target) => this.#onDoubleClick(target),
+      onOpenInfo: (target) => this.#openInfo(target),
       onClick: (target) => {
         // открытые сведения «листаются» кликом; клик по фону их не закрывает
         if (this.#infoTarget !== null && target.kind !== "background") this.#openInfo(target);
@@ -717,8 +725,16 @@ export class GraphApp extends ApplicationV2 {
    * у её края, сдвинуть вид (не нужно при восстановлении после перерисовки и когда вид двигает
    * вызывающий).
    */
-  #openInfo(target: GraphTarget, { reveal = true } = {}): void {
+  #openInfo(target: GraphTarget, { reveal = true, focus = true } = {}): void {
     if (!this.#currentData || target.kind === "background") return;
+    // первое открытие запоминает, откуда пришёл фокус; «листание» сведений — сохраняет прежнее
+    const active = (this.#cyHost?.ownerDocument ?? document).activeElement as HTMLElement | null;
+    const returnFocus =
+      this.#infoTarget !== null
+        ? this.#infoReturnFocus
+        : active && active !== active.ownerDocument.body && !this.#panel?.contains(active)
+          ? active
+          : null;
     const options = { isGM: this.#isGM };
     const card =
       target.kind === "node"
@@ -728,13 +744,16 @@ export class GraphApp extends ApplicationV2 {
           : describeFaction(this.#currentData, target.id, options);
     if (!card) return;
     const panel = createInfoPanel(card, {
-      onClose: () => this.#closePanel(),
+      onClose: () => this.#closeInfo(),
       onOpen: (next) => this.#openLinkedInfo(next),
       onHover: (link) => this.#highlightInfoLink(link),
       onExpand: (title, text) => this.#showText(title, text),
     }, this.#infoFooter(target));
-    this.#mountPanel(panel, () => this.#openInfo(target, { reveal: false }));
+    this.#mountPanel(panel, () => this.#openInfo(target, { reveal: false, focus: false }));
+    syncInfoPanelWidth(panel);
     this.#infoTarget = target;
+    this.#infoReturnFocus = returnFocus;
+    if (focus) panel.focus({ preventScroll: true });
     if (reveal && target.kind !== "faction") this.#revealBesidePanel(target.id);
   }
 
@@ -870,6 +889,13 @@ export class GraphApp extends ApplicationV2 {
     return node ? displayName(node, this.#isGM) : "?";
   }
 
+  /** Закрыть сведения (✕, Esc) и вернуть фокус туда, где он был до открытия. */
+  #closeInfo(): void {
+    const returnFocus = this.#infoReturnFocus;
+    this.#closePanel();
+    if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
+  }
+
   #closePanel(): void {
     // панель настроек закрыта без сохранения — вернуть сохранённый фон
     if (this.#backgroundPreview) {
@@ -880,6 +906,7 @@ export class GraphApp extends ApplicationV2 {
     this.#panel = null;
     this.#reopenPanel = null;
     this.#infoTarget = null;
+    this.#infoReturnFocus = null;
     this.#highlightInfoLink(null);
     if (this.#searchQuery !== null) this.#dimBySearch("");
     this.#searchQuery = null;
@@ -908,7 +935,7 @@ export class GraphApp extends ApplicationV2 {
         if (this.#infoTarget === null || this.#overlays?.isOpen() || isTypingOutside(e.target, this.#panel)) return;
         e.preventDefault();
         e.stopImmediatePropagation();
-        this.#closePanel();
+        this.#closeInfo();
         return;
       }
       if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.code !== "KeyF") return;

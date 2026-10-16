@@ -154,6 +154,9 @@ function icon(classes: string): HTMLElement {
   return element;
 }
 
+/** Уникальный id заголовка — на него ссылается aria-labelledby панели. */
+let titleCounter = 0;
+
 /** Шапка: картинка, имя, тип и роль, значок видимости, крестик. */
 function infoHeader(description: Description, onClose: () => void): HTMLElement {
   const header = document.createElement("div");
@@ -163,6 +166,7 @@ function infoHeader(description: Description, onClose: () => void): HTMLElement 
   text.className = "frg-info-heading";
   const title = document.createElement("div");
   title.className = "frg-panel-title";
+  title.id = `frg-info-title-${++titleCounter}`;
   title.textContent = description.title;
   if (description.visibility) {
     const badge = document.createElement("span");
@@ -346,7 +350,7 @@ function chip(item: InfoChip, actions: InfoPanelActions): HTMLElement {
 
 /** Содержимое блока под заголовком; title — чьи сведения (для окна «Развернуть»). */
 function blockContent(item: DescriptionBlock, title: string, actions: InfoPanelActions): HTMLElement {
-  const content = document.createElement("div");
+  const content = document.createElement("dd");
   content.className = "frg-info-section-content";
   if (item.kind === "text") {
     content.append(paragraphsElement(item.text, "frg-info-value frg-info-text"));
@@ -371,9 +375,12 @@ function blockContent(item: DescriptionBlock, title: string, actions: InfoPanelA
   return content;
 }
 
-/** Блок — секция: заголовок-кнопка сворачивает содержимое, состояние запоминается по id блока. */
+/**
+ * Блок — пара <dt>/<dd> списка полей: заголовок-кнопка сворачивает содержимое, состояние
+ * запоминается по id блока. Обёртка <div> внутри <dl> допустима.
+ */
 function block(item: DescriptionBlock, title: string, collapsed: boolean, actions: InfoPanelActions): HTMLElement {
-  const wrapper = document.createElement("section");
+  const wrapper = document.createElement("div");
   wrapper.className = `frg-field frg-info-block frg-info-block-${item.kind}`;
   wrapper.dataset.block = item.id;
 
@@ -385,6 +392,9 @@ function block(item: DescriptionBlock, title: string, collapsed: boolean, action
   label.className = "frg-field-label";
   label.textContent = item.label;
   toggle.append(icon("fa-solid fa-chevron-down frg-info-caret"), label);
+  const term = document.createElement("dt");
+  term.className = "frg-info-term";
+  term.append(toggle);
 
   const content = blockContent(item, title, actions);
   content.hidden = collapsed;
@@ -394,8 +404,16 @@ function block(item: DescriptionBlock, title: string, collapsed: boolean, action
     content.hidden = expanded;
     setBlockCollapsed(item.id, expanded);
   });
-  wrapper.append(toggle, content);
+  wrapper.append(term, content);
   return wrapper;
+}
+
+/**
+ * Ширину панели сведений знает и ползунок масштаба (сдвигается влево на неё): CSS-переменная
+ * --frg-info-width на окне графа, общем родителе обоих. Вызывать после вставки панели в окно.
+ */
+export function syncInfoPanelWidth(panel: HTMLElement): void {
+  panel.parentElement?.style.setProperty("--frg-info-width", panel.style.width);
 }
 
 /**
@@ -415,6 +433,7 @@ function resizeHandle(panel: HTMLElement): HTMLElement {
   const apply = (width: number) => {
     const clamped = clampInfoPanelWidth(width, hostWidth());
     panel.style.width = `${clamped}px`;
+    syncInfoPanelWidth(panel);
     return clamped;
   };
 
@@ -468,13 +487,21 @@ export function createInfoPanel(
 ): HTMLElement {
   const element = document.createElement("div");
   element.className = "frg-panel frg-info-panel";
+  // немодальный диалог: граф рядом остаётся доступен; фокус ставит GraphApp при открытии
+  element.setAttribute("role", "dialog");
+  element.tabIndex = -1;
   // пределы окна графа — max-width в CSS
   element.style.width = `${loadInfoPanelWidth()}px`;
 
   const collapsed = loadCollapsedBlocks();
   const body = document.createElement("div");
   body.className = "frg-panel-body";
-  body.append(...description.blocks.map((item) => block(item, description.title, collapsed.has(item.id), actions)));
+  if (description.blocks.length > 0) {
+    const fields = document.createElement("dl");
+    fields.className = "frg-info-fields";
+    fields.append(...description.blocks.map((item) => block(item, description.title, collapsed.has(item.id), actions)));
+    body.append(fields);
+  }
 
   if (description.empty) {
     const empty = document.createElement("div");
@@ -492,7 +519,9 @@ export function createInfoPanel(
   }
 
   // шапка — вне прокручиваемого тела: при прокрутке видно, чьи это сведения
-  element.append(resizeHandle(element), infoHeader(description, actions.onClose), body);
+  const header = infoHeader(description, actions.onClose);
+  element.setAttribute("aria-labelledby", header.querySelector(".frg-panel-title")!.id);
+  element.append(resizeHandle(element), header, body);
   if (footer.length > 0) element.append(infoFooter(footer));
   return element;
 }
