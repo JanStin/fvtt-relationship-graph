@@ -1357,6 +1357,7 @@ export class GraphApp extends ApplicationV2 {
         ).length,
       {
         onEdit: (factionId) => this.#openFactionPanel(factionId),
+        onInfo: (factionId) => this.#openInfo({ kind: "faction", id: factionId }),
         onCreate: () => this.#openFactionPanel(null),
         onClose: () => this.#closePanel(),
       },

@@ -15,7 +15,10 @@ import { colorField, contentLinksHint, createPanelShell, field, hint, linkTextAr
 const NEW_FACTION_COLOR = "#6366f1";
 
 export interface FactionListCallbacks {
+  /** Клик по строке в режиме редактирования — форма фракции. */
   onEdit(factionId: string): void;
+  /** Клик по строке в режиме просмотра — сведения фракции. */
+  onInfo(factionId: string): void;
   onCreate(): void;
   onClose(): void;
 }
@@ -26,7 +29,7 @@ export interface FactionPanelOptions {
 }
 
 export interface FactionListOptions {
-  /** false — режим просмотра: строки не открывают форму, создавать нельзя. */
+  /** false — режим просмотра: строки открывают сведения, а не форму; создавать нельзя. */
   editable: boolean;
   /** Кнопка «Создать фракцию» (только GM, и только когда editable). */
   canCreate: boolean;
@@ -47,9 +50,9 @@ export function createFactionListPanel(
 
   if (factions.length === 0) body.append(hint(t("RELGRAPH.Faction.None")));
   for (const faction of factions) {
-    // в режиме просмотра строка — просто текст, без клика
-    const row = document.createElement(options.editable ? "button" : "div");
-    if (row instanceof HTMLButtonElement) row.type = "button";
+    // в режиме просмотра — сведения: единственный путь к фракции без узлов (её области нет)
+    const row = document.createElement("button");
+    row.type = "button";
     row.className = "frg-faction-row";
     const swatch = document.createElement("span");
     swatch.className = "frg-faction-swatch";
@@ -62,7 +65,7 @@ export function createFactionListPanel(
     count.textContent = String(memberCount(faction.id));
     count.title = t("RELGRAPH.Faction.NodeCount");
     row.append(swatch, name, count);
-    if (options.editable) row.addEventListener("click", () => callbacks.onEdit(faction.id));
+    row.addEventListener("click", () => (options.editable ? callbacks.onEdit(faction.id) : callbacks.onInfo(faction.id)));
     body.append(row);
   }
 
