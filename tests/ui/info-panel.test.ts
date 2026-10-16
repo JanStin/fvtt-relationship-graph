@@ -1,15 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Description } from "../../src/core/describe";
-import { createInfoPanel, isLongText, LONG_TEXT_LINES, syncInfoPanelWidth, textParagraphs } from "../../src/ui/panels/InfoPanel";
-import {
-  clampInfoPanelWidth,
-  INFO_PANEL_DEFAULT_WIDTH,
-  INFO_PANEL_MIN_WIDTH,
-  loadCollapsedBlocks,
-  loadInfoPanelWidth,
-  saveInfoPanelWidth,
-  setBlockCollapsed,
-} from "../../src/ui/panels/info-prefs";
+import { createInfoPanel, isLongText, LONG_TEXT_LINES, textParagraphs } from "../../src/ui/panels/InfoPanel";
+import { loadCollapsedBlocks, setBlockCollapsed } from "../../src/ui/panels/info-prefs";
 
 const silent = { onClose() {}, onOpen() {}, onHover() {}, onExpand() {} };
 
@@ -72,34 +64,6 @@ describe("сворачиваемые блоки", () => {
   });
 });
 
-describe("ширина панели", () => {
-  it("пределы: не уже минимума, не шире доли окна; в узком окне важнее верхний", () => {
-    expect(clampInfoPanelWidth(100, 2000)).toBe(INFO_PANEL_MIN_WIDTH);
-    expect(clampInfoPanelWidth(1500, 1000)).toBe(600);
-    expect(clampInfoPanelWidth(400, 1000)).toBe(400);
-    expect(clampInfoPanelWidth(300, 400)).toBe(240);
-  });
-
-  it("запоминается; нет значения или мусор — по умолчанию", () => {
-    expect(loadInfoPanelWidth()).toBe(INFO_PANEL_DEFAULT_WIDTH);
-    saveInfoPanelWidth(452.4);
-    expect(loadInfoPanelWidth()).toBe(452);
-    expect(createInfoPanel(description("т"), silent).style.width).toBe("452px");
-    localStorage.setItem("fvtt-relationship-graph.infoPanelWidth", "abc");
-    expect(loadInfoPanelWidth()).toBe(INFO_PANEL_DEFAULT_WIDTH);
-  });
-
-  it("край панели — разделитель, стрелки меняют и запоминают ширину", () => {
-    const panel = createInfoPanel(description("т"), silent);
-    const handle = panel.querySelector<HTMLElement>(".frg-info-resize")!;
-    expect(handle.getAttribute("role")).toBe("separator");
-    // jsdom не считает размеры: ширина панели — 0, окна — без ограничения
-    handle.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft" }));
-    expect(panel.style.width).toBe(`${INFO_PANEL_MIN_WIDTH}px`);
-    expect(loadInfoPanelWidth()).toBe(INFO_PANEL_MIN_WIDTH);
-  });
-});
-
 describe("подвал сведений", () => {
   it("кнопки действий; без действий подвала нет", () => {
     expect(createInfoPanel(description("т"), silent).querySelector(".frg-info-footer")).toBeNull();
@@ -132,21 +96,6 @@ describe("доступность сведений", () => {
   });
 });
 
-describe("ползунок масштаба рядом со сведениями", () => {
-  it("ширина панели — в --frg-info-width окна графа, в том числе при изменении", () => {
-    const wrapper = document.createElement("div");
-    saveInfoPanelWidth(420);
-    const panel = createInfoPanel(description("т"), silent);
-    wrapper.append(panel);
-    syncInfoPanelWidth(panel);
-    expect(wrapper.style.getPropertyValue("--frg-info-width")).toBe("420px");
-    // jsdom не считает размеры (у окна ширина 0) — проверяем, что переменная идёт за шириной
-    panel.querySelector<HTMLElement>(".frg-info-resize")!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft" }));
-    expect(panel.style.width).not.toBe("420px");
-    expect(wrapper.style.getPropertyValue("--frg-info-width")).toBe(panel.style.width);
-  });
-});
-
 describe("ссылки Foundry в тексте сведений", () => {
   it("оформленный HTML заменяет текст; null — текст остаётся", async () => {
     const enriched = createInfoPanel(description("см. @UUID[Actor.a]"), {
@@ -173,12 +122,10 @@ describe("сведения в отдельном окне", () => {
     expect(createInfoPanel(description("т"), silent).querySelectorAll(".frg-info-header button")).toHaveLength(1);
   });
 
-  it("в окне — без ширины, края, крестика и выноса: окном управляет Foundry", () => {
+  it("в окне — без крестика и выноса: окном управляет Foundry", () => {
     const panel = createInfoPanel(description("т"), { ...silent, onDetach() {} }, [], { window: true });
     expect(panel.classList.contains("frg-info-window")).toBe(true);
     expect(panel.classList.contains("frg-info-panel")).toBe(false);
-    expect(panel.style.width).toBe("");
-    expect(panel.querySelector(".frg-info-resize")).toBeNull();
     expect(panel.querySelectorAll(".frg-info-header button")).toHaveLength(0);
     expect(panel.getAttribute("role")).toBeNull();
   });

@@ -4,8 +4,8 @@
  * Пока панель открыта, одиночный клик по другому элементу графа показывает его сведения
  * (решает GraphApp). Связи, участники фракции и фракции узла — кнопки: клик открывает сведения
  * о них, наведение на связь подсвечивает её и узел на графе.
- * Блоки сворачиваются заголовком, ширина панели меняется перетаскиванием левого края — и то и
- * другое запоминается у клиента (info-prefs.ts).
+ * Блоки сворачиваются заголовком — запоминается у клиента (info-prefs.ts); ширину, как у всех
+ * боковых панелей, ставит GraphApp (panel-width.ts).
  */
 
 import type {
@@ -21,13 +21,7 @@ import type {
 import { imageAlignPosition } from "../../core/image-align";
 import { t } from "../../core/i18n";
 import { DEFAULT_NODE_IMG, GM_ONLY_DASH, NEUTRAL_COLOR } from "../graph-renderer";
-import {
-  clampInfoPanelWidth,
-  loadCollapsedBlocks,
-  loadInfoPanelWidth,
-  saveInfoPanelWidth,
-  setBlockCollapsed,
-} from "./info-prefs";
+import { loadCollapsedBlocks, setBlockCollapsed } from "./info-prefs";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -50,8 +44,8 @@ export interface InfoPanelActions {
 
 export interface InfoPanelOptions {
   /**
-   * Содержимое отдельного окна Foundry, а не боковая панель: без своей ширины, края для её
-   * изменения, крестика и кнопки выноса — окном управляет Foundry.
+   * Содержимое отдельного окна Foundry, а не боковая панель: без крестика и кнопки выноса —
+   * окном управляет Foundry.
    */
   window?: boolean;
 }
@@ -438,64 +432,6 @@ function block(item: DescriptionBlock, title: string, collapsed: boolean, action
   return wrapper;
 }
 
-/**
- * Ширину панели сведений знает и ползунок масштаба (сдвигается влево на неё): CSS-переменная
- * --frg-info-width на окне графа, общем родителе обоих. Вызывать после вставки панели в окно.
- */
-export function syncInfoPanelWidth(panel: HTMLElement): void {
-  panel.parentElement?.style.setProperty("--frg-info-width", panel.style.width);
-}
-
-/**
- * Левый край панели: перетаскивание меняет ширину (в пределах clampInfoPanelWidth), стрелки
- * влево/вправо — то же с клавиатуры. Ширина запоминается по окончании.
- */
-function resizeHandle(panel: HTMLElement): HTMLElement {
-  const handle = document.createElement("div");
-  handle.className = "frg-info-resize";
-  handle.tabIndex = 0;
-  handle.setAttribute("role", "separator");
-  handle.setAttribute("aria-orientation", "vertical");
-  handle.setAttribute("aria-label", t("RELGRAPH.Info.Resize"));
-  handle.title = t("RELGRAPH.Info.Resize");
-
-  const hostWidth = () => panel.parentElement?.clientWidth ?? Number.POSITIVE_INFINITY;
-  const apply = (width: number) => {
-    const clamped = clampInfoPanelWidth(width, hostWidth());
-    panel.style.width = `${clamped}px`;
-    syncInfoPanelWidth(panel);
-    return clamped;
-  };
-
-  let drag: { startX: number; startWidth: number } | null = null;
-  handle.addEventListener("pointerdown", (e) => {
-    if (e.button !== 0) return;
-    e.preventDefault();
-    drag = { startX: e.clientX, startWidth: panel.getBoundingClientRect().width };
-    handle.setPointerCapture(e.pointerId);
-    panel.classList.add("frg-info-resizing");
-  });
-  handle.addEventListener("pointermove", (e) => {
-    // панель у правого края: тянем влево — шире
-    if (drag) apply(drag.startWidth + drag.startX - e.clientX);
-  });
-  const finish = () => {
-    if (!drag) return;
-    drag = null;
-    panel.classList.remove("frg-info-resizing");
-    saveInfoPanelWidth(panel.getBoundingClientRect().width);
-  };
-  handle.addEventListener("pointerup", finish);
-  handle.addEventListener("pointercancel", finish);
-  handle.addEventListener("keydown", (e) => {
-    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
-    e.preventDefault();
-    const step = e.key === "ArrowLeft" ? 20 : -20;
-    saveInfoPanelWidth(apply(panel.getBoundingClientRect().width + step));
-  });
-  return handle;
-}
-
 /** Подвал с действиями над элементом: «Изменить», «Лист актёра», «Выбрать область», «Показать на графе». */
 function infoFooter(footer: readonly InfoFooterAction[]): HTMLElement {
   const element = document.createElement("div");
@@ -523,8 +459,6 @@ export function createInfoPanel(
     // немодальный диалог: граф рядом остаётся доступен; фокус ставит GraphApp при открытии
     element.setAttribute("role", "dialog");
     element.tabIndex = -1;
-    // пределы окна графа — max-width в CSS
-    element.style.width = `${loadInfoPanelWidth()}px`;
   }
 
   const collapsed = loadCollapsedBlocks();
@@ -558,7 +492,7 @@ export function createInfoPanel(
     element.append(header, body);
   } else {
     element.setAttribute("aria-labelledby", header.querySelector(".frg-panel-title")!.id);
-    element.append(resizeHandle(element), header, body);
+    element.append(header, body);
   }
   if (footer.length > 0) element.append(infoFooter(footer));
   return element;

@@ -96,6 +96,7 @@ import { createEdgePanel } from "./panels/EdgePanel";
 import { createFactionListPanel, createFactionPanel } from "./panels/FactionPanel";
 import { iconButton } from "./panels/form";
 import { createImportControl, type ImportControl } from "./panels/ImportDialog";
+import { attachPanelWidth } from "./panels/panel-width";
 import { createHoverPreview, type HoverPreview } from "./hover-preview";
 import { isLightUi, parseUiTheme, UI_THEME_VARS, uiThemeVars } from "../core/ui-theme";
 import { hasContentLinks, restrictContentLinks } from "../core/content-links";
@@ -103,7 +104,6 @@ import { canViewUuid, enrichContent } from "../foundry/enrich";
 import {
   createInfoPanel,
   paragraphsElement,
-  syncInfoPanelWidth,
   type InfoFooterAction,
   type InfoPanelActions,
 } from "./panels/InfoPanel";
@@ -778,7 +778,6 @@ export class GraphApp extends ApplicationV2 {
       this.#infoFooter(target),
     );
     this.#mountPanel(panel, () => this.#openInfo(target, { reveal: false, focus: false }));
-    syncInfoPanelWidth(panel);
     this.#infoTarget = target;
     this.#infoReturnFocus = returnFocus;
     if (focus) panel.focus({ preventScroll: true });
@@ -1165,6 +1164,7 @@ export class GraphApp extends ApplicationV2 {
     this.#panel = panel;
     this.#reopenPanel = reopen;
     this.#cyHost?.parentElement?.append(panel);
+    attachPanelWidth(panel);
   }
 
   /**

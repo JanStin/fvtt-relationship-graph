@@ -4,6 +4,7 @@
     "LoadFailed": "Relationship Graph: failed to load, see console",
     "Common": {
       "Save": "Save",
+      "ResizePanel": "Panel width: drag the edge or press ← / →",
       "Close": "Close",
       "Edit": "Edit",
       "Info": "Info",
@@ -114,7 +115,6 @@
       "Undirected": "Undirected",
       "PrimaryFaction": "Primary faction",
       "Expand": "Expand",
-      "Resize": "Panel width: drag the edge or press ← / →",
       "Edit": "Edit",
       "ActorSheet": "Actor sheet",
       "ShowOnGraph": "Show on graph",

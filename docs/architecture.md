@@ -344,7 +344,8 @@ src/
                             # состояния, настройки графа, поиск, шпаргалка, сведения,
                             # импорт/экспорт;
                             # form.ts — общие элементы форм (поля, сегменты, вкладки);
-                            # info-prefs.ts — ширина и свёрнутые блоки сведений (localStorage)
+                            # info-prefs.ts — свёрнутые блоки сведений (localStorage);
+                            # panel-width.ts — общая ширина боковых панелей, край для неё
 
 lang/                       # переводы: ru.json (эталон ключей), en.json
 tools/                      # i18n-extract.mjs (i18n:extract / i18n:check), i18n-apply.mjs

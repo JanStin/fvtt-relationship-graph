@@ -398,13 +398,8 @@ body.theme-light .frg-info-dialog:not(.theme-dark),
   margin-bottom: 0;
 }
 
-/* Сведения шире панелей редактирования; ширина — inline (info-prefs.ts), предел — доля окна. */
-.frg-panel.frg-info-panel {
-  max-width: 60%;
-}
-
-/* Левый край панели сведений — перетаскивание меняет ширину. */
-.frg-info-resize {
+/* Левый край боковой панели — перетаскивание меняет ширину (panel-width.ts). */
+.frg-panel-resize {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -415,15 +410,15 @@ body.theme-light .frg-info-dialog:not(.theme-dark),
   touch-action: none;
 }
 
-.frg-info-resize:hover,
-.frg-info-resize:focus-visible,
-.frg-info-resizing .frg-info-resize {
+.frg-panel-resize:hover,
+.frg-panel-resize:focus-visible,
+.frg-panel-resizing .frg-panel-resize {
   background: var(--frg-focus);
   outline: none;
 }
 
 /* во время перетаскивания текст не выделяется */
-.frg-info-resizing {
+.frg-panel-resizing {
   user-select: none;
 }
 
@@ -556,8 +551,9 @@ body.theme-light .frg-info-dialog:not(.theme-dark),
   z-index: 9;
   display: flex;
   flex-direction: column;
-  width: 300px;
-  max-width: 80%;
+  /* ширина — inline (panel-width.ts); предел — доля окна графа, как у ползунка масштаба */
+  width: 360px;
+  max-width: 60%;
   background: var(--frg-surface);
   color: var(--frg-text);
   border-left: 1px solid var(--frg-border);
@@ -1149,8 +1145,8 @@ body.theme-light .frg-info-dialog:not(.theme-dark),
 }
 
 /* Ползунок масштаба в правом нижнем углу графа (src/ui/zoom-control.ts). Пока открыта боковая
-   панель, он сдвигается влево на её ширину (та же формула, что width/max-width у .frg-panel и
-   .frg-info-panel — проценты обоих считаются от wrapper окна). */
+   панель, он сдвигается влево на её ширину (та же формула, что width/max-width у .frg-panel —
+   проценты обоих считаются от wrapper окна; ширину кладёт в --frg-panel-width panel-width.ts). */
 .frg-zoom {
   position: absolute;
   right: 12px;
@@ -1169,16 +1165,11 @@ body.theme-light .frg-info-dialog:not(.theme-dark),
 }
 
 :has(> .frg-panel) > .frg-zoom {
-  right: calc(min(300px, 80%) + 12px);
-}
-
-/* Сведения — своей ширины (--frg-info-width ставят InfoPanel и GraphApp) и своего предела. */
-:has(> .frg-info-panel) > .frg-zoom {
-  right: calc(min(var(--frg-info-width, 380px), 60%) + 12px);
+  right: calc(min(var(--frg-panel-width, 360px), 60%) + 12px);
 }
 
 /* пока край панели тянут, ползунок идёт за ним без запаздывания */
-:has(> .frg-info-resizing) > .frg-zoom {
+:has(> .frg-panel-resizing) > .frg-zoom {
   transition: none;
 }
 
