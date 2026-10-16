@@ -342,3 +342,24 @@ export function describeFaction(data: GraphData, factionId: string, options: Des
     empty: blocks.length === 0 ? { hint: null } : undefined,
   };
 }
+
+/** Мини-подсказка при наведении на узел: имя, роль, основная фракция. */
+export interface NodePreview {
+  title: string;
+  /** '' — роли нет. */
+  role: string;
+  faction: { label: string; color: string } | null;
+}
+
+/** null — узла нет. Скрытый узел у игрока — только «Неизвестный», как на графе. */
+export function previewNode(data: GraphData, nodeId: string, options: DescribeOptions): NodePreview | null {
+  const node = data.nodes.find((n) => n.id === nodeId);
+  if (!node) return null;
+  if (isMasked(node, options.isGM)) return { title: unknownNodeName(), role: "", faction: null };
+  const primary = node.primaryFactionId ? data.factions.find((f) => f.id === node.primaryFactionId) : undefined;
+  return {
+    title: nodeName(node),
+    role: node.role.trim(),
+    faction: primary ? { label: factionName(primary), color: primary.color } : null,
+  };
+}

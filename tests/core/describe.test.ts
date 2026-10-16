@@ -4,6 +4,7 @@ import {
   describeFaction,
   describeNode,
   LINK_GROUP_THRESHOLD,
+  previewNode,
   type Description,
   type DescriptionBlock,
 } from "../../src/core/describe";
@@ -339,5 +340,22 @@ describe("describeFaction", () => {
   it("фракция без описания и участников — пустое состояние", () => {
     const empty: GraphData = { ...data, factions: [{ id: "f9", name: "Пусто", color: "#123456", description: "" }] };
     expect(describeFaction(empty, "f9", { isGM: true })!.empty).toEqual({ hint: null });
+  });
+});
+
+describe("previewNode", () => {
+  it("имя, роль и основная фракция; без роли и фракции — пусто", () => {
+    expect(previewNode(data, "a", { isGM: false })).toEqual({
+      title: "Алиса",
+      role: "Капитан",
+      faction: { label: "Стража", color: "#ff0000" },
+    });
+    expect(previewNode(data, "c", { isGM: false })).toEqual({ title: "Карл", role: "", faction: null });
+    expect(previewNode(data, "nope", { isGM: true })).toBeNull();
+  });
+
+  it("скрытый узел у игрока — только «Неизвестный», GM видит всё", () => {
+    expect(previewNode(withHidden, "a", { isGM: false })).toEqual({ title: "Неизвестный", role: "", faction: null });
+    expect(previewNode(withHidden, "a", { isGM: true })?.title).toBe("Алиса");
   });
 });

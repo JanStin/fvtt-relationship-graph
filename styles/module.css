@@ -99,6 +99,32 @@ body.theme-light #fvtt-relationship-graph-app:not(.theme-dark),
   outline: none;
 }
 
+/* Предпросмотр при наведении на узел (src/ui/hover-preview.ts): над узлом, мышь не ловит. */
+.frg-hover-preview {
+  max-width: 240px;
+  padding: 6px 10px;
+  pointer-events: none;
+  overflow-wrap: anywhere;
+}
+
+.frg-hover-preview-title {
+  color: var(--frg-text-strong);
+  font-weight: 600;
+}
+
+.frg-hover-preview-role {
+  color: var(--frg-text-muted);
+  font-size: 12px;
+}
+
+.frg-hover-preview-faction {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 12px;
+}
+
 /* Панель сведений (src/ui/panels/InfoPanel.ts): шапка с картинкой, значения полей. */
 .frg-info-header {
   align-items: flex-start;

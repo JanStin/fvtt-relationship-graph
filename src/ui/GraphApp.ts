@@ -49,7 +49,7 @@ import {
   updateCondition,
   type ConditionEditValues,
 } from "../core/conditions";
-import { describeEdge, describeFaction, describeNode, type InfoTarget } from "../core/describe";
+import { describeEdge, describeFaction, describeNode, previewNode, type InfoTarget } from "../core/describe";
 import {
   applyEdgeEdit,
   applyFactionEdit,
@@ -98,6 +98,7 @@ import { createEdgePanel } from "./panels/EdgePanel";
 import { createFactionListPanel, createFactionPanel } from "./panels/FactionPanel";
 import { iconButton } from "./panels/form";
 import { createImportControl, type ImportControl } from "./panels/ImportDialog";
+import { createHoverPreview, type HoverPreview } from "./hover-preview";
 import { createInfoPanel, paragraphsElement, syncInfoPanelWidth, type InfoFooterAction } from "./panels/InfoPanel";
 import { createNodePanel, type ActorOption } from "./panels/NodePanel";
 import { createRelationshipTypeListPanel, createRelationshipTypePanel } from "./panels/RelationshipTypePanel";
@@ -171,6 +172,8 @@ export class GraphApp extends ApplicationV2 {
   #zoomControl: ZoomControl | null = null;
   #background: BackgroundLayer | null = null;
   #factionBlobs: FactionBlobLayer | null = null;
+  /** Мини-подсказка при наведении на узел (hover-preview.ts). */
+  #hoverPreview: HoverPreview | null = null;
   /** С каким смешением построен #factionBlobs — предпросмотр пересоздаёт слой, только если оно другое. */
   #factionBlobsBlend: FactionBlend = "overlay";
   /** Слои фона показывают несохранённые значения панели «Настройки графа». */
@@ -619,6 +622,7 @@ export class GraphApp extends ApplicationV2 {
     this.#currentData = hydrated;
 
     this.#interaction?.teardown();
+    this.#hoverPreview?.destroy();
     this.#overlays?.destroy();
     this.#decor?.destroy();
     this.#edgeLabels?.destroy();
@@ -669,6 +673,9 @@ export class GraphApp extends ApplicationV2 {
     this.#zoomControl?.attach(this.#cy);
     this.#decor = createNodeDecorLayer(this.#cyHost, this.#cy, hydrated, { isGM: this.#isGM });
     this.#edgeLabels = setupEdgeLabels(this.#cy);
+    this.#hoverPreview = createHoverPreview(this.#cyHost.parentElement ?? this.#cyHost, this.#cy, (nodeId) =>
+      this.#currentData ? previewNode(this.#currentData, nodeId, { isGM: this.#isGM }) : null,
+    );
     // Оба слоя встают в начало контейнера — под канвас Cytoscape (см. background-layer.ts).
     // Фон создаётся последним, чтобы оказаться первым в DOM — под областями фракций.
     this.#factionBlobsBlend = appliedFactionBlend(hydrated.background);
@@ -1732,6 +1739,8 @@ export class GraphApp extends ApplicationV2 {
     this.#history.clear();
     this.#interaction?.teardown();
     this.#interaction = null;
+    this.#hoverPreview?.destroy();
+    this.#hoverPreview = null;
     this.#overlays?.destroy();
     this.#overlays = null;
     this.#decor?.destroy();
