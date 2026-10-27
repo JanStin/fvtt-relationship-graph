@@ -2,7 +2,7 @@
 
 **English** · [Русский](README.ru.md)
 
-A [Foundry VTT](https://foundryvtt.com/) 13 module: a graph of relationships between the characters
+A [Foundry VTT](https://foundryvtt.com/) 13–14 module: a graph of relationships between the characters
 of your campaign — who is whose friend, enemy or employer, which faction they belong to, and what
 the players know about them.
 
