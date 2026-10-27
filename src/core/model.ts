@@ -105,7 +105,7 @@ export interface GraphBackground {
   imageWidth: number; // ширина картинки (плитки) в единицах графа; 0 — натуральная ширина; screen — не используется
   imageOpacity: number; // 0..1
   font?: string; // шрифт подписей узлов и связей; '' или нет (графы до 1.0.4) — Signika
-  factionDisplay?: FactionDisplay; // нет (графы до 1.2.1) — "badges"
+  factionDisplay?: FactionDisplay; // нет — "areas" (до 1.8.0 было "badges")
   factionBlend?: FactionBlend; // нет (графы до 1.2.1) — "overlay"
   toolbarColor?: string; // hex цвет панели инструментов окна графа; '' или нет (графы до 1.4.2) — стандартный
   uiTheme?: string; // цветовой набор интерфейса (core/ui-theme.ts); '' или нет (графы до 1.6.0) — стандартный

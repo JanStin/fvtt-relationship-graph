@@ -40,12 +40,12 @@ function makeData(nodes: GraphNode[], factionDisplay?: FactionDisplay): GraphDat
 describe("nodeAreaFactionIds", () => {
   const node = makeNode("a", ["f1", "f2", "gone"]);
 
-  it("ромбики (и графы без настройки) — только основная фракция", () => {
-    expect(nodeAreaFactionIds(node, makeData([node]))).toEqual(["f1"]);
+  it("ромбики — только основная фракция", () => {
     expect(nodeAreaFactionIds(node, makeData([node], "badges"))).toEqual(["f1"]);
   });
 
-  it("областями — все фракции узла, неизвестные пропускаются", () => {
+  it("областями (и графы без настройки) — все фракции узла, неизвестные пропускаются", () => {
+    expect(nodeAreaFactionIds(node, makeData([node]))).toEqual(["f1", "f2"]);
     expect(nodeAreaFactionIds(node, makeData([node], "areas"))).toEqual(["f1", "f2"]);
   });
 
@@ -58,7 +58,7 @@ describe("factionAreas", () => {
   const nodes = [makeNode("a", ["f1", "f3"]), makeNode("b", ["f2"]), makeNode("c", ["f1"])];
 
   it("ромбики — области только основных фракций, фракция без узлов не рисуется", () => {
-    expect(factionAreas(makeData(nodes))).toEqual([
+    expect(factionAreas(makeData(nodes, "badges"))).toEqual([
       { factionId: "f1", nodeIds: ["a", "c"] },
       { factionId: "f2", nodeIds: ["b"] },
     ]);

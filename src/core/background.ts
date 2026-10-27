@@ -54,7 +54,7 @@ export function defaultBackground(): GraphBackground {
     imageWidth: 0,
     imageOpacity: 1,
     font: "",
-    factionDisplay: "badges",
+    factionDisplay: "areas",
     factionBlend: "overlay",
     toolbarColor: "",
     uiTheme: "",
@@ -107,9 +107,9 @@ export function backgroundFromEdit(values: BackgroundEditValues): GraphBackgroun
   };
 }
 
-/** Неизвестное значение (или его нет) — "badges". */
+/** Неизвестное значение (или его нет) — "areas" (до 1.8.0 было "badges"). */
 export function parseFactionDisplay(value: unknown): FactionDisplay {
-  return FACTION_DISPLAYS.includes(value as FactionDisplay) ? (value as FactionDisplay) : "badges";
+  return FACTION_DISPLAYS.includes(value as FactionDisplay) ? (value as FactionDisplay) : "areas";
 }
 
 /** Неизвестное значение (или его нет) — "overlay". */
@@ -144,7 +144,7 @@ export function isDefaultBackground(background: GraphBackground): boolean {
     background.color === "" &&
     background.image === "" &&
     !background.font &&
-    factionDisplayOf(background) === "badges" &&
+    factionDisplayOf(background) === "areas" &&
     factionBlendOf(background) === "overlay" &&
     !background.toolbarColor &&
     !parseUiTheme(background.uiTheme)

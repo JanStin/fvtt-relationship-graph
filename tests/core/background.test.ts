@@ -31,7 +31,7 @@ function values(overrides: Partial<BackgroundEditValues> = {}): BackgroundEditVa
     imageWidth: "0",
     imageOpacityPercent: "100",
     font: "",
-    factionDisplay: "badges",
+    factionDisplay: "areas",
     factionBlend: "overlay",
     toolbarColor: "",
     uiTheme: "",
@@ -54,7 +54,7 @@ describe("backgroundFromEdit", () => {
       imageWidth: 300,
       imageOpacity: 0.4,
       font: "",
-      factionDisplay: "badges",
+      factionDisplay: "areas",
       factionBlend: "overlay",
       toolbarColor: "",
       uiTheme: "",
@@ -81,8 +81,8 @@ describe("backgroundFromEdit", () => {
   });
 
   it("вид дополнительных фракций: «областями» сохраняется, неизвестное значение — ромбики", () => {
-    expect(backgroundFromEdit(values({ factionDisplay: "areas" })).factionDisplay).toBe("areas");
-    expect(backgroundFromEdit(values({ factionDisplay: "weird" as never })).factionDisplay).toBe("badges");
+    expect(backgroundFromEdit(values({ factionDisplay: "badges" })).factionDisplay).toBe("badges");
+    expect(backgroundFromEdit(values({ factionDisplay: "weird" as never })).factionDisplay).toBe("areas");
   });
 });
 
@@ -114,9 +114,9 @@ describe("appliedFactionBlend", () => {
 
 describe("factionDisplayOf", () => {
   it("нет фона или поля (графы до 1.2.1) — ромбики", () => {
-    expect(factionDisplayOf(null)).toBe("badges");
-    expect(factionDisplayOf({ ...defaultBackground(), factionDisplay: undefined })).toBe("badges");
-    expect(factionDisplayOf({ ...defaultBackground(), factionDisplay: "areas" })).toBe("areas");
+    expect(factionDisplayOf(null)).toBe("areas");
+    expect(factionDisplayOf({ ...defaultBackground(), factionDisplay: undefined })).toBe("areas");
+    expect(factionDisplayOf({ ...defaultBackground(), factionDisplay: "badges" })).toBe("badges");
   });
 });
 
@@ -132,7 +132,7 @@ describe("setBackground", () => {
   });
 
   it("фон, у которого изменён только вид фракций, не стандартный", () => {
-    const background = { ...defaultBackground(), factionDisplay: "areas" as const };
+    const background = { ...defaultBackground(), factionDisplay: "badges" as const };
     expect(setBackground(empty, background).background).toEqual(background);
   });
 });

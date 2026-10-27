@@ -41,6 +41,8 @@ function makeData(node: GraphNode): GraphData {
     })),
     relationshipTypes: [],
     conditions: [],
+    // ромбики дополнительных фракций — не вид по умолчанию, задаём явно
+    background: { ...defaultBackground(), factionDisplay: "badges" },
   };
 }
 

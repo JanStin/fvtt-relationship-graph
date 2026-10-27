@@ -244,16 +244,16 @@ describe("импорт своего формата: фон", () => {
       imageWidth: 0,
       imageOpacity: 1,
       font: "",
-      factionDisplay: "badges",
+      factionDisplay: "areas",
       factionBlend: "overlay",
       toolbarColor: "",
       uiTheme: "",
     });
   });
 
-  it("вид дополнительных фракций: нет поля (файлы до 1.2.1) — ромбики", () => {
-    expect(parseGraphFileJson(file({ color: "#111111" })).data.background?.factionDisplay).toBe("badges");
-    expect(parseGraphFileJson(file({ factionDisplay: "areas" })).data.background?.factionDisplay).toBe("areas");
+  it("вид дополнительных фракций: нет поля — области", () => {
+    expect(parseGraphFileJson(file({ color: "#111111" })).data.background?.factionDisplay).toBe("areas");
+    expect(parseGraphFileJson(file({ factionDisplay: "badges" })).data.background?.factionDisplay).toBe("badges");
   });
 
   it("режим «на весь экран» читается", () => {
