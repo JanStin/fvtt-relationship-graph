@@ -12,6 +12,7 @@
  * сглаживанием — так край получается размытым и без лесенки, а расчёт остаётся дешёвым.
  * Название фракции — полупрозрачным «водяным знаком» внутри острова из LABEL_MIN_NODES+ узлов,
  * в стороне от узлов и вне других областей (core/blob.islandLabelSpot); места нет — без названия.
+ * Цвет названия — светлый или тёмный под заливку и фон графа, с обводкой (core/color.watermarkColors).
  * Названия рисуются после заливки всех областей, чтобы следующая область их не закрасила.
  *
  * Перекрытие областей (GraphBackground.factionBlend): «наложение» — каждая область своей сеткой
@@ -37,7 +38,7 @@ import {
   type BlobGroup,
   type Bounds,
 } from "../core/blob";
-import { mixOklab, parseHexColor, rgbToOklab, type Oklab, type Rgb } from "../core/color";
+import { mixOklab, parseHexColor, rgbToHex, rgbToOklab, watermarkColors, type Oklab, type Rgb } from "../core/color";
 import type { FactionBlend } from "../core/model";
 import { windowOf } from "./popout";
 import { AREA_SELECTION_EVENT, areaMembers, factionAreaList, isAreaSelected, type FactionArea } from "./faction-areas";
@@ -51,14 +52,18 @@ const SELECTED_FILL_OPACITY = 0.36;
 const RIM_OPACITY = 0.18;
 /** Шрифт названия фракции в единицах графа — крупный, это «водяной знак» области. */
 const LABEL_FONT_SIZE = 28;
-const LABEL_COLOR = "#e5e5e5";
-const LABEL_OPACITY = 0.35;
+/** Толщина обводки названия — доля размера шрифта. */
+const LABEL_OUTLINE_WIDTH = 0.08;
+/** Обводка прозрачнее текста: она лишь отделяет буквы от пёстрого фона. */
+const LABEL_OUTLINE_OPACITY = 0.5;
 /** Свободное место вокруг точки названия (в единицах графа): не ближе к узлу, чем на полстроки. */
 const LABEL_CLEARANCE = LABEL_FONT_SIZE * 0.6;
 /** Мельче этого (в экранных px) название не рисуем — всё равно не прочесть. */
 const MIN_LABEL_SCREEN_SIZE = 5;
 
 export interface FactionBlobLayer {
+  /** Цвет фона графа под областями — от него зависит цвет названий. */
+  setBackdrop(color: string): void;
   destroy(): void;
 }
 
@@ -140,10 +145,24 @@ function unionBounds(areas: readonly PreparedArea[]): Bounds {
   );
 }
 
+/** Место названия фракции в координатах графа и область, в которой оно стоит. */
+interface LabelSpot {
+  label: string;
+  area: PreparedArea;
+  x: number;
+  y: number;
+}
+
 /** Заливает клетку: x, y — центр клетки в координатах графа, i — индекс в pixels (RGBA). */
 type CellPainter = (x: number, y: number, pixels: Uint8ClampedArray, i: number) => void;
 
-export function createFactionBlobLayer(container: HTMLElement, cy: cytoscape.Core, blend: FactionBlend): FactionBlobLayer {
+/** backdrop — цвет фона графа (core/background.backgroundColor): под него подбирается цвет названий. */
+export function createFactionBlobLayer(
+  container: HTMLElement,
+  cy: cytoscape.Core,
+  blend: FactionBlend,
+  backdrop: string,
+): FactionBlobLayer {
   // кадры и плотность пикселей — окна графа (главного или отдельного, см. popout.ts)
   const win = windowOf(container);
   const canvas = document.createElement("canvas");
@@ -237,17 +256,17 @@ export function createFactionBlobLayer(container: HTMLElement, cy: cytoscape.Cor
    * Места названий в координатах графа. Зависят только от положения и размера узлов — при
    * панорамировании и зуме не пересчитываются.
    */
-  let labelSpots: Array<{ label: string; x: number; y: number }> | null = null;
+  let labelSpots: LabelSpot[] | null = null;
 
-  function findLabelSpots(areas: readonly PreparedArea[]): Array<{ label: string; x: number; y: number }> {
+  function findLabelSpots(areas: readonly PreparedArea[]): LabelSpot[] {
     const obstacles = labelObstacles(cy);
-    const spots: Array<{ label: string; x: number; y: number }> = [];
+    const spots: LabelSpot[] = [];
     for (const area of areas) {
       if (!area.label) continue;
       const others = areas.filter((other) => other !== area).map((other) => other.shape);
       for (const island of shapeIslands(area.shape)) {
         const spot = islandLabelSpot(area.shape, island, obstacles, others, LABEL_CLEARANCE);
-        if (spot) spots.push({ label: area.label, ...spot });
+        if (spot) spots.push({ label: area.label, area, ...spot });
       }
     }
     return spots;
@@ -262,11 +281,22 @@ export function createFactionBlobLayer(container: HTMLElement, cy: cytoscape.Cor
     const pan = cy.pan();
     ctx.save();
     ctx.font = `600 ${fontSize}px sans-serif`;
-    ctx.fillStyle = LABEL_COLOR;
-    ctx.globalAlpha = LABEL_OPACITY;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    for (const spot of labelSpots) ctx.fillText(spot.label, pan.x + spot.x * zoom, pan.y + spot.y * zoom);
+    ctx.lineJoin = "round";
+    ctx.lineWidth = fontSize * LABEL_OUTLINE_WIDTH;
+    for (const spot of labelSpots) {
+      // точка названия — вне других областей, под ней только своя заливка поверх фона графа
+      const colors = watermarkColors(backdrop, rgbToHex(spot.area.rgb), spot.area.opacity);
+      const x = pan.x + spot.x * zoom;
+      const y = pan.y + spot.y * zoom;
+      ctx.globalAlpha = colors.alpha * LABEL_OUTLINE_OPACITY;
+      ctx.strokeStyle = colors.outline;
+      ctx.strokeText(spot.label, x, y);
+      ctx.globalAlpha = colors.alpha;
+      ctx.fillStyle = colors.text;
+      ctx.fillText(spot.label, x, y);
+    }
     ctx.restore();
   }
 
@@ -310,6 +340,11 @@ export function createFactionBlobLayer(container: HTMLElement, cy: cytoscape.Cor
   draw();
 
   return {
+    setBackdrop(color: string): void {
+      if (color === backdrop) return;
+      backdrop = color;
+      schedule();
+    },
     destroy(): void {
       cy.off("viewport resize", schedule);
       cy.off("position data", "node[!isFaction]", nodesChanged);

@@ -224,6 +224,8 @@ export interface ColorField {
   clear(): void;
   /** Другой цвет по умолчанию — например, от выбранного набора цветов. */
   setFallback(color: string): void;
+  /** Поставить цвет (с событием input — как правка пользователем). */
+  set(color: string): void;
 }
 
 export function colorField(current: string, fallback = ""): ColorField {
@@ -260,7 +262,33 @@ export function colorField(current: string, fallback = ""): ColorField {
       fallback = color;
       syncUnset();
     },
+    set(color: string) {
+      text.value = color;
+      if (HEX_COLOR.test(color)) picker.value = color;
+      syncUnset();
+      text.dispatchEvent(new Event("input", { bubbles: true }));
+    },
   };
+}
+
+/**
+ * Кнопка «Другой цвет» у поля цвета новой фракции или типа связи: по кругу ставит следующий
+ * из colors (core/color.distinctColors); первый уже стоит в поле.
+ */
+export function appendColorSuggestions(color: ColorField, colors: readonly string[]): void {
+  if (colors.length < 2) return;
+  let index = 0;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "frg-color-another";
+  button.title = t("RELGRAPH.Common.ColorAnother");
+  button.setAttribute("aria-label", button.title);
+  button.innerHTML = `<i class="fa-solid fa-dice" aria-hidden="true"></i>`;
+  button.addEventListener("click", () => {
+    index = (index + 1) % colors.length;
+    color.set(colors[index]);
+  });
+  color.element.append(button);
 }
 
 /** Штатный FilePicker Foundry для выбора изображения; путь попадает в input (с событием input). */

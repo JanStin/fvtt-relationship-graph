@@ -28,7 +28,9 @@ import {
   loadGraphData,
   saveGraphData,
 } from "../foundry/storage";
+import { distinctColors } from "../core/color";
 import {
+  backgroundColor,
   backgroundFromEdit,
   appliedFactionBlend,
   factionDisplayOf,
@@ -702,7 +704,7 @@ export class GraphApp extends ApplicationV2 {
     // Оба слоя встают в начало контейнера — под канвас Cytoscape (см. background-layer.ts).
     // Фон создаётся последним, чтобы оказаться первым в DOM — под областями фракций.
     this.#factionBlobsBlend = appliedFactionBlend(hydrated.background);
-    this.#factionBlobs = createFactionBlobLayer(this.#cyHost, this.#cy, this.#factionBlobsBlend);
+    this.#factionBlobs = createFactionBlobLayer(this.#cyHost, this.#cy, this.#factionBlobsBlend, backgroundColor(hydrated.background));
     this.#background = createBackgroundLayer(this.#cyHost, this.#cy, hydrated.background);
 
     // наблюдатель из окна графа: чужой не видит изменений размера в отдельном окне
@@ -1412,7 +1414,10 @@ export class GraphApp extends ApplicationV2 {
         },
         onClose: () => this.#returnToInfo(returnTo),
       },
-      { isGM: this.#isGM },
+      {
+        isGM: this.#isGM,
+        newColors: faction === null ? distinctColors(data.factions.map((f) => f.color), backgroundColor(data.background)) : [],
+      },
     );
     this.#mountPanel(panel);
   }
@@ -1567,8 +1572,9 @@ export class GraphApp extends ApplicationV2 {
     if (blend !== this.#factionBlobsBlend) {
       this.#factionBlobs?.destroy();
       this.#factionBlobsBlend = blend;
-      this.#factionBlobs = createFactionBlobLayer(this.#cyHost, this.#cy, blend);
+      this.#factionBlobs = createFactionBlobLayer(this.#cyHost, this.#cy, blend, backgroundColor(background));
     }
+    this.#factionBlobs?.setBackdrop(backgroundColor(background));
     // фон — после областей фракций: слой встаёт первым в контейнер и оказывается под ними
     this.#background.destroy();
     this.#background = createBackgroundLayer(this.#cyHost, this.#cy, background);
@@ -1625,15 +1631,22 @@ export class GraphApp extends ApplicationV2 {
     const type = typeId === null ? null : data?.relationshipTypes.find((rt) => rt.id === typeId);
     if (!data || type === undefined || !this.#isGM) return;
 
-    const panel = createRelationshipTypePanel(type, {
-      onSave: (values) => {
-        void this.#saveRelationshipType(typeId, values);
+    const panel = createRelationshipTypePanel(
+      type,
+      {
+        onSave: (values) => {
+          void this.#saveRelationshipType(typeId, values);
+        },
+        onDelete: () => {
+          if (type) void this.#deleteRelationshipType(type.id, relationshipTypeLabel(type));
+        },
+        onClose: () => this.#closePanel(),
       },
-      onDelete: () => {
-        if (type) void this.#deleteRelationshipType(type.id, relationshipTypeLabel(type));
-      },
-      onClose: () => this.#closePanel(),
-    });
+      // линия нового типа — с контрастом к фону не меньше 3:1, как у значков (WCAG 1.4.11)
+      type === null
+        ? distinctColors(data.relationshipTypes.map((rt) => rt.color), backgroundColor(data.background), { minContrast: 3 })
+        : [],
+    );
     this.#mountPanel(panel);
   }
 

@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { isLightColor, mixOklab, oklabToRgb, parseHexColor, rgbToOklab, type Rgb } from "../../src/core/color";
+import {
+  contrastRatio,
+  distinctColors,
+  isLightColor,
+  mixOklab,
+  oklabToRgb,
+  parseHexColor,
+  rgbToHex,
+  rgbToOklab,
+  watermarkColors,
+  type Rgb,
+} from "../../src/core/color";
 
 describe("parseHexColor", () => {
   it("читает #rrggbb и #rgb", () => {
@@ -85,5 +96,74 @@ describe("isLightColor", () => {
     expect(isLightColor("")).toBeNull();
     expect(isLightColor("red")).toBeNull();
     expect(isLightColor("#12345")).toBeNull();
+  });
+});
+
+describe("rgbToHex", () => {
+  it("обратно к parseHexColor, каналы обрезаются до 0–255", () => {
+    expect(rgbToHex(parseHexColor("#0a80ff"))).toBe("#0a80ff");
+    expect(rgbToHex([300, -5, 127.6])).toBe("#ff0080");
+  });
+});
+
+describe("distinctColors", () => {
+  const dark = "#16213e";
+  const first = () => 0;
+
+  it("весь набор без повторов, все — #rrggbb", () => {
+    const colors = distinctColors([], dark, { random: first });
+    expect(colors).toHaveLength(16);
+    expect(new Set(colors).size).toBe(16);
+    colors.forEach((color) => expect(color).toMatch(/^#[0-9a-f]{6}$/));
+  });
+
+  it("занятых нет — начало набора случайное", () => {
+    expect(distinctColors([], dark, { random: () => 0.5 })[0]).not.toBe(distinctColors([], dark, { random: first })[0]);
+  });
+
+  it("первым идёт цвет, самый далёкий от занятого", () => {
+    const [taken, ...rest] = distinctColors([], dark, { random: first });
+    const next = distinctColors([taken], dark);
+    expect(next[0]).not.toBe(taken);
+    const distance = (a: string, b: string) => {
+      const [x, y] = [rgbToOklab(parseHexColor(a)), rgbToOklab(parseHexColor(b))];
+      return Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]);
+    };
+    rest.forEach((color) => expect(distance(next[0], taken)).toBeGreaterThanOrEqual(distance(color, taken)));
+  });
+
+  it("неразобранные занятые цвета не мешают", () => {
+    expect(distinctColors(["red", ""], dark, { random: first })).toEqual(distinctColors([], dark, { random: first }));
+  });
+
+  it("minContrast: на тёмном и на светлом фоне все цвета читаются", () => {
+    for (const backdrop of [dark, "#ffffff", "#efe4c8"]) {
+      distinctColors([], backdrop, { minContrast: 3 }).forEach((color) => expect(contrastRatio(color, backdrop)).toBeGreaterThanOrEqual(3));
+    }
+  });
+
+  it("minContrast, которого не даёт ни один цвет, — весь набор", () => {
+    expect(distinctColors([], dark, { minContrast: 21 })).toHaveLength(16);
+  });
+});
+
+describe("watermarkColors", () => {
+  it("тёмный фон — светлый текст с тёмной обводкой", () => {
+    expect(watermarkColors("#16213e", "#6366f1", 0.2)).toMatchObject({ text: "#f8fafc", outline: "#0f172a" });
+  });
+
+  it("светлый фон — тёмный текст", () => {
+    expect(watermarkColors("#ffffff", "#facc15", 0.2)).toMatchObject({ text: "#0f172a", outline: "#f8fafc" });
+  });
+
+  it("контраст надписи с фоном под ней — не меньше 3:1", () => {
+    for (const [backdrop, fill] of [["#16213e", "#6366f1"], ["#ffffff", "#2563eb"], ["#808080", "#808080"], ["#efe4c8", "#b45309"]]) {
+      const { text, alpha } = watermarkColors(backdrop, fill, 0.2);
+      const under = parseHexColor(backdrop).map((c, i) => c * 0.8 + parseHexColor(fill)[i] * 0.2) as Rgb;
+      const shown = under.map((c, i) => c * (1 - alpha) + parseHexColor(text)[i] * alpha) as Rgb;
+      expect(contrastRatio(rgbToHex(shown), rgbToHex(under))).toBeGreaterThanOrEqual(2.9);
+      expect(alpha).toBeGreaterThanOrEqual(0.45);
+      expect(alpha).toBeLessThanOrEqual(0.85);
+    }
   });
 });

@@ -40,6 +40,7 @@
         "other": "{count} factions"
       },
       "ColorDefault": "Default",
+      "ColorAnother": "Another color",
       "MoveUp": "Move up",
       "MoveDown": "Move down"
     },

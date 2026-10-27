@@ -10,7 +10,7 @@
 import { factionName, isDefaultFactionName, type FactionEditValues } from "../../core/edit";
 import { t } from "../../core/i18n";
 import type { Faction } from "../../core/model";
-import { colorField, contentLinksHint, createPanelShell, field, hint, linkTextArea, panelHeader, catalogReorder, textInput } from "./form";
+import { appendColorSuggestions, colorField, contentLinksHint, createPanelShell, field, hint, linkTextArea, panelHeader, catalogReorder, textInput } from "./form";
 
 const NEW_FACTION_COLOR = "#6366f1";
 
@@ -28,6 +28,8 @@ export interface FactionListCallbacks {
 export interface FactionPanelOptions {
   /** Создание, удаление, название и цвет — только GM; игрок правит только описание. */
   isGM: boolean;
+  /** Цвета для новой фракции (core/color.distinctColors): первый — в поле, остальные — по кнопке. */
+  newColors?: readonly string[];
 }
 
 export interface FactionListOptions {
@@ -105,7 +107,8 @@ export function createFactionPanel(
 ): HTMLElement {
   const { isGM } = options;
   const name = textInput(faction && !isDefaultFactionName(faction.name) ? faction.name : "", t("RELGRAPH.Faction.DefaultName"));
-  const color = colorField(faction?.color ?? NEW_FACTION_COLOR);
+  const color = colorField(faction?.color ?? options.newColors?.[0] ?? NEW_FACTION_COLOR);
+  if (!faction && isGM) appendColorSuggestions(color, options.newColors ?? []);
   name.disabled = !isGM;
   color.element.querySelectorAll("input").forEach((input) => {
     input.disabled = !isGM;

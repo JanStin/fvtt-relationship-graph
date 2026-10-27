@@ -7,7 +7,7 @@
 import { t } from "../../core/i18n";
 import type { RelationshipType } from "../../core/model";
 import { dashPresets, isDefaultRelationshipTypeLabel, relationshipTypeLabel, type RelationshipTypeEditValues } from "../../core/relationship-types";
-import { colorField, createPanelShell, field, hint, panelHeader, catalogReorder, select, textInput } from "./form";
+import { appendColorSuggestions, colorField, createPanelShell, field, hint, panelHeader, catalogReorder, select, textInput } from "./form";
 
 const NEW_TYPE_COLOR = "#64748b";
 
@@ -76,17 +76,22 @@ export interface RelationshipTypePanelCallbacks {
   onClose(): void;
 }
 
-/** type === null — создание нового типа (без кнопки удаления). */
+/**
+ * type === null — создание нового типа (без кнопки удаления); newColors — цвета для него
+ * (core/color.distinctColors): первый — в поле, остальные — по кнопке «Другой цвет».
+ */
 export function createRelationshipTypePanel(
   type: RelationshipType | null,
   callbacks: RelationshipTypePanelCallbacks,
+  newColors: readonly string[] = [],
 ): HTMLElement {
   // Пустое название — подсказка с тем, что будет показано (перевод встроенного или «Новый тип связи»).
   const label = textInput(
     type && !isDefaultRelationshipTypeLabel(type) ? type.label : "",
     type ? relationshipTypeLabel(type) : t("RELGRAPH.RelationshipType.DefaultName"),
   );
-  const color = colorField(type?.color ?? NEW_TYPE_COLOR);
+  const color = colorField(type?.color ?? newColors[0] ?? NEW_TYPE_COLOR);
+  if (!type) appendColorSuggestions(color, newColors);
 
   // Стиль, которого нет среди готовых (например из импорта), сохраняем отдельным пунктом.
   const currentDash = type?.dash ?? "";
