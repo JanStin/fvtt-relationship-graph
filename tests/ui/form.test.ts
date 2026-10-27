@@ -162,7 +162,7 @@ describe("панель сведений", () => {
     const panel = createInfoPanel(
       {
         title: "Связь",
-        header: { kind: "edge", source: end, target: end, directional: true, color: "#00ff00", dash: [4, 4], gmOnly: false },
+        header: { kind: "edge", source: end, target: end, directional: true, bidirectional: false, color: "#00ff00", dash: [4, 4], gmOnly: false },
         blocks: [],
       },
       silent,

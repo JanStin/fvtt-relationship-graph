@@ -47,11 +47,30 @@ export interface FactionEditValues {
   description: string;
 }
 
+/**
+ * Направление связи в форме: без стрелок, source → target, target → source (при сохранении
+ * концы меняются местами), стрелки на обоих концах.
+ */
+export type EdgeDirection = "none" | "forward" | "backward" | "both";
+
+export const EDGE_DIRECTIONS: readonly EdgeDirection[] = ["none", "forward", "backward", "both"];
+
+/** Направление сохранённой связи: "backward" не бывает — такие связи хранятся с обменом концов. */
+export function edgeDirectionOf(edge: GraphEdge): EdgeDirection {
+  if (!edge.directional) return "none";
+  return edge.bidirectional ? "both" : "forward";
+}
+
+/** На каких концах связи рисовать стрелку. */
+export function edgeArrows(edge: Pick<GraphEdge, "directional" | "bidirectional">): { source: boolean; target: boolean } {
+  return { source: edge.directional && edge.bidirectional === true, target: edge.directional };
+}
+
 export interface EdgeEditValues {
   label: string;
   /** '' — тип не задан. */
   relationshipTypeId: string;
-  directional: boolean;
+  direction: EdgeDirection;
   gmOnly: boolean;
 }
 
@@ -170,13 +189,21 @@ export function createFactionFromEdit(data: GraphData, factionId: string, values
   });
 }
 
-/** Неизвестный тип связи сбрасывается в '' (не задан). */
+/**
+ * Неизвестный тип связи сбрасывается в '' (не задан). "backward" меняет концы связи местами
+ * и делает её направленной от нового source; id связи остаётся прежним.
+ */
 export function applyEdgeEdit(data: GraphData, edgeId: string, values: EdgeEditValues): GraphData {
   const typeExists = data.relationshipTypes.some((rt) => rt.id === values.relationshipTypeId);
+  const edge = data.edges.find((e) => e.id === edgeId);
+  const swap = values.direction === "backward" && edge !== undefined;
   return updateEdge(data, edgeId, {
     label: values.label.trim(),
     relationshipTypeId: typeExists ? values.relationshipTypeId : "",
-    directional: values.directional,
+    directional: values.direction !== "none",
+    // false не храним — как у графов до 1.8.0
+    bidirectional: values.direction === "both" ? true : undefined,
+    ...(swap ? { source: edge.target, target: edge.source } : {}),
     gmOnly: values.gmOnly,
   });
 }

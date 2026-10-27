@@ -48,6 +48,8 @@ export interface GraphEdge {
   target: string; // id узла
   label: string;
   directional: boolean;
+  /** Стрелки на обоих концах (только при directional); нет поля (графы до 1.8.0) — false. */
+  bidirectional?: boolean;
   relationshipTypeId: string; // '' если не задан
   gmOnly: boolean;
 }

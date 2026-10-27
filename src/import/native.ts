@@ -202,6 +202,8 @@ export function parseGraphFileJson(raw: unknown): ParseResult {
       target,
       label: str(item.label),
       directional: bool(item.directional),
+      // двусторонняя — только направленная; false не храним
+      ...(bool(item.directional) && bool(item.bidirectional) ? { bidirectional: true } : {}),
       relationshipTypeId: typeIds.has(relationshipTypeId) ? relationshipTypeId : "",
       gmOnly: bool(item.gmOnly),
     });

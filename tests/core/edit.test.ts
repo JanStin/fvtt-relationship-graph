@@ -9,9 +9,12 @@ import {
   blankNode,
   isBlankEdge,
   createFactionFromEdit,
+  edgeArrows,
+  edgeDirectionOf,
   factionName,
   normalizeFactions,
   primaryAfterUncheck,
+  type EdgeDirection,
   type NodeEditValues,
 } from "../../src/core/edit";
 import type { GraphData, GraphNode } from "../../src/core/model";
@@ -313,7 +316,7 @@ describe("applyEdgeEdit", () => {
     const result = applyEdgeEdit(data, "e1", {
       label: " союз ",
       relationshipTypeId: "rt1",
-      directional: true,
+      direction: "forward",
       gmOnly: true,
     });
     expect(result.edges[0]).toMatchObject({ label: "союз", relationshipTypeId: "rt1", directional: true, gmOnly: true });
@@ -323,9 +326,33 @@ describe("applyEdgeEdit", () => {
     const result = applyEdgeEdit(data, "e1", {
       label: "",
       relationshipTypeId: "ghost",
-      directional: false,
+      direction: "none",
       gmOnly: false,
     });
     expect(result.edges[0].relationshipTypeId).toBe("");
+  });
+
+  const edit = (direction: EdgeDirection) => applyEdgeEdit(data, "e1", { label: "", relationshipTypeId: "", direction, gmOnly: false }).edges[0];
+
+  it("направление: без стрелок, вперёд, обе стороны — концы на месте", () => {
+    expect(edit("none")).toMatchObject({ source: "free", target: "bound", directional: false });
+    expect(edit("none").bidirectional).toBeUndefined();
+    expect(edit("forward")).toMatchObject({ source: "free", target: "bound", directional: true });
+    expect(edit("forward").bidirectional).toBeUndefined();
+    expect(edit("both")).toMatchObject({ source: "free", target: "bound", directional: true, bidirectional: true });
+  });
+
+  it("направление «назад» меняет концы местами, id прежний", () => {
+    expect(edit("backward")).toMatchObject({ id: "e1", source: "bound", target: "free", directional: true });
+    expect(edgeDirectionOf(edit("backward"))).toBe("forward");
+  });
+
+  it("edgeDirectionOf и edgeArrows по сохранённой связи", () => {
+    for (const direction of ["none", "forward", "both"] as const) expect(edgeDirectionOf(edit(direction))).toBe(direction);
+    expect(edgeArrows(edit("none"))).toEqual({ source: false, target: false });
+    expect(edgeArrows(edit("forward"))).toEqual({ source: false, target: true });
+    expect(edgeArrows(edit("both"))).toEqual({ source: true, target: true });
+    // двусторонность без направленности не действует
+    expect(edgeArrows({ directional: false, bidirectional: true })).toEqual({ source: false, target: false });
   });
 });

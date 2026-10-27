@@ -14,7 +14,7 @@
 
 import cytoscape from "cytoscape";
 import fcose from "cytoscape-fcose";
-import { factionName } from "../core/edit";
+import { edgeArrows, factionName } from "../core/edit";
 import { factionAreas } from "../core/faction-areas";
 import { imageAlignPosition } from "../core/image-align";
 import type { GraphData } from "../core/model";
@@ -132,7 +132,8 @@ function buildElements(data: GraphData, options: RenderOptions): cytoscape.Eleme
         labelOffset: 0,
         // шрифт подписи растёт с узлами; после resize его обновляет edge-labels.ts
         labelFontSize: edgeLabelFontSize(scaleById.get(edge.source) ?? 1, scaleById.get(edge.target) ?? 1),
-        arrow: edge.directional ? "triangle" : "none",
+        arrow: edgeArrows(edge).target ? "triangle" : "none",
+        sourceArrow: edgeArrows(edge).source ? "triangle" : "none",
         edgeColor: relType?.color ?? NEUTRAL_COLOR,
         lineStyle: dashPattern ? "dashed" : "solid",
         ...(dashPattern ? { dashPattern } : {}),
@@ -230,6 +231,8 @@ const STYLE = [
       "line-color": "data(edgeColor)",
       "target-arrow-color": "data(edgeColor)",
       "target-arrow-shape": "data(arrow)",
+      "source-arrow-color": "data(edgeColor)",
+      "source-arrow-shape": "data(sourceArrow)",
       "line-style": "data(lineStyle)",
       "line-opacity": "data(edgeOpacity)",
       "curve-style": "bezier",
@@ -265,6 +268,7 @@ const STYLE = [
       width: 4,
       "line-color": "#facc15",
       "target-arrow-color": "#facc15",
+      "source-arrow-color": "#facc15",
     },
   },
   {

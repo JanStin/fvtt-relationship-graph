@@ -1432,3 +1432,13 @@ body.frg-popout-body {
 .application.frg-popped-out .window-resize-handle {
   display: none;
 }
+
+/* Сегменты столбиком — когда подписи длинные (направление связи с именами концов). */
+.frg-segmented.frg-segmented-column {
+  flex-direction: column;
+  flex-wrap: nowrap;
+}
+
+.frg-segmented-column .frg-segment {
+  flex: 0 0 auto;
+}

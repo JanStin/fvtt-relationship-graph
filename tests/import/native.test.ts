@@ -101,6 +101,16 @@ describe("экспорт → импорт", () => {
     expect(warnings).toEqual([]);
   });
 
+  it("двусторонняя связь сохраняется; у ненаправленной bidirectional отбрасывается", () => {
+    const edges = [
+      { ...graph.edges[0], bidirectional: true },
+      { ...graph.edges[0], id: "e2", directional: false, bidirectional: true },
+    ];
+    const imported = parseGraphFileJson(roundTrip({ ...graph, edges })).data.edges;
+    expect(imported[0].bidirectional).toBe(true);
+    expect(imported[1]).not.toHaveProperty("bidirectional");
+  });
+
   it("сохраняет фон графа", () => {
     const withBackground: GraphData = {
       ...graph,

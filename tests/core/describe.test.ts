@@ -61,7 +61,7 @@ const data: GraphData = {
   conditions: [],
 };
 
-const ARROWS = { out: "→", in: "←", none: "—" } as const;
+const ARROWS = { out: "→", in: "←", both: "↔", none: "—" } as const;
 
 /** Блок одной строкой: текст как есть, чипы через запятую (основная — со *), ссылки по строкам через « | ». */
 function summary(block: DescriptionBlock): string {

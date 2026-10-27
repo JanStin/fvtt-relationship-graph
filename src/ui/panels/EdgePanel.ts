@@ -3,11 +3,11 @@
  * значений — core/edit.ts, сохранение — GraphApp.
  */
 
-import type { EdgeEditValues } from "../../core/edit";
+import { edgeDirectionOf, type EdgeDirection, type EdgeEditValues } from "../../core/edit";
 import { t } from "../../core/i18n";
 import type { GraphEdge, RelationshipType } from "../../core/model";
 import { relationshipTypeLabel } from "../../core/relationship-types";
-import { checkbox, createPanelShell, field, hint, select, textInput } from "./form";
+import { checkbox, createPanelShell, field, group, hint, segmented, select, textInput } from "./form";
 
 const NO_TYPE = ""; // совпадает с "тип не задан" в модели (relationshipTypeId: '')
 
@@ -38,7 +38,18 @@ export function createEdgePanel(
     [{ value: NO_TYPE, label: t("RELGRAPH.Common.NotSet") }, ...relationshipTypes.map((rt) => ({ value: rt.id, label: relationshipTypeLabel(rt) }))],
     edge.relationshipTypeId,
   );
-  const directional = checkbox(t("RELGRAPH.Edge.Directional"), edge.directional);
+  // варианты — с именами концов: «Алиса → Боб» понятнее, чем «прямое / обратное»
+  const { source, target } = endpoints;
+  const direction = segmented<EdgeDirection>(
+    [
+      { value: "none", label: t("RELGRAPH.Edge.DirectionNone") },
+      { value: "forward", label: `${source} → ${target}` },
+      { value: "backward", label: `${target} → ${source}` },
+      { value: "both", label: `${source} ↔ ${target}` },
+    ],
+    edgeDirectionOf(edge),
+    "frg-segmented-column",
+  );
   const gmOnly = checkbox(t("RELGRAPH.Edge.GmOnly"), edge.gmOnly);
 
   const shell = createPanelShell(isNew ? t("RELGRAPH.Edge.New") : t("RELGRAPH.Common.Edge"), isNew ? null : t("RELGRAPH.Edge.Delete"), {
@@ -46,7 +57,7 @@ export function createEdgePanel(
       callbacks.onSave({
         label: label.value,
         relationshipTypeId: type.value,
-        directional: directional.input.checked,
+        direction: direction.value(),
         gmOnly: gmOnly.input.checked,
       }),
     onDelete: callbacks.onDelete,
@@ -54,11 +65,11 @@ export function createEdgePanel(
   });
 
   shell.body.append(
-    hint(`${endpoints.source} → ${endpoints.target}`),
+    hint(`${source} — ${target}`),
     ...(isNew ? [hint(t("RELGRAPH.Edge.NewHint"))] : []),
     field(t("RELGRAPH.Edge.Label"), label),
     field(t("RELGRAPH.Edge.Type"), type),
-    directional.row,
+    group(t("RELGRAPH.Edge.Direction"), direction.element),
     // у игрока флажка нет — при сохранении уходит прежнее значение (input остаётся как был)
     ...(isGM ? [gmOnly.row] : []),
   );

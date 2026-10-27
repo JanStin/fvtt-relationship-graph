@@ -6,7 +6,7 @@
 
 import { idsInCatalogOrder } from "./catalog-order";
 import { allConditions, conditionIconClass, conditionLabel } from "./conditions";
-import { factionName } from "./edit";
+import { edgeArrows, factionName } from "./edit";
 import { t } from "./i18n";
 import { normalizeImageAlign } from "./image-align";
 import type { GraphData, GraphEdge, GraphNode, ImageAlign, ImageFit, NodeType } from "./model";
@@ -42,6 +42,8 @@ export type DescriptionHeader =
       source: Portrait;
       target: Portrait;
       directional: boolean;
+      /** Стрелки на обоих концах. */
+      bidirectional: boolean;
       /** Цвет типа связи; null — тип не задан. */
       color: string | null;
       /** Штрих типа связи; null — сплошная (у gmOnly-связи — свой пунктир, как на графе). */
@@ -63,7 +65,7 @@ export interface InfoChip {
 }
 
 /** Направление связи относительно узла, чьи сведения открыты. */
-export type LinkDirection = "out" | "in" | "none";
+export type LinkDirection = "out" | "in" | "both" | "none";
 
 /** Строка-ссылка на узел: клик — его сведения, наведение — подсветка узла (и связи) на графе. */
 export interface InfoLink {
@@ -172,7 +174,7 @@ function connectionsBlock(data: GraphData, nodeId: string, isGM: boolean): Descr
       caption: edge.label || (type ? relationshipTypeLabel(type) : ""),
       nodeId: other?.id ?? "",
       edgeId: edge.id,
-      direction: edge.directional ? (outgoing ? "out" : "in") : "none",
+      direction: !edge.directional ? "none" : edge.bidirectional ? "both" : outgoing ? "out" : "in",
       stroke: { color: type?.color || null, dash: parseDash(type?.dash ?? ""), gmOnly: edge.gmOnly },
       portrait: null,
     };
@@ -300,6 +302,7 @@ export function describeEdge(data: GraphData, edgeId: string, options: DescribeO
     source: portraitOf(data, nodeById(edge.source), options.isGM),
     target: portraitOf(data, nodeById(edge.target), options.isGM),
     directional: edge.directional,
+    bidirectional: edgeArrows(edge).source,
     color: type?.color || null,
     dash: parseDash(type?.dash ?? ""),
     gmOnly: edge.gmOnly,

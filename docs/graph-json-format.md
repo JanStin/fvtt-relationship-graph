@@ -35,7 +35,8 @@ GM». Поэтому кнопка экспорта есть только у GM.
   `top`, `left`, `right`, `bottom` — с 1.5.0, версии раньше читают их как `center`), `x`, `y`, `scale`,
   `primaryFactionId`, `factionIds`, `role`, `lore`, `playerNotes`, `gmNotes`, `conditions`
   (id состояний), `hidden`, `gmOnly`.
-- `edges[]` — связи: `id`, `source`, `target`, `label`, `directional`, `relationshipTypeId`
+- `edges[]` — связи: `id`, `source`, `target`, `label`, `directional`, `bidirectional`
+  (стрелки на обоих концах; только вместе с `directional: true`; нет — `false`), `relationshipTypeId`
   (`""` — без типа), `gmOnly`.
 - `factions[]` — `id`, `name`, `color`, `description`.
 - `relationshipTypes[]` — `id`, `label`, `color`, `dash` (`""` — сплошная линия).

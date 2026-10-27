@@ -111,14 +111,15 @@ function strokeDash(dash: number[] | null, gmOnly: boolean): string | null {
 }
 
 /** Горизонтальная линия связи (svg); arrow — со стрелкой на конце. */
-function strokeLine(className: string, width: number, color: string | null, dash: string | null, arrow: boolean): SVGSVGElement {
+/** arrow — стрелка справа; arrowStart — ещё и слева (двусторонняя связь). */
+function strokeLine(className: string, width: number, color: string | null, dash: string | null, arrow: boolean, arrowStart = false): SVGSVGElement {
   const svg = document.createElementNS(SVG_NS, "svg");
   svg.setAttribute("class", className);
   svg.setAttribute("viewBox", `0 0 ${width} 12`);
   svg.setAttribute("aria-hidden", "true");
   const stroke = color ?? NEUTRAL_COLOR;
   const line = document.createElementNS(SVG_NS, "line");
-  line.setAttribute("x1", "1");
+  line.setAttribute("x1", arrowStart ? "8" : "1");
   line.setAttribute("y1", "6");
   line.setAttribute("x2", String(arrow ? width - 8 : width - 1));
   line.setAttribute("y2", "6");
@@ -129,6 +130,12 @@ function strokeLine(className: string, width: number, color: string | null, dash
   if (arrow) {
     const head = document.createElementNS(SVG_NS, "polygon");
     head.setAttribute("points", `${width - 9},1 ${width - 1},6 ${width - 9},11`);
+    head.setAttribute("fill", stroke);
+    svg.append(head);
+  }
+  if (arrowStart) {
+    const head = document.createElementNS(SVG_NS, "polygon");
+    head.setAttribute("points", "9,1 1,6 9,11");
     head.setAttribute("fill", stroke);
     svg.append(head);
   }
@@ -144,7 +151,7 @@ function headerVisual(header: DescriptionHeader): HTMLElement {
   } else if (header.kind === "edge") {
     visual.append(
       portraitImage(header.source, "frg-info-portrait-small"),
-      strokeLine("frg-info-edge-line", 40, header.color, strokeDash(header.dash, header.gmOnly), header.directional),
+      strokeLine("frg-info-edge-line", 40, header.color, strokeDash(header.dash, header.gmOnly), header.directional, header.bidirectional),
       portraitImage(header.target, "frg-info-portrait-small"),
     );
   } else {
@@ -219,8 +226,13 @@ function headerButton(iconClass: string, label: string, onClick: () => void): HT
   return button;
 }
 
-const DIRECTION_ICONS = { out: "fa-arrow-right", in: "fa-arrow-left", none: "fa-minus" } as const;
-const DIRECTION_LABELS = { out: "RELGRAPH.Info.Outgoing", in: "RELGRAPH.Info.Incoming", none: "RELGRAPH.Info.Undirected" } as const;
+const DIRECTION_ICONS = { out: "fa-arrow-right", in: "fa-arrow-left", both: "fa-arrows-left-right", none: "fa-minus" } as const;
+const DIRECTION_LABELS = {
+  out: "RELGRAPH.Info.Outgoing",
+  in: "RELGRAPH.Info.Incoming",
+  both: "RELGRAPH.Info.Mutual",
+  none: "RELGRAPH.Info.Undirected",
+} as const;
 
 /** Миниатюра в строке участника или конца связи — как в результатах поиска. */
 function linkThumb(portrait: Portrait): HTMLImageElement {

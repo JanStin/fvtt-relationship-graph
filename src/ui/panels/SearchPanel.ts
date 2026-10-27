@@ -99,7 +99,7 @@ export function createSearchPanel(
       const edge = data.edges.find((e) => e.id === edgeId)!;
       const info = document.createElement("span");
       info.className = "frg-search-info";
-      const ends = `${nameOf(edge.source)} ${edge.directional ? "→" : "—"} ${nameOf(edge.target)}`;
+      const ends = `${nameOf(edge.source)} ${!edge.directional ? "—" : edge.bidirectional ? "↔" : "→"} ${nameOf(edge.target)}`;
       info.append(text("frg-search-name", edge.label), text("frg-field-hint", ends));
       body.append(row({ kind: "edge", id: edgeId }, info));
     }
