@@ -8,7 +8,8 @@
 import { conditionIconClass, conditionLabel, isBuiltinCondition, isDefaultConditionLabel, type ConditionEditValues } from "../../core/conditions";
 import { t } from "../../core/i18n";
 import type { ConditionDef } from "../../core/model";
-import { createPanelShell, field, hint, panelHeader, catalogReorder, textInput } from "./form";
+import { createPanelShell, field, group, panelHeader, catalogReorder, textInput } from "./form";
+import { createIconPicker } from "./icon-picker";
 
 export interface ConditionListCallbacks {
   onEdit(conditionId: string): void;
@@ -93,29 +94,19 @@ export function createConditionPanel(condition: ConditionDef | null, callbacks: 
     condition && !isDefaultConditionLabel(condition.label) ? condition.label : "",
     t("RELGRAPH.Condition.DefaultName"),
   );
-  const icon = textInput(condition?.icon ?? "");
-  icon.placeholder = "fa-skull";
-
-  // Живой предпросмотр: Font Awesome в Foundry уже подключён, достаточно выставить классы.
-  const preview = document.createElement("span");
-  preview.className = "frg-condition-preview";
-  const renderPreview = () => preview.replaceChildren(iconElement(icon.value));
-  icon.addEventListener("input", renderPreview);
-  renderPreview();
-  const iconRow = document.createElement("div");
-  iconRow.className = "frg-field-row";
-  iconRow.append(icon, preview);
+  // Font Awesome в Foundry уже подключён — иконки сетки и предпросмотр своей — просто классы.
+  const icon = createIconPicker(condition?.icon ?? "");
 
   const shell = createPanelShell(condition ? t("RELGRAPH.Condition.Panel") : t("RELGRAPH.Condition.DefaultName"), condition ? t("RELGRAPH.Condition.Delete") : null, {
-    onSave: () => callbacks.onSave({ label: label.value, icon: icon.value }),
+    onSave: () => callbacks.onSave({ label: label.value, icon: icon.value() }),
     onDelete: callbacks.onDelete,
     onClose: callbacks.onClose,
   });
 
   shell.body.append(
     field(t("RELGRAPH.Common.Name"), label),
-    field(t("RELGRAPH.Condition.Icon"), iconRow),
-    hint(t("RELGRAPH.Condition.IconHint")),
+    // не <label>: внутри — много кнопок и своё поле
+    group(t("RELGRAPH.Condition.Icon"), icon.element),
   );
   return shell.element;
 }

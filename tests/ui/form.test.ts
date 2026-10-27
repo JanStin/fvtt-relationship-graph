@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { addPanelTabs, colorField, createPanelShell, field, group, hint, contentLinksHint, linkTextArea, segmented, textInput } from "../../src/ui/panels/form";
+import { addPanelTabs, appendColorSuggestions, colorField, createPanelShell, field, group, hint, contentLinksHint, linkTextArea, segmented, textInput } from "../../src/ui/panels/form";
 import { createOverlays } from "../../src/ui/overlays";
 import { createInfoPanel } from "../../src/ui/panels/InfoPanel";
 import { DEFAULT_NODE_IMG } from "../../src/ui/graph-renderer";
+import { createFactionPanel } from "../../src/ui/panels/FactionPanel";
+import { createRelationshipTypePanel } from "../../src/ui/panels/RelationshipTypePanel";
+import { createConditionPanel } from "../../src/ui/panels/ConditionPanel";
+import { createIconPicker } from "../../src/ui/panels/icon-picker";
+import { createEdgePanel } from "../../src/ui/panels/EdgePanel";
+import { blankEdge, type EdgeEditValues } from "../../src/core/edit";
 
 const noop = { onSave() {}, onDelete() {}, onClose() {} };
 
@@ -327,5 +333,143 @@ describe("colorField: цвет по умолчанию и сброс", () => {
     expect((text as HTMLInputElement).value).toBe("");
     expect((picker as HTMLInputElement).value).toBe("#efe4c8");
     expect(inputs).toBe(1);
+  });
+});
+
+describe("Другой цвет", () => {
+  it("кнопка по кругу ставит следующий цвет с событием input", () => {
+    const color = colorField("#111111");
+    appendColorSuggestions(color, ["#111111", "#222222", "#333333"]);
+    const button = color.element.querySelector<HTMLButtonElement>(".frg-color-another")!;
+    expect(button.getAttribute("aria-label")).toBe("Другой цвет");
+    let inputs = 0;
+    color.element.addEventListener("input", () => inputs++);
+    button.click();
+    expect(color.value()).toBe("#222222");
+    expect((color.element.querySelector('input[type="color"]') as HTMLInputElement).value).toBe("#222222");
+    button.click();
+    button.click();
+    expect(color.value()).toBe("#111111");
+    expect(inputs).toBe(3);
+  });
+
+  it("меньше двух цветов — кнопки нет", () => {
+    const color = colorField("#111111");
+    appendColorSuggestions(color, ["#111111"]);
+    expect(color.element.querySelector(".frg-color-another")).toBeNull();
+  });
+
+  it("новая фракция — первый цвет и кнопка; правка и игрок — без кнопки", () => {
+    const newColors = ["#aa0000", "#00aa00"];
+    const created = createFactionPanel(null, noop, { isGM: true, newColors });
+    expect(created.querySelector<HTMLInputElement>('input[type="color"]')!.value).toBe("#aa0000");
+    expect(created.querySelector(".frg-color-another")).not.toBeNull();
+    const faction = { id: "f", name: "Ф", color: "#123456", description: "" };
+    expect(createFactionPanel(faction, noop, { isGM: true, newColors }).querySelector(".frg-color-another")).toBeNull();
+  });
+
+  it("новый тип связи — первый цвет и кнопка; правка — без кнопки", () => {
+    const created = createRelationshipTypePanel(null, noop, ["#aa0000", "#00aa00"]);
+    expect(created.querySelector<HTMLInputElement>('input[type="color"]')!.value).toBe("#aa0000");
+    expect(created.querySelector(".frg-color-another")).not.toBeNull();
+    const type = { id: "t", label: "Т", color: "#123456", dash: "" };
+    expect(createRelationshipTypePanel(type, noop, ["#aa0000", "#00aa00"]).querySelector(".frg-color-another")).toBeNull();
+  });
+});
+
+describe("выбор иконки состояния", () => {
+  const choices = (element: HTMLElement) => [...element.querySelectorAll<HTMLButtonElement>(".frg-icon-choice")];
+  const current = (element: HTMLElement) => choices(element).filter((b) => b.getAttribute("aria-pressed") === "true");
+
+  it("сетка по группам, у кнопок — название; текущая отмечена галочкой и в Tab только она", () => {
+    const picker = createIconPicker("fa-solid fa-crown");
+    const groups = picker.element.querySelectorAll('[role="group"]');
+    expect(groups.length).toBe(7);
+    groups.forEach((group) => expect(group.getAttribute("aria-labelledby")).toBeTruthy());
+    expect(choices(picker.element).length).toBe(68);
+    const [crown] = current(picker.element);
+    expect(crown.getAttribute("aria-label")).toBe("Корона");
+    expect(crown.querySelector(".frg-icon-choice-check")).not.toBeNull();
+    expect(choices(picker.element).filter((b) => b.tabIndex === 0)).toEqual([crown]);
+    expect(picker.element.querySelector("details")!.open).toBe(false);
+  });
+
+  it("клик по иконке пишет её класс, отметка переезжает", () => {
+    const picker = createIconPicker("");
+    const ghost = choices(picker.element).find((b) => b.getAttribute("aria-label") === "Призрак")!;
+    ghost.click();
+    expect(picker.value()).toBe("fa-ghost");
+    expect(current(picker.element)).toEqual([ghost]);
+    expect(picker.element.querySelectorAll(".frg-icon-choice-check").length).toBe(1);
+  });
+
+  it("своя иконка не из набора — поле класса раскрыто, в сетке ничего не отмечено", () => {
+    const picker = createIconPicker("fa-regular fa-star");
+    expect(picker.element.querySelector("details")!.open).toBe(true);
+    expect(current(picker.element)).toEqual([]);
+    expect(choices(picker.element)[0].tabIndex).toBe(0);
+    expect(picker.element.querySelector<HTMLAnchorElement>("details a")!.rel).toContain("noopener");
+    const input = picker.element.querySelector<HTMLInputElement>("details input")!;
+    input.value = "fa-skull";
+    input.dispatchEvent(new Event("input"));
+    expect(current(picker.element)[0].getAttribute("aria-label")).toBe("Череп");
+  });
+
+  it("стрелки и Home / End двигают фокус по сетке", () => {
+    const picker = createIconPicker("fa-skull");
+    document.body.append(picker.element);
+    const buttons = choices(picker.element);
+    buttons[0].focus();
+    buttons[0].dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    expect(document.activeElement).toBe(buttons[1]);
+    expect(buttons[1].tabIndex).toBe(0);
+    expect(buttons[0].tabIndex).toBe(-1);
+    buttons[1].dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true }));
+    expect(document.activeElement).toBe(buttons[buttons.length - 1]);
+    buttons[buttons.length - 1].dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true }));
+    expect(document.activeElement).toBe(buttons[0]);
+    picker.element.remove();
+  });
+
+  it("панель состояния сохраняет выбранную иконку", () => {
+    let saved: { label: string; icon: string } | null = null;
+    const panel = createConditionPanel(null, { onSave: (values) => (saved = values), onDelete() {}, onClose() {} });
+    choices(panel).find((b) => b.getAttribute("aria-label") === "Дракон")!.click();
+    panel.dispatchEvent(new Event("submit", { cancelable: true }));
+    expect(saved).toEqual({ label: "", icon: "fa-dragon" });
+  });
+});
+
+describe("направление связи в панели", () => {
+  const ends = { source: "Алиса", target: "Боб" };
+  const open = (edge = blankEdge("e", "a", "b")) => {
+    let saved: EdgeEditValues | null = null;
+    const panel = createEdgePanel(edge, ends, [], { onSave: (v) => (saved = v), onDelete() {}, onClose() {} }, { isGM: true });
+    const radios = [...panel.querySelectorAll<HTMLInputElement>('input[type="radio"]')];
+    const save = () => {
+      panel.dispatchEvent(new Event("submit", { cancelable: true }));
+      return saved!;
+    };
+    return { panel, radios, save };
+  };
+
+  it("4 варианта с именами концов; у новой связи — без направления", () => {
+    const { panel, radios, save } = open();
+    expect(radios.map((r) => r.value)).toEqual(["none", "forward", "backward", "both"]);
+    expect([...panel.querySelectorAll(".frg-segment span")].map((s) => s.textContent)).toEqual([
+      "Без направления",
+      "Алиса → Боб",
+      "Боб → Алиса",
+      "Алиса ↔ Боб",
+    ]);
+    expect(save().direction).toBe("none");
+  });
+
+  it("выбор варианта уходит в сохранение; двусторонняя связь открывается с «↔»", () => {
+    const { radios, save } = open();
+    radios[2].checked = true;
+    expect(save().direction).toBe("backward");
+    const both = open({ ...blankEdge("e", "a", "b"), directional: true, bidirectional: true });
+    expect(both.radios.find((r) => r.checked)?.value).toBe("both");
   });
 });

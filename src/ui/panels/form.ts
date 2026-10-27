@@ -75,7 +75,8 @@ export function createPanelShell(title: string, deleteLabel: string | null, acti
 
 /** Уникальные id для связи подписей и подсказок с полями (aria-labelledby / aria-describedby). */
 let idCounter = 0;
-function nextId(prefix: string): string {
+/** Уникальный id элемента формы — для aria-labelledby / aria-describedby. */
+export function nextId(prefix: string): string {
   return `${prefix}-${++idCounter}`;
 }
 

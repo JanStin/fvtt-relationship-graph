@@ -1179,6 +1179,97 @@ body.theme-light .frg-info-dialog:not(.theme-dark),
   justify-content: center;
 }
 
+/* Выбор иконки состояния (panels/icon-picker.ts): группы сеток и своё поле класса под ними. */
+.frg-icon-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.frg-icon-group-label {
+  margin-bottom: 4px;
+  font-size: 11px;
+  color: var(--frg-text-muted);
+}
+
+.frg-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));
+  gap: 4px;
+}
+
+.frg-panel button.frg-icon-choice {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--frg-border-subtle);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--frg-condition-icon);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: none;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.frg-panel button.frg-icon-choice:hover {
+  background: var(--frg-hover);
+  border-color: var(--frg-border-strong);
+  box-shadow: none;
+}
+
+.frg-panel button.frg-icon-choice:focus-visible {
+  outline: 2px solid var(--frg-focus);
+  outline-offset: 1px;
+  box-shadow: none;
+}
+
+/* текущая — не только цветом: толстая рамка акцента и галочка в углу */
+.frg-panel button.frg-icon-choice-current {
+  border: 2px solid var(--frg-accent);
+  background: var(--frg-hover);
+}
+
+.frg-icon-choice-check {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--frg-accent);
+  color: var(--frg-accent-text);
+  font-size: 8px;
+}
+
+.frg-icon-custom > summary {
+  cursor: pointer;
+  color: var(--frg-text-muted);
+}
+
+.frg-icon-custom[open] > summary {
+  margin-bottom: 6px;
+}
+
+.frg-icon-custom .frg-field-hint {
+  margin-top: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frg-panel button.frg-icon-choice {
+    transition: none;
+  }
+}
+
 /* Подсказка режима создания связи (src/ui/interaction.ts) — поверх графа, мышь не ловит. */
 .frg-link-hint {
   position: absolute;
