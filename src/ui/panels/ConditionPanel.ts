@@ -93,6 +93,7 @@ export function createConditionPanel(condition: ConditionDef | null, callbacks: 
   const label = textInput(
     condition && !isDefaultConditionLabel(condition.label) ? condition.label : "",
     t("RELGRAPH.Condition.DefaultName"),
+    { spellcheck: true },
   );
   // Font Awesome в Foundry уже подключён — иконки сетки и предпросмотр своей — просто классы.
   const icon = createIconPicker(condition?.icon ?? "");

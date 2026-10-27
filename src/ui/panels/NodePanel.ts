@@ -229,6 +229,7 @@ export function createNodePanel(
   const name = textInput(
     isDefaultNodeName(node) ? "" : node.name,
     node.type === "image" ? "" : t("RELGRAPH.Node.DefaultName"),
+    { spellcheck: true },
   );
   const img = textInput(node.img);
   const imageSource = select(imageSourceOptions(), normalizeImageSource(node.imageSource));
@@ -236,7 +237,7 @@ export function createNodePanel(
   const imageFit = segmented(fitOptions, normalizeImageFit(node.imageFit));
   const alignOptions = imageAlignOptions();
   const imageAlign = segmented(alignOptions, normalizeImageAlign(node.imageAlign), "frg-align-grid");
-  const role = textInput(node.role);
+  const role = textInput(node.role, "", { spellcheck: true });
   const factionPicker = createFactionPicker(node, factions, isGM);
   const scale = document.createElement("input");
   scale.type = "number";

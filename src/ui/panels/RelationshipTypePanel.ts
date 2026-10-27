@@ -89,6 +89,7 @@ export function createRelationshipTypePanel(
   const label = textInput(
     type && !isDefaultRelationshipTypeLabel(type) ? type.label : "",
     type ? relationshipTypeLabel(type) : t("RELGRAPH.RelationshipType.DefaultName"),
+    { spellcheck: true },
   );
   const color = colorField(type?.color ?? newColors[0] ?? NEW_TYPE_COLOR);
   if (!type) appendColorSuggestions(color, newColors);

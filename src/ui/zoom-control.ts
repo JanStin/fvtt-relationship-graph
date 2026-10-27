@@ -91,6 +91,7 @@ export function createZoomControl(): ZoomControl {
     input.type = "text";
     input.inputMode = "decimal";
     input.className = "frg-zoom-input";
+    input.setAttribute("spellcheck", "false");
     input.value = String(Math.round(cy.zoom() * 100));
     input.setAttribute("aria-label", label.title);
     let done = false;

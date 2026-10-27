@@ -106,7 +106,9 @@ export function createFactionPanel(
   options: FactionPanelOptions,
 ): HTMLElement {
   const { isGM } = options;
-  const name = textInput(faction && !isDefaultFactionName(faction.name) ? faction.name : "", t("RELGRAPH.Faction.DefaultName"));
+  const name = textInput(faction && !isDefaultFactionName(faction.name) ? faction.name : "", t("RELGRAPH.Faction.DefaultName"), {
+    spellcheck: true,
+  });
   const color = colorField(faction?.color ?? options.newColors?.[0] ?? NEW_FACTION_COLOR);
   if (!faction && isGM) appendColorSuggestions(color, options.newColors ?? []);
   name.disabled = !isGM;

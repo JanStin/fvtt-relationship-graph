@@ -128,19 +128,36 @@ export function hint(text: string): HTMLElement {
   return element;
 }
 
-/** placeholder — что показывается вместо пустого значения. */
-export function textInput(value: string, placeholder = ""): HTMLInputElement {
+/**
+ * Foundry глушит меню браузера по ПКМ на всём документе (Game#activateListeners) — вместе с ним
+ * пропадают варианты исправления орфографии. Событие не пускаем выше поля, до обработчика Foundry.
+ */
+function allowNativeContextMenu(element: HTMLElement): void {
+  element.addEventListener("contextmenu", (e) => e.stopPropagation());
+}
+
+/**
+ * placeholder — что показывается вместо пустого значения. spellcheck — проверка орфографии
+ * браузером: включать только для слов (имена, подписи), не для путей, классов иконок, цветов.
+ */
+export function textInput(value: string, placeholder = "", { spellcheck = false } = {}): HTMLInputElement {
   const input = document.createElement("input");
   input.type = "text";
   input.value = value;
   input.placeholder = placeholder;
+  // атрибутом, а не свойством: явное "false" отключает проверку, которую браузер ставит по умолчанию
+  input.setAttribute("spellcheck", String(spellcheck));
+  if (spellcheck) allowNativeContextMenu(input);
   return input;
 }
 
+/** Многострочное поле — всегда текст словами, проверка орфографии включена. */
 export function textArea(value: string, rows = 3): HTMLTextAreaElement {
   const area = document.createElement("textarea");
   area.rows = rows;
   area.value = value;
+  area.setAttribute("spellcheck", "true");
+  allowNativeContextMenu(area);
   return area;
 }
 

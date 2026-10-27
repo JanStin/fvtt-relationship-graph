@@ -85,6 +85,8 @@ Format details (in Russian): [FANG](docs/fang-json-format.md), [own format](docs
   Foundry sends players every document, even ones they have no permission for. Don't keep
   anything in the graph that players must never see.
 - One graph per world.
+- Spell checking in text fields is the browser's own: it works when Foundry is opened in a
+  browser, but the Foundry desktop app turns it off.
 
 ## Development
 

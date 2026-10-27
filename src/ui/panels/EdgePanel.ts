@@ -33,7 +33,7 @@ export function createEdgePanel(
   options: EdgePanelOptions,
 ): HTMLElement {
   const { isNew = false, isGM } = options;
-  const label = textInput(edge.label);
+  const label = textInput(edge.label, "", { spellcheck: true });
   const type = select(
     [{ value: NO_TYPE, label: t("RELGRAPH.Common.NotSet") }, ...relationshipTypes.map((rt) => ({ value: rt.id, label: relationshipTypeLabel(rt) }))],
     edge.relationshipTypeId,

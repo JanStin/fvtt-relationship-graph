@@ -48,6 +48,36 @@ describe("field / group", () => {
   });
 });
 
+describe("проверка орфографии", () => {
+  it("однострочное поле — выключена, если не попросили; многострочное — включена", () => {
+    expect(textInput("img/a.png").getAttribute("spellcheck")).toBe("false");
+    expect(textInput("Имя", "", { spellcheck: true }).getAttribute("spellcheck")).toBe("true");
+    expect(linkTextArea("Заметки").getAttribute("spellcheck")).toBe("true");
+  });
+
+  it("ПКМ в проверяемом поле не доходит до запрета меню на документе (как в Foundry)", () => {
+    const block = (e: Event) => e.preventDefault();
+    document.addEventListener("contextmenu", block);
+    const checked = textInput("Имя", "", { spellcheck: true });
+    const area = linkTextArea("Заметки");
+    const plain = textInput("img/a.png");
+    document.body.append(checked, area, plain);
+    const rightClick = (el: HTMLElement) => !el.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    expect(rightClick(checked)).toBe(false);
+    expect(rightClick(area)).toBe(false);
+    expect(rightClick(plain)).toBe(true);
+    document.removeEventListener("contextmenu", block);
+    checked.remove();
+    area.remove();
+    plain.remove();
+  });
+
+  it("поля цвета и своей иконки не проверяются", () => {
+    expect(colorField("#112233").element.querySelector("input")!.getAttribute("spellcheck")).toBe("false");
+    expect(createIconPicker("").element.querySelector("input[type='text']")!.getAttribute("spellcheck")).toBe("false");
+  });
+});
+
 describe("segmented", () => {
   it("иконка вместо текста: подпись — в title и aria-label", () => {
     const control = segmented([{ value: "a", label: "Подпись", icon: "fa-circle" }], "a");
