@@ -36,3 +36,17 @@ export function stepZoom(zoom: number, direction: 1 | -1): number {
 export function formatZoom(zoom: number): string {
   return `${Math.round(zoom * 100)} %`;
 }
+
+/**
+ * Масштаб из введённых процентов («150», «150 %», «87,5»), прижатый к ZOOM_MIN…ZOOM_MAX.
+ * Не число (или ≤ 0) — null: масштаб остаётся как был.
+ */
+export function parseZoomPercent(text: string): number | null {
+  const value = Number(text.replace("%", "").trim().replace(",", "."));
+  if (text.trim() === "" || !Number.isFinite(value) || value <= 0) return null;
+  return clamp(value / 100);
+}
+
+/** Пределы ввода масштаба в процентах — для подсказки и поля. */
+export const ZOOM_PERCENT_MIN = Math.round(ZOOM_MIN * 100);
+export const ZOOM_PERCENT_MAX = Math.round(ZOOM_MAX * 100);

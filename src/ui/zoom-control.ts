@@ -1,7 +1,8 @@
 /**
  * Ползунок масштаба в правом нижнем углу графа: «+», вертикальный ползунок, «−», «показать
  * весь граф» и текущий масштаб. Масштаб меняется относительно центра вида. Математика
- * ползунка — core/zoom.ts.
+ * ползунка — core/zoom.ts. Двойной клик по процентам (или Enter на них) — поле, где масштаб
+ * вводится числом.
  *
  * Контрол живёт в wrapper окна (как контекстное меню), а не в контейнере Cytoscape — иначе
  * клики и колесо над ним доходили бы до графа. Создаётся один раз на окно; после каждой
@@ -10,7 +11,16 @@
 
 import type cytoscape from "cytoscape";
 import { t } from "../core/i18n";
-import { formatZoom, sliderToZoom, stepZoom, ZOOM_SLIDER_STEPS, zoomToSlider } from "../core/zoom";
+import {
+  formatZoom,
+  parseZoomPercent,
+  sliderToZoom,
+  stepZoom,
+  ZOOM_PERCENT_MAX,
+  ZOOM_PERCENT_MIN,
+  ZOOM_SLIDER_STEPS,
+  zoomToSlider,
+} from "../core/zoom";
 import { iconButton } from "./panels/form";
 
 /** Отступ от краёв при «показать весь граф» — как в контекстном меню. */
@@ -49,8 +59,12 @@ export function createZoomControl(): ZoomControl {
   sliderBox.className = "frg-zoom-slider-box";
   sliderBox.append(slider);
 
-  const label = document.createElement("div");
+  // проценты — кнопка: до неё доходит Tab, Enter открывает ввод, как двойной клик
+  const label = document.createElement("button");
+  label.type = "button";
   label.className = "frg-zoom-label";
+  label.title = t("RELGRAPH.Graph.ZoomInputHint", { min: ZOOM_PERCENT_MIN, max: ZOOM_PERCENT_MAX });
+  label.setAttribute("aria-label", label.title);
 
   element.append(zoomIn, sliderBox, zoomOut, fit, label);
 
@@ -69,6 +83,50 @@ export function createZoomControl(): ZoomControl {
     slider.style.setProperty("--frg-zoom-fill", `${(position / ZOOM_SLIDER_STEPS) * 100}%`);
     label.textContent = formatZoom(zoom);
   };
+
+  /** Поле ввода масштаба на месте процентов; Enter / уход из поля — применить, Esc — отмена. */
+  const editZoom = () => {
+    if (!cy || label.hidden) return;
+    const input = document.createElement("input");
+    input.type = "text";
+    input.inputMode = "decimal";
+    input.className = "frg-zoom-input";
+    input.value = String(Math.round(cy.zoom() * 100));
+    input.setAttribute("aria-label", label.title);
+    let done = false;
+    const finish = (apply: boolean) => {
+      if (done) return;
+      done = true;
+      const zoom = apply ? parseZoomPercent(input.value) : null;
+      if (zoom !== null) zoomTo(zoom);
+      input.remove();
+      label.hidden = false;
+      sync();
+      label.focus();
+    };
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        finish(true);
+      } else if (e.key === "Escape") {
+        // Esc не должен закрыть окно графа или панель
+        e.preventDefault();
+        e.stopPropagation();
+        finish(false);
+      }
+    });
+    input.addEventListener("blur", () => finish(true));
+    label.hidden = true;
+    label.after(input);
+    input.focus();
+    input.select();
+  };
+  label.addEventListener("dblclick", editZoom);
+  label.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    editZoom();
+  });
 
   zoomIn.addEventListener("click", () => cy && zoomTo(stepZoom(cy.zoom(), 1)));
   zoomOut.addEventListener("click", () => cy && zoomTo(stepZoom(cy.zoom(), -1)));

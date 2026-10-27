@@ -1,13 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  formatZoom,
-  sliderToZoom,
-  stepZoom,
-  ZOOM_MAX,
-  ZOOM_MIN,
-  ZOOM_SLIDER_STEPS,
-  zoomToSlider,
-} from "../../src/core/zoom";
+import { formatZoom, parseZoomPercent, sliderToZoom, stepZoom, ZOOM_MAX, ZOOM_MIN, ZOOM_SLIDER_STEPS, zoomToSlider } from "../../src/core/zoom";
 
 describe("zoomToSlider / sliderToZoom", () => {
   it("края ползунка — пределы масштаба", () => {
@@ -53,5 +45,25 @@ describe("formatZoom", () => {
   it("проценты, округлённые до целого", () => {
     expect(formatZoom(1)).toBe("100 %");
     expect(formatZoom(0.333)).toBe("33 %");
+  });
+});
+
+describe("parseZoomPercent", () => {
+  it("проценты в масштаб, с « %» и запятой", () => {
+    expect(parseZoomPercent("150")).toBe(1.5);
+    expect(parseZoomPercent(" 75 % ")).toBe(0.75);
+    expect(parseZoomPercent("87,5")).toBe(0.875);
+  });
+
+  it("вне 5–500 % — прижимается к границе", () => {
+    expect(parseZoomPercent("1")).toBe(0.05);
+    expect(parseZoomPercent("9000")).toBe(5);
+  });
+
+  it("не число, пусто, ноль — null", () => {
+    expect(parseZoomPercent("abc")).toBeNull();
+    expect(parseZoomPercent("")).toBeNull();
+    expect(parseZoomPercent("0")).toBeNull();
+    expect(parseZoomPercent("-20")).toBeNull();
   });
 });

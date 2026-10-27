@@ -1291,9 +1291,37 @@ body.theme-light .frg-info-dialog:not(.theme-dark),
   background: var(--frg-text);
 }
 
-.frg-zoom-label {
+.frg-zoom .frg-zoom-label {
   min-width: 40px;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 2px 0;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: none;
   color: var(--frg-text-muted);
+  font-size: 12px;
+  line-height: 1.2;
+  text-align: center;
+  cursor: text;
+  box-shadow: none;
+}
+
+.frg-zoom .frg-zoom-label:hover {
+  border-color: var(--frg-border-subtle);
+  color: var(--frg-text);
+}
+
+.frg-zoom .frg-zoom-label:focus-visible {
+  outline: 2px solid var(--frg-focus);
+  outline-offset: 1px;
+}
+
+.frg-zoom .frg-zoom-input {
+  width: 44px;
+  height: auto;
+  padding: 1px 2px;
   font-size: 12px;
   text-align: center;
 }

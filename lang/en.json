@@ -243,6 +243,7 @@
       "ZoomIn": "Zoom in",
       "ZoomOut": "Zoom out",
       "Zoom": "Zoom",
+      "ZoomInputHint": "Zoom: double-click or press Enter to type a value from {min} to {max} %",
       "FitAll": "Fit whole graph",
       "Popout": "Open in a new tab",
       "PopIn": "Return to the Foundry window",
