@@ -12,9 +12,13 @@ dist/
 
 # Claude Code instructions — local only
 .claude/
+.playwright-mcp/
 
 # Test coverage
 coverage/
+
+# Playwright MCP: снимки и логи консоли ручных проверок
+.playwright-mcp/
 
 # Editor / OS
 .vscode/*

@@ -4,7 +4,7 @@
   "description": "Foundry VTT module: relationship graph between actors",
   "private": true,
   "license": "MIT",
-  "author": "MiniMalMod_RedFox",
+  "author": "JanStin",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/JanStin/fvtt-relationship-graph.git"
