@@ -8,7 +8,7 @@
 
 import { contrastRatio, isLightColor, parseHexColor } from "./color";
 
-export const UI_THEMES = ["", "parchment", "night", "forest"] as const;
+export const UI_THEMES = ["", "parchment", "frost", "night", "forest", "ash", "crimson", "abyss"] as const;
 /** '' — стандартный: цвета темы Foundry (тёмной или светлой). */
 export type UiTheme = (typeof UI_THEMES)[number];
 
@@ -49,7 +49,7 @@ const PRESETS: Record<Exclude<UiTheme, "">, Palette> = {
     textMuted: "#6b5a40",
     accent: "#b45309",
     accentText: "#fff7ed",
-    danger: "#b91c1c",
+    danger: "#a51b1b",
     focus: "#9a3412",
     conditionIcon: "#92400e",
     shadow: "rgba(59, 47, 30, 0.3)",
@@ -89,6 +89,78 @@ const PRESETS: Record<Exclude<UiTheme, "">, Palette> = {
     focus: "#4ade80",
     conditionIcon: "#bef264",
     shadow: "rgba(0, 0, 0, 0.5)",
+  },
+  // светлый холодный: иней, сталь, синий акцент
+  frost: {
+    surface: "#e8eef5",
+    surfaceRaised: "#f6f9fc",
+    hover: "#d6e0eb",
+    borderSubtle: "#c5d2e0",
+    border: "#7088a3",
+    borderStrong: "#546d88",
+    text: "#1e2a3a",
+    textStrong: "#0f172a",
+    textMuted: "#4a5d73",
+    accent: "#0369a1",
+    accentText: "#f0f9ff",
+    danger: "#b91c1c",
+    focus: "#1d4ed8",
+    conditionIcon: "#0e7490",
+    shadow: "rgba(30, 42, 58, 0.25)",
+  },
+  // тёмный нейтральный графит — без оттенка, к любой карте
+  ash: {
+    surface: "#1c1c1f",
+    surfaceRaised: "#26262a",
+    hover: "#333338",
+    borderSubtle: "#333338",
+    border: "#6b6b73",
+    borderStrong: "#85858e",
+    text: "#e4e4e7",
+    textStrong: "#fafafa",
+    textMuted: "#a1a1aa",
+    accent: "#f59e0b",
+    accentText: "#1c1c1f",
+    danger: "#fca5a5",
+    focus: "#60a5fa",
+    conditionIcon: "#fcd34d",
+    shadow: "rgba(0, 0, 0, 0.55)",
+  },
+  // тёмный винный с золотым акцентом
+  crimson: {
+    surface: "#1f1114",
+    surfaceRaised: "#2b171c",
+    hover: "#3a1f26",
+    borderSubtle: "#3a1f26",
+    border: "#965a66",
+    borderStrong: "#a66573",
+    text: "#f3e1e4",
+    textStrong: "#fdf3f5",
+    textMuted: "#c49aa3",
+    accent: "#e8b04b",
+    accentText: "#1f1114",
+    danger: "#fecaca",
+    focus: "#fb7185",
+    conditionIcon: "#f0c674",
+    shadow: "rgba(0, 0, 0, 0.55)",
+  },
+  // тёмный сине-бирюзовый: море, глубина
+  abyss: {
+    surface: "#0e1e26",
+    surfaceRaised: "#142a35",
+    hover: "#1c3745",
+    borderSubtle: "#1c3745",
+    border: "#4f7f8f",
+    borderStrong: "#6a9aaa",
+    text: "#dcf0f5",
+    textStrong: "#f2fbfd",
+    textMuted: "#8fb5c0",
+    accent: "#2dd4bf",
+    accentText: "#0e1e26",
+    danger: "#fca5a5",
+    focus: "#38bdf8",
+    conditionIcon: "#5eead4",
+    shadow: "rgba(0, 0, 0, 0.55)",
   },
 };
 

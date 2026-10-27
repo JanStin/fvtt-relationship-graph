@@ -47,8 +47,12 @@ function factionBlendOptions(): Array<{ value: FactionBlend; label: string }> {
 const UI_THEME_LABELS: Record<(typeof UI_THEMES)[number], string> = {
   "": "RELGRAPH.Background.UiThemeDefault",
   parchment: "RELGRAPH.Background.UiThemeParchment",
+  frost: "RELGRAPH.Background.UiThemeFrost",
   night: "RELGRAPH.Background.UiThemeNight",
   forest: "RELGRAPH.Background.UiThemeForest",
+  ash: "RELGRAPH.Background.UiThemeAsh",
+  crimson: "RELGRAPH.Background.UiThemeCrimson",
+  abyss: "RELGRAPH.Background.UiThemeAbyss",
 };
 
 export interface BackgroundPanelCallbacks {

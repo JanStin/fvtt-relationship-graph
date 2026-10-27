@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { contrastRatio } from "../../src/core/color";
-import { isLightUi, mixHex, parseUiTheme, UI_THEME_VARS, uiThemeVars } from "../../src/core/ui-theme";
+import { isLightUi, mixHex, parseUiTheme, UI_THEME_VARS, UI_THEMES, uiThemeVars } from "../../src/core/ui-theme";
 
 describe("цвета интерфейса", () => {
   it("стандартный набор без своего цвета — без переменных (цвета темы Foundry)", () => {
@@ -74,4 +74,22 @@ describe("свой цвет: контраст WCAG на любом цвете", 
       expect(contrastRatio(v["--frg-danger"], surface), color).toBeGreaterThanOrEqual(4.5);
     }
   });
+});
+
+describe("готовые наборы: контраст WCAG", () => {
+  for (const theme of UI_THEMES.filter((t) => t !== "")) {
+    it(theme, () => {
+      const v = (name: string) => uiThemeVars(theme, "")[`--frg-${name}`];
+      // текст — на фоне, приподнятом фоне и подсветке строки
+      for (const background of ["surface", "surface-raised", "hover"]) {
+        for (const text of ["text", "text-strong", "text-muted", "danger"]) {
+          expect(contrastRatio(v(text), v(background)), `${text} / ${background}`).toBeGreaterThanOrEqual(4.5);
+        }
+      }
+      for (const mark of ["border", "accent", "focus", "condition-icon"]) {
+        expect(contrastRatio(v(mark), v("surface")), mark).toBeGreaterThanOrEqual(3);
+      }
+      expect(contrastRatio(v("accent-text"), v("accent")), "accent-text").toBeGreaterThanOrEqual(4.5);
+    });
+  }
 });
