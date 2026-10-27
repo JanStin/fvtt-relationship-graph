@@ -29,7 +29,12 @@ describe("предпросмотр по наведению", () => {
   it("через задержку — имя, роль и фракция; уход с узла прячет", () => {
     const host = document.createElement("div");
     const { cy, emit, node } = fakeCy();
-    createHoverPreview(host, cy, () => ({ title: "Алиса", role: "Капитан", faction: { label: "Стража", color: "#ff0000" } }));
+    createHoverPreview(host, cy, () => ({
+      title: "Алиса",
+      role: "Капитан",
+      faction: { label: "Стража", color: "#ff0000" },
+      conditions: [{ icon: "fa-solid fa-skull", label: "Мёртв" }],
+    }));
 
     emit("mouseover", node);
     vi.advanceTimersByTime(HOVER_DELAY_MS - 1);
@@ -37,7 +42,8 @@ describe("предпросмотр по наведению", () => {
     vi.advanceTimersByTime(1);
     const tip = host.querySelector(".frg-hover-preview")!;
     expect(tip.getAttribute("role")).toBe("tooltip");
-    expect(tip.textContent).toBe("АлисаКапитанСтража");
+    expect(tip.textContent).toBe("АлисаКапитанСтражаМёртв");
+    expect(tip.querySelector(".frg-hover-preview-conditions .fa-skull")?.getAttribute("aria-hidden")).toBe("true");
 
     emit("mouseout", node);
     expect(host.querySelector(".frg-hover-preview")).toBeNull();
@@ -46,7 +52,7 @@ describe("предпросмотр по наведению", () => {
   it("нажатие или перемещение вида до задержки — подсказки нет; destroy снимает подписки", () => {
     const host = document.createElement("div");
     const { cy, emit, node, handlers } = fakeCy();
-    const preview = createHoverPreview(host, cy, () => ({ title: "Карл", role: "", faction: null }));
+    const preview = createHoverPreview(host, cy, () => ({ title: "Карл", role: "", faction: null, conditions: [] }));
 
     emit("mouseover", node);
     emit("pan");

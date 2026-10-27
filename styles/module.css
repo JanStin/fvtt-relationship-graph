@@ -146,6 +146,23 @@ body.theme-light .frg-info-dialog:not(.theme-dark),
   font-size: 12px;
 }
 
+.frg-hover-preview-conditions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 0 0;
+  padding: 4px 0 0;
+  border-top: 1px solid var(--frg-border-subtle);
+  list-style: none;
+  font-size: 12px;
+}
+
+.frg-hover-preview-conditions li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 /* Панель сведений (src/ui/panels/InfoPanel.ts): шапка с картинкой, значения полей. */
 .frg-info-header {
   align-items: flex-start;
@@ -987,6 +1004,8 @@ body.theme-light .frg-info-dialog:not(.theme-dark),
 
 .frg-badges-conditions {
   right: 0;
+  /* значки состояний крупнее ромбиков фракций: в них иконка, её надо разглядеть */
+  --frg-badge: calc(var(--frg-size) * 0.34);
 }
 
 .frg-diamond {
@@ -1014,16 +1033,21 @@ body.theme-light .frg-info-dialog:not(.theme-dark),
   text-shadow: 0 0 2px #0b1220, 0 0 2px #0b1220;
 }
 
+/* Значок состояния: тёмный кружок со светлой окантовкой и тенью — читается и на светлом фоне,
+   и на пёстрой картинке узла. */
 .frg-condition {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: calc(var(--frg-badge) * 0.9);
-  height: calc(var(--frg-badge) * 0.9);
+  box-sizing: border-box;
+  width: var(--frg-badge);
+  height: var(--frg-badge);
+  border: max(1.5px, calc(var(--frg-badge) * 0.08)) solid #f8fafc;
   border-radius: 50%;
   background: #0b1220;
   color: #fde68a;
-  font-size: calc(var(--frg-badge) * 0.54);
+  font-size: calc(var(--frg-badge) * 0.5);
+  box-shadow: 0 0 0 1px rgba(11, 18, 32, 0.6), 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
 .frg-node-caption {

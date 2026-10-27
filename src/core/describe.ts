@@ -241,18 +241,8 @@ export function describeNode(data: GraphData, nodeId: string, options: DescribeO
     });
   }
 
-  const catalog = allConditions(data);
-  const conditionById = new Map(catalog.map((c) => [c.id, c]));
   if (node.conditions.length > 0) {
-    blocks.push({
-      kind: "chips",
-      id: "conditions",
-      label: t("RELGRAPH.Common.Conditions"),
-      chips: idsInCatalogOrder(node.conditions, catalog).map((id) => {
-        const condition = conditionById.get(id);
-        return { label: condition ? conditionLabel(condition) : id, icon: conditionIconClass(condition?.icon ?? "") };
-      }),
-    });
+    blocks.push({ kind: "chips", id: "conditions", label: t("RELGRAPH.Common.Conditions"), chips: conditionChips(data, node) });
   }
   if (connections) blocks.push(connections);
 
@@ -353,17 +343,33 @@ export interface NodePreview {
   /** '' — роли нет. */
   role: string;
   faction: { label: string; color: string } | null;
+  /** Состояния в порядке справочника: классы иконки и название. */
+  conditions: Array<{ icon: string; label: string }>;
+}
+
+/**
+ * Состояния узла в порядке справочника — названием и классами иконки; нет в справочнике —
+ * id вместо названия и иконка по умолчанию. Общие для сведений и подсказки при наведении.
+ */
+function conditionChips(data: GraphData, node: GraphNode): Array<{ label: string; icon: string }> {
+  const catalog = allConditions(data);
+  const conditionById = new Map(catalog.map((c) => [c.id, c]));
+  return idsInCatalogOrder(node.conditions, catalog).map((id) => {
+    const condition = conditionById.get(id);
+    return { label: condition ? conditionLabel(condition) : id, icon: conditionIconClass(condition?.icon ?? "") };
+  });
 }
 
 /** null — узла нет. Скрытый узел у игрока — только «Неизвестный», как на графе. */
 export function previewNode(data: GraphData, nodeId: string, options: DescribeOptions): NodePreview | null {
   const node = data.nodes.find((n) => n.id === nodeId);
   if (!node) return null;
-  if (isMasked(node, options.isGM)) return { title: unknownNodeName(), role: "", faction: null };
+  if (isMasked(node, options.isGM)) return { title: unknownNodeName(), role: "", faction: null, conditions: [] };
   const primary = node.primaryFactionId ? data.factions.find((f) => f.id === node.primaryFactionId) : undefined;
   return {
     title: nodeName(node),
     role: node.role.trim(),
     faction: primary ? { label: factionName(primary), color: primary.color } : null,
+    conditions: conditionChips(data, node),
   };
 }

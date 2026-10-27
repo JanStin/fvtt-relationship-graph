@@ -1,6 +1,6 @@
 /**
  * Быстрый предпросмотр: через HOVER_DELAY_MS наведения на узел над ним всплывает подсказка —
- * имя, роль, основная фракция. Полные сведения — в боковой панели (panels/InfoPanel.ts).
+ * имя, роль, основная фракция, состояния (иконкой и названием). Полные сведения — в боковой панели (panels/InfoPanel.ts).
  * Подсказка не ловит мышь и прячется при уходе с узла, нажатии, перетаскивании, панорамировании
  * и масштабе. Что показывать, решает GraphApp (describe.ts → previewNode).
  */
@@ -57,6 +57,20 @@ export function createHoverPreview(
       dot.style.background = preview.faction.color;
       faction.append(dot, preview.faction.label);
       element.append(faction);
+    }
+    if (preview.conditions.length > 0) {
+      // значки на узле — только иконки; здесь — что они значат
+      const list = document.createElement("ul");
+      list.className = "frg-hover-preview-conditions";
+      for (const condition of preview.conditions) {
+        const item = document.createElement("li");
+        const icon = document.createElement("i");
+        icon.className = `${condition.icon} frg-condition-icon`;
+        icon.setAttribute("aria-hidden", "true");
+        item.append(icon, condition.label);
+        list.append(item);
+      }
+      element.append(list);
     }
     host.append(element);
     tip = element;

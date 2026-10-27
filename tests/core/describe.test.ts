@@ -359,13 +359,26 @@ describe("previewNode", () => {
       title: "Алиса",
       role: "Капитан",
       faction: { label: "Стража", color: "#ff0000" },
+      conditions: [],
     });
-    expect(previewNode(data, "c", { isGM: false })).toEqual({ title: "Карл", role: "", faction: null });
+    expect(previewNode(data, "c", { isGM: false })).toEqual({ title: "Карл", role: "", faction: null, conditions: [] });
     expect(previewNode(data, "nope", { isGM: true })).toBeNull();
   });
 
   it("скрытый узел у игрока — только «Неизвестный», GM видит всё", () => {
-    expect(previewNode(withHidden, "a", { isGM: false })).toEqual({ title: "Неизвестный", role: "", faction: null });
+    expect(previewNode(withHidden, "a", { isGM: false })).toEqual({ title: "Неизвестный", role: "", faction: null, conditions: [] });
     expect(previewNode(withHidden, "a", { isGM: true })?.title).toBe("Алиса");
+  });
+
+  it("состояния — в порядке справочника, иконкой и названием", () => {
+    const withConditions: GraphData = {
+      ...data,
+      conditions: [{ id: "cursed", label: "Проклят", icon: "fa-ghost" }],
+      nodes: [makeNode({ id: "x", conditions: ["cursed", "deceased"] })],
+    };
+    expect(previewNode(withConditions, "x", { isGM: false })?.conditions).toEqual([
+      { label: "Мёртв", icon: "fa-solid fa-skull" },
+      { label: "Проклят", icon: "fa-solid fa-ghost" },
+    ]);
   });
 });
